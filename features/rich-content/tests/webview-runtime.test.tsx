@@ -654,3 +654,97 @@ test('formula scripts and fonts are inline with no CDN dependency', async () => 
     if (isTag(script)) expect(script.attribs.src).toBeUndefined();
   expect(html).toContain('data:font/woff2;base64,');
 });
+
+test.each([
+  'hold',
+  'move',
+  'end',
+  'cancel',
+  'link',
+])('marked paragraphs require a stationary hold; gesture %s', async (gesture) => {
+  const { html } = await renderPage();
+  const postMessage = jest.fn();
+  type Event = {
+    target: unknown;
+    touches: { identifier: number; clientX: number; clientY: number }[];
+    preventDefault: () => void;
+    stopPropagation: () => void;
+  };
+  const listeners = new Map<string, (event: Event) => void>();
+  const timers = new Map<number, () => void>();
+  let timerId = 0;
+  const container = {
+    innerHTML: '',
+    querySelectorAll: () => [],
+    addEventListener: (name: string, callback: (event: Event) => void) =>
+      listeners.set(name, callback),
+  };
+  vm.runInNewContext(inlineScript(html), {
+    document: { getElementById: () => container, addEventListener: jest.fn() },
+    window: {
+      ReactNativeWebView: { postMessage },
+      addEventListener: (name: string, callback: (event: Event) => void) =>
+        listeners.set(name, callback),
+    },
+    setTimeout: (callback: () => void) => {
+      timers.set(++timerId, callback);
+      return timerId;
+    },
+    clearTimeout: (id: number) => timers.delete(id),
+  });
+  timers.clear();
+  const mark = {
+    tagName: 'SPAN',
+    classList: { contains: (name: string) => name === 'segment-interactable' },
+    getAttribute: (name: string) =>
+      name === 'data-pid'
+        ? 'one'
+        : name === 'data-segment-node-id'
+          ? 'mark-1'
+          : null,
+    parentElement: container,
+  };
+  const link = {
+    tagName: 'A',
+    classList: { contains: () => false },
+    getAttribute: (name: string) =>
+      name === 'href' ? 'https://example.com/target' : null,
+    parentElement: mark,
+  };
+  const event = {
+    target: gesture === 'link' ? link : mark,
+    touches: [{ identifier: 1, clientX: 20, clientY: 20 }],
+    preventDefault: jest.fn(),
+    stopPropagation: jest.fn(),
+  };
+  // An ordinary tap must never open paragraph operations.
+  listeners.get('click')?.(event);
+  expect(
+    postMessage.mock.calls.map(([value]) => JSON.parse(value).type),
+  ).not.toContain('segment');
+  postMessage.mockClear();
+  listeners.get('touchstart')?.(event);
+  if (gesture === 'move')
+    listeners.get('touchmove')?.({
+      ...event,
+      touches: [{ identifier: 1, clientX: 60, clientY: 80 }],
+    });
+  if (gesture === 'end') listeners.get('touchend')?.(event);
+  if (gesture === 'cancel') listeners.get('touchcancel')?.(event);
+  for (const callback of timers.values()) callback();
+  const segments = postMessage.mock.calls
+    .map(([value]) => JSON.parse(value))
+    .filter((value) => value.type === 'segment');
+  expect(segments).toHaveLength(gesture === 'hold' ? 1 : 0);
+  if (gesture === 'hold') {
+    expect(segments[0]).toMatchObject({ pid: 'one', nodeId: 'mark-1' });
+    listeners.get('click')?.(event);
+    expect(postMessage).toHaveBeenCalledTimes(1);
+  }
+  if (gesture === 'link') {
+    listeners.get('click')?.(event);
+    expect(postMessage).toHaveBeenLastCalledWith(
+      bridgeMessage(html, { type: 'link', href: 'https://example.com/target' }),
+    );
+  }
+});

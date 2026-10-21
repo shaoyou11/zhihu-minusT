@@ -29,7 +29,7 @@
 - `NSTextAttachment`表示单个 `U+FFFC`。系统复制使用共享flow范围，并将真实附件替换为 `copyText`；拒绝越界、非整数、boolean偏移和拆分surrogate pair的范围。
 - SVG根节点支持 `ex`/`em`、`px`/`pt`、viewBox与vertical-align；仅显式提供宽或高时保持intrinsic比例，基线随fit缩放。SVG使用 `SDWebImageSVGCoder@1.7.0` 的Retina raster路径，普通图片使用ImageIO thumbnail，实际bitmap边长上限2048px。
 - 附件以匿名ephemeral session加载，data图片和HTTP(S)资源均限4MiB；进程NSCache限24MB/128条，按图源哈希、kind与几何缓存并合并重复请求。缓存不含主题色，公式转为当前正文色，近白底先去底为alpha mask；普通图片保持原色。
-- 点击由当前TextKit glyph范围分发链接、知识点和附件事件；已有选区时不派发普通点击，长按仍保留系统选择。父ScrollView与系统选区拖柄的手势组合需平台交互验收。
+- 点击由当前TextKit glyph范围分发链接和附件事件；划线段落改为长按分发段落操作，单击不触发。已有选区时不派发普通点击，未划线文字长按仍保留系统选择。父ScrollView与系统选区拖柄的手势组合需平台交互验收。
 - 高度事件核对当前flow/version/layoutKey和generation，布局key变化后重测；附件更新保留选区，旧文档加载及过期测量不会回填新正文。
 
 HTML语义、媒体分界与业务范围校验仍在共享JS层。iOS附件使用podspec声明的 `SDWebImageSVGCoder`，不依赖已移除的Enriched。

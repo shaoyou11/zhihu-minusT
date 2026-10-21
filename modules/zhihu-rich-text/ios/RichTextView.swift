@@ -89,6 +89,7 @@ public final class RichTextView: ExpoView, UITextViewDelegate, UIGestureRecogniz
     longPress.delegate = self
     textView.addGestureRecognizer(tap)
     textView.addGestureRecognizer(longPress)
+    textView.actionLongPressGesture = longPress
   }
 
   deinit {
@@ -453,7 +454,9 @@ public final class RichTextView: ExpoView, UITextViewDelegate, UIGestureRecogniz
 
   public override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     if gestureRecognizer === longPress {
-      return action(at: gestureRecognizer.location(in: textView))?.kind == "attachment"
+      guard textView.selectedRange.length == 0 else { return false }
+      let kind = action(at: gestureRecognizer.location(in: textView))?.kind
+      return kind == "attachment" || kind == "segment"
     }
     return true
   }
@@ -464,15 +467,18 @@ public final class RichTextView: ExpoView, UITextViewDelegate, UIGestureRecogniz
 
   @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
     guard gesture.state == .ended, !tapHadSelection, !longPressActive, textView.selectedRange.length == 0,
-          let item = action(at: gesture.location(in: textView)) else { return }
+          let item = action(at: gesture.location(in: textView)), item.kind != "segment" else { return }
     emitAction(item.spec, kind: item.kind)
   }
 
   @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
     guard gesture.state == .began else { return }
     longPressActive = true
-    if let item = action(at: gesture.location(in: textView)), item.kind == "attachment" {
+    guard let item = action(at: gesture.location(in: textView)) else { return }
+    if item.kind == "attachment" {
       emitAction(item.spec, kind: "attachmentLongPress")
+    } else if item.kind == "segment" {
+      emitAction(item.spec, kind: "segment")
     }
   }
 
@@ -488,8 +494,8 @@ public final class RichTextView: ExpoView, UITextViewDelegate, UIGestureRecogniz
         guard let range = richTextRange(spec, in: flow.text), range.length == 1 else { return false }
         return flow.text.character(at: range.location) == 0xfffc
       }, "attachment"),
-      (flow.decorations.filter { $0["actionId"] as? String != nil }, "segment"),
-      (flow.spans.filter { $0["kind"] as? String == "link" }, "link")
+      (flow.spans.filter { $0["kind"] as? String == "link" }, "link"),
+      (flow.decorations.filter { $0["actionId"] as? String != nil }, "segment")
     ]
     for (specs, kind) in groups {
       if let spec = specs.first(where: { spec in

@@ -28,6 +28,15 @@ jest.mock('react-native-reanimated', () => {
   return {
     __esModule: true,
     default: { View: jest.requireActual('react-native').View },
+    useSharedValue: <T,>(value: T) => react.useRef({ value }).current,
+    Extrapolation: { CLAMP: 'clamp' },
+    interpolate: (value: number, input: number[], output: number[]) => {
+      const t = Math.max(
+        0,
+        Math.min(1, (value - input[0]) / (input[1] - input[0])),
+      );
+      return output[0] + (output[1] - output[0]) * t;
+    },
     useAnimatedStyle: (compute: () => object) => compute(),
     useAnimatedReaction: (
       prepare: () => boolean,

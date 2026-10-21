@@ -52,7 +52,7 @@ internal class FlowTextView(context: Context) : TextView(context) {
     }
 
     override fun onLongPress(event: MotionEvent) {
-      beginNativeSelection(event)
+      if (!dispatchSegmentLongPress(event.x, event.y)) beginNativeSelection(event)
     }
   }).apply {
     // The reading-area recognizer owns double taps. Each press must still be
@@ -173,6 +173,7 @@ internal class FlowTextView(context: Context) : TextView(context) {
 
   private fun dispatchTapAction(x: Float, y: Float): Boolean {
     val action = findActionAt(x, y) ?: return false
+    if (action.second == "segment") return false
     actionListener?.invoke(action.first, action.second)
     return true
   }
@@ -189,7 +190,17 @@ internal class FlowTextView(context: Context) : TextView(context) {
     outRect.set(x, y, x + 1, y + 1)
   }
 
+  private fun dispatchSegmentLongPress(x: Float, y: Float): Boolean {
+    if (hasSelection()) return false
+    val action = findActionAt(x, y) ?: return false
+    if (action.second != "segment") return false
+    longPressed = true
+    actionListener?.invoke(action.first, "segment")
+    return true
+  }
+
   override fun performLongClick(): Boolean {
+    if (dispatchSegmentLongPress(downX, downY)) return true
     longPressed = true
     val handled = super.performLongClick()
     dispatchAttachmentLongPress()

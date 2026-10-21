@@ -15,6 +15,9 @@ jest.mock('react-native-reanimated', () => {
       },
     }),
     withTiming: (value: number) => value,
+    withSpring: (value: number) => value,
+    ReduceMotion: { System: 'system' },
+    Extrapolation: { CLAMP: 'clamp' },
   };
 });
 const scroll = (y: number) =>
@@ -57,4 +60,20 @@ test('restored scroll does not collapse controls and switching content resets th
   expect(host.result.current.collapseProgress.value).toBe(1);
   await host.rerender('answer-b');
   expect(host.result.current.collapseProgress.value).toBe(0);
+});
+
+test('releasing a short drag restores controls and a committed drag settles to the icon', async () => {
+  const host = await renderHook(() => useReadingActionBar('answer', 34));
+  await act(() => {
+    host.result.current.beginDrag(scroll(0));
+    host.result.current.onScroll(scroll(20));
+    host.result.current.endScroll();
+  });
+  expect(host.result.current.collapseProgress.value).toBe(0);
+  await act(() => {
+    host.result.current.beginDrag(scroll(20));
+    host.result.current.onScroll(scroll(90));
+    host.result.current.endScroll();
+  });
+  expect(host.result.current.collapseProgress.value).toBe(1);
 });

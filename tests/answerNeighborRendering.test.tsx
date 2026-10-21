@@ -299,7 +299,11 @@ jest.mock('react-native-reanimated', () => {
     useAnimatedScrollHandler: () => jest.fn(),
     useDerivedValue: (compute: () => number) => ({ value: compute() }),
     withTiming: (value: number) => value,
+    withSpring: (value: number) => value,
+    ReduceMotion: { System: 'system' },
+    Extrapolation: { CLAMP: 'clamp' },
     useAnimatedStyle: (style: () => unknown) => style(),
+    interpolate: () => 0,
     // Gesture-handler's reanimated wrapper probes these two entry points.
     useEvent: () => jest.fn(),
     setGestureState: () => {},

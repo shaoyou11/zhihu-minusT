@@ -715,12 +715,41 @@ export default React.memo(function ZhihuDOMContent({
           return null;
         }
 
+        function findSegmentTarget(target) {
+          var segment = null;
+          while (target && target !== container) {
+            // Links and images keep their own gestures even inside a mark.
+            if (target.tagName === 'A' || target.tagName === 'IMG') return null;
+            if (!segment && target.classList && target.classList.contains('segment-interactable') && target.getAttribute('data-pid')) segment = target;
+            target = target.parentElement;
+          }
+          return segment;
+        }
+
+        container.addEventListener('selectstart', function(e) {
+          if (findSegmentTarget(e.target)) e.preventDefault();
+        });
+
         container.addEventListener('touchstart', function(e) {
           clearImageLongPress();
           isLongPress = false;
           if (e.touches.length !== 1) return;
           if (findVideoTarget(e.target)) return;
 
+          var segmentTarget = findSegmentTarget(e.target);
+          if (segmentTarget) {
+            var segmentTouch = e.touches[0];
+            imageTouchStart = { identifier: segmentTouch.identifier, x: segmentTouch.clientX, y: segmentTouch.clientY };
+            imageTouchTimer = setTimeout(function() {
+              if (!imageTouchStart) return;
+              imageTouchTimer = null;
+              isLongPress = true;
+              var pid = segmentTarget.getAttribute('data-pid');
+              var nodeId = segmentTarget.getAttribute('data-segment-node-id');
+              postBridgeMessage({ type: 'segment', pid, ...(nodeId ? { nodeId } : {}) });
+            }, 550);
+            return;
+          }
           var target = e.target;
           while (target && target !== container) {
             if (target.tagName === 'IMG') {
@@ -818,12 +847,8 @@ export default React.memo(function ZhihuDOMContent({
               }
             }
             if ((target.tagName === 'P' || target.tagName === 'SPAN') && target.classList.contains('segment-interactable')) {
-              const pid = target.getAttribute('data-pid');
-              if (pid) {
-                const nodeId = target.getAttribute('data-segment-node-id');
-                postBridgeMessage({ type: 'segment', pid, ...(nodeId ? { nodeId } : {}) });
-                return;
-              }
+              // A tap reads; only a stationary long press opens paragraph actions.
+              return;
             }
             target = target.parentElement;
           }

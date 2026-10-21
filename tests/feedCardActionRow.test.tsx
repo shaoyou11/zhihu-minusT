@@ -64,6 +64,9 @@ jest.mock('react-native-reanimated', () => {
     default: { View: native.View },
     useSharedValue: <T,>(value: T) => react.useRef({ value }).current,
     useDerivedValue: (compute: () => number) => ({ value: compute() }),
+    Extrapolation: { CLAMP: 'clamp' },
+    interpolate: (value: number, input: number[], output: number[]) =>
+      value <= input[0] ? output[0] : output[1],
     useAnimatedStyle: (callback: () => unknown) => callback(),
     withSequence: (...values: number[]) => values.at(-1),
     withSpring: (value: number) => value,

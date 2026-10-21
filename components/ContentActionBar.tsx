@@ -1,12 +1,21 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
 import { type ReactNode, useState } from 'react';
-import { type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
+import {
+  type StyleProp,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import Animated, {
+  Extrapolation,
+  interpolate,
   runOnJS,
   type SharedValue,
   useAnimatedReaction,
   useAnimatedStyle,
+  useSharedValue,
 } from 'react-native-reanimated';
 import { BouncyButton } from '@/components/BouncyButton';
 import { useRuntimeThemeColors } from '@/components/Themed';
@@ -66,6 +75,9 @@ export function ContentActionBar({
     colorScheme === 'dark'
       ? 'systemUltraThinMaterialDark'
       : 'systemUltraThinMaterialLight';
+  const { width: windowWidth } = useWindowDimensions();
+  const expandedWidth = useSharedValue(0);
+  const morphs = Boolean(collapseProgress && onExpand);
   const [collapsed, setCollapsed] = useState(false);
   useAnimatedReaction(
     () => (collapseProgress?.value ?? 0) >= 0.5,
@@ -74,24 +86,40 @@ export function ContentActionBar({
     },
     [collapseProgress],
   );
+  const surfaceStyle = useAnimatedStyle(() => {
+    if (!morphs || expandedWidth.value <= 0) return {};
+    const progress = Math.max(0, Math.min(1, collapseProgress?.value ?? 0));
+    const width = Math.min(expandedWidth.value, windowWidth * 0.92);
+    return {
+      width: width + (CONTENT_ACTION_BAR_HEIGHT - width) * progress,
+      transform: [
+        {
+          translateX:
+            (16 - (windowWidth - CONTENT_ACTION_BAR_HEIGHT) / 2) * progress,
+        },
+      ],
+    };
+  });
   const expandedStyle = useAnimatedStyle(() => {
     const progress = collapseProgress?.value ?? 0;
     return {
-      opacity: visible ? 1 - progress : 0,
-      transform: [{ scale: 1 - progress * 0.2 }],
+      opacity: interpolate(progress, [0, 0.65], [1, 0], Extrapolation.CLAMP),
       pointerEvents:
         !visible || progress >= 0.5 ? ('none' as const) : ('auto' as const),
     };
   });
-  const iconStyle = useAnimatedStyle(() => {
-    const progress = collapseProgress?.value ?? 0;
-    return {
-      opacity: visible ? progress : 0,
-      transform: [{ scale: 0.8 + progress * 0.2 }],
-      pointerEvents:
-        !visible || progress < 0.5 ? ('none' as const) : ('auto' as const),
-    };
-  });
+  const iconStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      collapseProgress?.value ?? 0,
+      [0.45, 1],
+      [0, 1],
+      Extrapolation.CLAMP,
+    ),
+    pointerEvents:
+      visible && (collapseProgress?.value ?? 0) >= 0.5
+        ? ('auto' as const)
+        : ('none' as const),
+  }));
 
   if (variant === 'islands') {
     return (
@@ -212,42 +240,47 @@ export function ContentActionBar({
   }
 
   return (
-    <>
-      <Animated.View
-        pointerEvents={visible ? 'auto' : 'none'}
-        accessibilityElementsHidden={!visible || collapsed}
-        importantForAccessibility={
-          visible && !collapsed ? 'auto' : 'no-hide-descendants'
-        }
+    <Animated.View
+      pointerEvents={visible ? 'auto' : 'none'}
+      accessibilityElementsHidden={!visible}
+      importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
+      style={[
+        styles.container,
+        styles.compactContainer,
+        {
+          bottom,
+          height: CONTENT_ACTION_BAR_HEIGHT,
+          borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
+          opacity: visible ? 1 : 0,
+        },
+        colorScheme === 'light' && {
+          shadowColor: colors.shadow,
+          ...styles.shadow,
+        },
+        style,
+        surfaceStyle,
+      ]}
+    >
+      <BlurView
+        intensity={reduceTransparency ? 0 : 65}
+        tint={glassTint}
         style={[
-          styles.container,
-          styles.compactContainer,
+          styles.surface,
           {
-            bottom,
             height: CONTENT_ACTION_BAR_HEIGHT,
             borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
-            opacity: visible ? 1 : 0,
+            backgroundColor: glassColor,
+            borderColor: colors.contentBorder,
           },
-          colorScheme === 'light' && {
-            shadowColor: colors.shadow,
-            ...styles.shadow,
-          },
-          style,
-          expandedStyle,
         ]}
       >
-        <BlurView
-          intensity={reduceTransparency ? 0 : 65}
-          tint={glassTint}
-          style={[
-            styles.surface,
-            {
-              height: CONTENT_ACTION_BAR_HEIGHT,
-              borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
-              backgroundColor: glassColor,
-              borderColor: colors.contentBorder,
-            },
-          ]}
+        <Animated.View
+          accessibilityElementsHidden={collapsed}
+          importantForAccessibility={collapsed ? 'no-hide-descendants' : 'auto'}
+          onLayout={(event) => {
+            if (morphs) expandedWidth.value = event.nativeEvent.layout.width;
+          }}
+          style={[styles.expandedContent, expandedStyle]}
         >
           {leading || trailing || accessory ? (
             <View style={styles.barRow}>
@@ -271,39 +304,15 @@ export function ContentActionBar({
           ) : (
             children
           )}
-        </BlurView>
-      </Animated.View>
-      {collapseProgress && onExpand && (
-        <Animated.View
-          pointerEvents={visible && collapsed ? 'auto' : 'none'}
-          accessibilityElementsHidden={!visible || !collapsed}
-          importantForAccessibility={
-            visible && collapsed ? 'auto' : 'no-hide-descendants'
-          }
-          style={[
-            styles.container,
-            {
-              bottom,
-              left: 16,
-              width: CONTENT_ACTION_BAR_HEIGHT,
-              height: CONTENT_ACTION_BAR_HEIGHT,
-            },
-            iconStyle,
-            !visible && { opacity: 0 },
-          ]}
-        >
-          <BlurView
-            intensity={reduceTransparency ? 0 : 65}
-            tint={glassTint}
-            style={[
-              styles.surface,
-              {
-                flex: 1,
-                borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
-                backgroundColor: glassColor,
-                borderColor: colors.contentBorder,
-              },
-            ]}
+        </Animated.View>
+        {morphs && (
+          <Animated.View
+            pointerEvents={visible && collapsed ? 'auto' : 'none'}
+            accessibilityElementsHidden={!collapsed}
+            importantForAccessibility={
+              collapsed ? 'auto' : 'no-hide-descendants'
+            }
+            style={[StyleSheet.absoluteFill, iconStyle]}
           >
             <BouncyButton
               accessibilityRole="button"
@@ -321,10 +330,10 @@ export function ContentActionBar({
                 color={colors.text}
               />
             </BouncyButton>
-          </BlurView>
-        </Animated.View>
-      )}
-    </>
+          </Animated.View>
+        )}
+      </BlurView>
+    </Animated.View>
   );
 }
 
@@ -341,8 +350,13 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 4,
   },
+  expandedContent: {
+    alignSelf: 'flex-start',
+    flexShrink: 0,
+    height: CONTENT_ACTION_BAR_HEIGHT,
+  },
   barRow: {
-    flex: 1,
+    height: CONTENT_ACTION_BAR_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

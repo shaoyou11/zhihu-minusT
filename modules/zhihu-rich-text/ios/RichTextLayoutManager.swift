@@ -107,6 +107,8 @@ private final class FlowSelectionDoubleTapDelegate: NSObject, UIGestureRecognize
 
 final class FlowTextView: UITextView {
   var copyResolver: ((NSRange) -> String?)?
+  weak var actionLongPressGesture: UILongPressGestureRecognizer?
+  private let guardedLongPressGestures = NSHashTable<UIGestureRecognizer>.weakObjects()
   var suppressDoubleTapSelection = false {
     didSet { synchronizeSelectionGestures() }
   }
@@ -127,6 +129,20 @@ final class FlowTextView: UITextView {
   override func layoutSubviews() {
     super.layoutSubviews()
     synchronizeSelectionGestures()
+    // Marked paragraphs and attachments own a hold; ordinary text still uses
+    // UIKit selection when the action recognizer declines that location.
+    if let actionLongPressGesture {
+      for interaction in interactions.compactMap({ $0 as? UITextInteraction }) {
+        for gesture in interaction.gesturesForFailureRequirements {
+          guard let press = gesture as? UILongPressGestureRecognizer,
+                press.numberOfTapsRequired == 0,
+                press !== actionLongPressGesture,
+                !guardedLongPressGestures.contains(press) else { continue }
+          press.require(toFail: actionLongPressGesture)
+          guardedLongPressGestures.add(press)
+        }
+      }
+    }
   }
 
   /** UIKit may recreate its text interactions when selectability or layout changes. */
