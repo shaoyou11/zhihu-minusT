@@ -37,6 +37,10 @@ import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { useCommentKeyboardLayout } from '@/hooks/useCommentKeyboardLayout';
 import { useCommentRepliesQuery } from '@/hooks/useCommentQueries';
+import {
+  KeyboardAnchorNativeView,
+  nativeKeyboardAnchorAvailable,
+} from '@/modules/zhihu-keyboard-anchor';
 import { parseParentComment } from '@/utils/commentRoute';
 import { formatDate } from '@/utils/date';
 import { buildZhihuContent, buildZhihuImageHtml } from '@/utils/zhihuContent';
@@ -80,8 +84,12 @@ export default function ReplyDetailScreen() {
       ? resourceType
       : null;
 
-  const { containerRef, onContainerLayout, inputBarAnimatedStyle } =
-    useCommentKeyboardLayout(insets.bottom);
+  const {
+    containerRef,
+    onContainerLayout,
+    inputBarAnimatedStyle,
+    onNativeOverlapChange,
+  } = useCommentKeyboardLayout(insets.bottom, nativeKeyboardAnchorAvailable);
 
   const [inputBarHeight, setInputBarHeight] = useState(80 + insets.bottom);
 
@@ -462,6 +470,13 @@ export default function ReplyDetailScreen() {
       className="flex-1"
       style={{ backgroundColor: Colors[colorScheme].backgroundSecondary }}
     >
+      {KeyboardAnchorNativeView && (
+        <KeyboardAnchorNativeView
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+          onOverlapChange={onNativeOverlapChange}
+        />
+      )}
       <Stack.Screen
         options={{
           title: '所有回复',

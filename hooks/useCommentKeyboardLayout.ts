@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import {
   Keyboard,
   type KeyboardEvent,
+  type NativeSyntheticEvent,
   Platform,
   type View,
 } from 'react-native';
@@ -12,16 +13,20 @@ import {
 } from 'react-native-reanimated';
 
 /** Position the composer against the keyboard top in the page's coordinates. */
-export function useCommentKeyboardLayout(bottomInset: number) {
+export function useCommentKeyboardLayout(
+  bottomInset: number,
+  nativeAnchor = false,
+) {
   const containerRef = useRef<View>(null);
   const keyboardFrame = useRef(Keyboard.metrics());
   const measurementSequence = useRef(0);
-  const mounted = useRef(false);
+  const mounted = useRef(nativeAnchor);
   const keyboardOverlap = useSharedValue(0);
   const keyboardVisible = useSharedValue(keyboardFrame.current !== undefined);
 
   const measureOverlap = useCallback(
     (duration = 0) => {
+      if (nativeAnchor) return;
       const frame = keyboardFrame.current;
       const container = containerRef.current;
       const sequence = ++measurementSequence.current;
@@ -57,7 +62,18 @@ export function useCommentKeyboardLayout(bottomInset: number) {
         );
       }
     },
-    [keyboardOverlap],
+    [keyboardOverlap, nativeAnchor],
+  );
+
+  const onNativeOverlapChange = useCallback(
+    (event: NativeSyntheticEvent<{ height: number }>) => {
+      const height = event.nativeEvent.height;
+      if (mounted.current && nativeAnchor && Number.isFinite(height)) {
+        keyboardOverlap.value = Math.max(0, height);
+        keyboardVisible.value = height > 0;
+      }
+    },
+    [nativeAnchor, keyboardOverlap, keyboardVisible],
   );
 
   const onContainerLayout = useCallback(
@@ -81,7 +97,7 @@ export function useCommentKeyboardLayout(bottomInset: number) {
       measurementSequence.current += 1;
       keyboardVisible.value = false;
       keyboardOverlap.value =
-        Platform.OS === 'ios'
+        Platform.OS === 'ios' && !nativeAnchor
           ? withTiming(0, { duration: event.duration || 250 })
           : 0;
     };
@@ -107,7 +123,7 @@ export function useCommentKeyboardLayout(bottomInset: number) {
       measurementSequence.current += 1;
       for (const subscription of subscriptions) subscription.remove();
     };
-  }, [keyboardOverlap, keyboardVisible, measureOverlap]);
+  }, [keyboardOverlap, keyboardVisible, measureOverlap, nativeAnchor]);
 
   const inputBarAnimatedStyle = useAnimatedStyle(() => ({
     bottom: keyboardOverlap.value,
@@ -118,5 +134,10 @@ export function useCommentKeyboardLayout(bottomInset: number) {
         : 12,
   }));
 
-  return { containerRef, onContainerLayout, inputBarAnimatedStyle };
+  return {
+    containerRef,
+    onContainerLayout,
+    inputBarAnimatedStyle,
+    onNativeOverlapChange,
+  };
 }

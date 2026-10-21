@@ -193,6 +193,7 @@ jest.mock('react-native-reanimated', () => {
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
+    useAnimatedReaction: () => {},
     __esModule: true,
     default: {
       View: native.View,

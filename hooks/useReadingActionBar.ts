@@ -1,6 +1,10 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { NativeScrollEvent } from 'react-native';
-import { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import {
+  useDerivedValue,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { CONTENT_ACTION_BAR_HEIGHT } from '@/components/ContentActionBar';
 import { nextReadingActionBarOffset } from '@/utils/readingActionBar';
 
@@ -40,11 +44,10 @@ export function useReadingActionBar(identity: string, bottom: number) {
     'worklet';
     tracking.value = false;
   };
-  const style = useAnimatedStyle(() => ({
-    opacity: 1 - offset.value / hideDistance,
-    pointerEvents:
-      offset.value >= hideDistance ? ('none' as const) : ('auto' as const),
-    transform: [{ translateY: offset.value }],
-  }));
-  return { beginDrag, onScroll, endScroll, style, scrollY };
+  const collapseProgress = useDerivedValue(() => offset.value / hideDistance);
+  const expand = useCallback(() => {
+    tracking.value = false;
+    offset.value = withTiming(0, { duration: 180 });
+  }, [offset, tracking]);
+  return { beginDrag, onScroll, endScroll, collapseProgress, expand, scrollY };
 }

@@ -59,9 +59,11 @@ jest.mock('react-native-reanimated', () => {
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
+    useAnimatedReaction: () => {},
     __esModule: true,
     default: { View: native.View },
     useSharedValue: <T,>(value: T) => react.useRef({ value }).current,
+    useDerivedValue: (compute: () => number) => ({ value: compute() }),
     useAnimatedStyle: (callback: () => unknown) => callback(),
     withSequence: (...values: number[]) => values.at(-1),
     withSpring: (value: number) => value,

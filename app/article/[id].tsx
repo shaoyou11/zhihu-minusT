@@ -513,7 +513,8 @@ export default function ArticleDetail() {
           bottomInset={insets.bottom}
           shrinkLeading
           bottomOffset={ARTICLE_ACTION_BAR_OFFSET}
-          style={actionBar.style}
+          collapseProgress={actionBar.collapseProgress}
+          onExpand={actionBar.expand}
           leading={
             <SegmentedVoteCapsule
               id={id as string}

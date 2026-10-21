@@ -1,13 +1,23 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, {
+  runOnJS,
+  type SharedValue,
+  useAnimatedReaction,
+  useAnimatedStyle,
+} from 'react-native-reanimated';
+import { BouncyButton } from '@/components/BouncyButton';
 import { useRuntimeThemeColors } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
+import { useReduceTransparency } from '@/hooks/useReduceTransparency';
 
 export const CONTENT_ACTION_BAR_HEIGHT = 48;
 
 export interface ContentActionBarProps {
+  collapseProgress?: SharedValue<number>;
+  onExpand?: () => void;
   bottomInset: number;
   bottomOffset?: number;
   variant?: 'bar' | 'islands';
@@ -30,6 +40,8 @@ export function getContentActionBarBottom(
 
 /** Common floating surface; supports unified bar (Variant A) or floating islands (Variant B). */
 export function ContentActionBar({
+  collapseProgress,
+  onExpand,
   bottomInset,
   bottomOffset = 0,
   variant = 'bar',
@@ -44,6 +56,42 @@ export function ContentActionBar({
   const colors = useRuntimeThemeColors();
   const colorScheme = useColorScheme();
   const bottom = getContentActionBarBottom(bottomInset, bottomOffset);
+  const reduceTransparency = useReduceTransparency();
+  const glassColor = reduceTransparency
+    ? colors.backgroundSecondary
+    : colorScheme === 'dark'
+      ? 'rgba(20,20,24,0.22)'
+      : 'rgba(255,255,255,0.12)';
+  const glassTint =
+    colorScheme === 'dark'
+      ? 'systemUltraThinMaterialDark'
+      : 'systemUltraThinMaterialLight';
+  const [collapsed, setCollapsed] = useState(false);
+  useAnimatedReaction(
+    () => (collapseProgress?.value ?? 0) >= 0.5,
+    (value, previous) => {
+      if (value !== previous) runOnJS(setCollapsed)(value);
+    },
+    [collapseProgress],
+  );
+  const expandedStyle = useAnimatedStyle(() => {
+    const progress = collapseProgress?.value ?? 0;
+    return {
+      opacity: visible ? 1 - progress : 0,
+      transform: [{ scale: 1 - progress * 0.2 }],
+      pointerEvents:
+        !visible || progress >= 0.5 ? ('none' as const) : ('auto' as const),
+    };
+  });
+  const iconStyle = useAnimatedStyle(() => {
+    const progress = collapseProgress?.value ?? 0;
+    return {
+      opacity: visible ? progress : 0,
+      transform: [{ scale: 0.8 + progress * 0.2 }],
+      pointerEvents:
+        !visible || progress < 0.5 ? ('none' as const) : ('auto' as const),
+    };
+  });
 
   if (variant === 'islands') {
     return (
@@ -68,7 +116,7 @@ export function ContentActionBar({
               styles.islandShadow,
               shrinkLeading && styles.shrinkableLeading,
               {
-                backgroundColor: colors.contentOverlayStrong,
+                backgroundColor: glassColor,
               },
               colorScheme === 'light' && {
                 shadowColor: colors.shadow,
@@ -77,8 +125,8 @@ export function ContentActionBar({
             ]}
           >
             <BlurView
-              intensity={130}
-              tint={colorScheme}
+              intensity={reduceTransparency ? 0 : 65}
+              tint={glassTint}
               style={[
                 styles.surface,
                 styles.islandLeading,
@@ -100,7 +148,7 @@ export function ContentActionBar({
               style={[
                 styles.islandShadow,
                 {
-                  backgroundColor: colors.contentOverlayStrong,
+                  backgroundColor: glassColor,
                 },
                 colorScheme === 'light' && {
                   shadowColor: colors.shadow,
@@ -109,8 +157,8 @@ export function ContentActionBar({
               ]}
             >
               <BlurView
-                intensity={130}
-                tint={colorScheme}
+                intensity={reduceTransparency ? 0 : 65}
+                tint={glassTint}
                 style={[
                   styles.surface,
                   styles.islandTrailing,
@@ -132,7 +180,7 @@ export function ContentActionBar({
                 styles.islandShadow,
                 styles.islandAccessoryContainer,
                 {
-                  backgroundColor: colors.contentOverlayStrong,
+                  backgroundColor: glassColor,
                 },
                 colorScheme === 'light' && {
                   shadowColor: colors.shadow,
@@ -141,8 +189,8 @@ export function ContentActionBar({
               ]}
             >
               <BlurView
-                intensity={130}
-                tint={colorScheme}
+                intensity={reduceTransparency ? 0 : 65}
+                tint={glassTint}
                 style={[
                   styles.surface,
                   styles.islandAccessory,
@@ -164,63 +212,119 @@ export function ContentActionBar({
   }
 
   return (
-    <Animated.View
-      pointerEvents={visible ? 'auto' : 'none'}
-      accessibilityElementsHidden={!visible}
-      importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
-      style={[
-        styles.container,
-        styles.compactContainer,
-        {
-          bottom,
-          height: CONTENT_ACTION_BAR_HEIGHT,
-          borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
-          opacity: visible ? 1 : 0,
-        },
-        colorScheme === 'light' && {
-          shadowColor: colors.shadow,
-          ...styles.shadow,
-        },
-        style,
-      ]}
-    >
-      <BlurView
-        intensity={130}
-        tint={colorScheme}
+    <>
+      <Animated.View
+        pointerEvents={visible ? 'auto' : 'none'}
+        accessibilityElementsHidden={!visible || collapsed}
+        importantForAccessibility={
+          visible && !collapsed ? 'auto' : 'no-hide-descendants'
+        }
         style={[
-          styles.surface,
+          styles.container,
+          styles.compactContainer,
           {
+            bottom,
             height: CONTENT_ACTION_BAR_HEIGHT,
             borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
-            backgroundColor: colors.contentOverlayStrong,
-            borderColor: colors.contentBorder,
+            opacity: visible ? 1 : 0,
           },
+          colorScheme === 'light' && {
+            shadowColor: colors.shadow,
+            ...styles.shadow,
+          },
+          style,
+          expandedStyle,
         ]}
       >
-        {leading || trailing || accessory ? (
-          <View style={styles.barRow}>
-            {leading ? (
-              <View
-                style={[
-                  styles.leadingSlot,
-                  shrinkLeading && styles.shrinkableLeading,
-                ]}
-              >
-                {leading}
-              </View>
-            ) : null}
-            <View style={styles.trailingSlot}>
-              {trailing}
-              {accessory ? (
-                <View style={styles.accessorySlot}>{accessory}</View>
+        <BlurView
+          intensity={reduceTransparency ? 0 : 65}
+          tint={glassTint}
+          style={[
+            styles.surface,
+            {
+              height: CONTENT_ACTION_BAR_HEIGHT,
+              borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
+              backgroundColor: glassColor,
+              borderColor: colors.contentBorder,
+            },
+          ]}
+        >
+          {leading || trailing || accessory ? (
+            <View style={styles.barRow}>
+              {leading ? (
+                <View
+                  style={[
+                    styles.leadingSlot,
+                    shrinkLeading && styles.shrinkableLeading,
+                  ]}
+                >
+                  {leading}
+                </View>
               ) : null}
+              <View style={styles.trailingSlot}>
+                {trailing}
+                {accessory ? (
+                  <View style={styles.accessorySlot}>{accessory}</View>
+                ) : null}
+              </View>
             </View>
-          </View>
-        ) : (
-          children
-        )}
-      </BlurView>
-    </Animated.View>
+          ) : (
+            children
+          )}
+        </BlurView>
+      </Animated.View>
+      {collapseProgress && onExpand && (
+        <Animated.View
+          pointerEvents={visible && collapsed ? 'auto' : 'none'}
+          accessibilityElementsHidden={!visible || !collapsed}
+          importantForAccessibility={
+            visible && collapsed ? 'auto' : 'no-hide-descendants'
+          }
+          style={[
+            styles.container,
+            {
+              bottom,
+              alignSelf: 'center',
+              width: CONTENT_ACTION_BAR_HEIGHT,
+              height: CONTENT_ACTION_BAR_HEIGHT,
+            },
+            iconStyle,
+            !visible && { opacity: 0 },
+          ]}
+        >
+          <BlurView
+            intensity={reduceTransparency ? 0 : 65}
+            tint={glassTint}
+            style={[
+              styles.surface,
+              {
+                flex: 1,
+                borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
+                backgroundColor: glassColor,
+                borderColor: colors.contentBorder,
+              },
+            ]}
+          >
+            <BouncyButton
+              accessibilityRole="button"
+              accessibilityLabel="展开阅读操作栏"
+              onPress={onExpand}
+              style={{
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons
+                name="ellipsis-horizontal"
+                size={24}
+                color={colors.text}
+              />
+            </BouncyButton>
+          </BlurView>
+        </Animated.View>
+      )}
+    </>
   );
 }
 

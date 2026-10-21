@@ -315,7 +315,8 @@ export default function PinDetailScreen() {
       {/* 底部交互栏 */}
       <ContentActionBar
         bottomInset={insets.bottom}
-        style={actionBar.style}
+        collapseProgress={actionBar.collapseProgress}
+        onExpand={actionBar.expand}
         leading={
           <SegmentedVoteCapsule
             id={pin?.id ?? ''}

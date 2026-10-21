@@ -42,6 +42,10 @@ import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { useCommentKeyboardLayout } from '@/hooks/useCommentKeyboardLayout';
 import { useCommentListQuery } from '@/hooks/useCommentQueries';
+import {
+  KeyboardAnchorNativeView,
+  nativeKeyboardAnchorAvailable,
+} from '@/modules/zhihu-keyboard-anchor';
 import { formatDate } from '@/utils/date';
 import { buildZhihuContent, buildZhihuImageHtml } from '@/utils/zhihuContent';
 import { getZhihuErrorMessage } from '@/utils/zhihuError';
@@ -110,8 +114,12 @@ export default function CommentScreen() {
     ? '这个知识点链接缺少完整的原文位置。可以查看评论，请返回正文重新选择知识点后发布。'
     : '这个知识点链接暂不支持评论。请返回正文重新选择知识点。';
 
-  const { containerRef, onContainerLayout, inputBarAnimatedStyle } =
-    useCommentKeyboardLayout(insets.bottom);
+  const {
+    containerRef,
+    onContainerLayout,
+    inputBarAnimatedStyle,
+    onNativeOverlapChange,
+  } = useCommentKeyboardLayout(insets.bottom, nativeKeyboardAnchorAvailable);
 
   const [inputBarHeight, setInputBarHeight] = useState(80 + insets.bottom);
   const [orderBy, setOrderBy] = useState<'score' | 'ts'>('score');
@@ -370,6 +378,13 @@ export default function CommentScreen() {
       className="flex-1"
       style={{ backgroundColor: surfaceColor }}
     >
+      {KeyboardAnchorNativeView && (
+        <KeyboardAnchorNativeView
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+          onOverlapChange={onNativeOverlapChange}
+        />
+      )}
       <Stack.Screen
         options={{
           title: `评论${count ? ` (${count})` : ''}`,

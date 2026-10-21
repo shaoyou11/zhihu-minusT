@@ -271,3 +271,38 @@ test('remeasures the iOS comment sheet when keyboard and detents resize its cont
   expect(host.result.current.inputBarAnimatedStyle.paddingBottom).toBe(34);
   await host.unmount();
 });
+
+test('uses native keyboard overlap in iOS sheets without JS coordinate estimates', async () => {
+  Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
+  const host = await renderHook(() => useCommentKeyboardLayout(34, true));
+  const measureInWindow = jest.fn();
+  host.result.current.containerRef.current = {
+    measureInWindow,
+  } as unknown as View;
+  await emit('keyboardWillShow', keyboardEvent(500, 300));
+  await act(() => host.result.current.onContainerLayout());
+  expect(measureInWindow).not.toHaveBeenCalled();
+  const nativeOverlap = (height: number) =>
+    ({ nativeEvent: { height } }) as Parameters<
+      typeof host.result.current.onNativeOverlapChange
+    >[0];
+  await act(() =>
+    host.result.current.onNativeOverlapChange(nativeOverlap(300)),
+  );
+  expect(host.result.current.inputBarAnimatedStyle.bottom).toBe(300);
+  await emit('keyboardWillChangeFrame', keyboardEvent(450, 350));
+  expect(host.result.current.inputBarAnimatedStyle.bottom).toBe(300);
+  await act(() =>
+    host.result.current.onNativeOverlapChange(nativeOverlap(350)),
+  );
+  expect(host.result.current.inputBarAnimatedStyle.bottom).toBe(350);
+  await act(() =>
+    host.result.current.onNativeOverlapChange(nativeOverlap(Number.NaN)),
+  );
+  expect(host.result.current.inputBarAnimatedStyle.bottom).toBe(350);
+  await act(() => host.result.current.onNativeOverlapChange(nativeOverlap(0)));
+  expect(host.result.current.inputBarAnimatedStyle.bottom).toBe(0);
+  expect(host.result.current.inputBarAnimatedStyle.paddingBottom).toBe(34);
+  expect(withTiming).not.toHaveBeenCalled();
+  await host.unmount();
+});

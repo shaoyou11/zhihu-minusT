@@ -126,7 +126,8 @@ export const AnswerDetailView = ({
     beginDrag,
     onScroll: scrollActions,
     endScroll,
-    style: actionBarStyle,
+    collapseProgress,
+    expand: expandActionBar,
   } = useReadingActionBar(id, actionBarBottom);
 
   const colorScheme = useColorScheme();
@@ -724,7 +725,8 @@ export const AnswerDetailView = ({
       {/* Footer Actions */}
       <ContentActionBar
         bottomInset={insets.bottom}
-        style={actionBarStyle}
+        collapseProgress={collapseProgress}
+        onExpand={expandActionBar}
         shrinkLeading
         leading={
           <SegmentedVoteCapsule
