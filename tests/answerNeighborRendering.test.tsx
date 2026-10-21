@@ -296,6 +296,7 @@ jest.mock('react-native-reanimated', () => {
     SharedTransition: { duration: () => ({}) },
     useSharedValue: <T,>(value: T) => react.useRef({ value }).current,
     useAnimatedScrollHandler: () => jest.fn(),
+    useAnimatedStyle: (style: () => unknown) => style(),
     // Gesture-handler's reanimated wrapper probes these two entry points.
     useEvent: () => jest.fn(),
     setGestureState: () => {},

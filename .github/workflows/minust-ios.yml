@@ -1,0 +1,83 @@
+name: minusT iOS 自动编译发布
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', '**.md']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: minust-ios
+  cancel-in-progress: false
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+  ios:
+    needs: quality
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      SENTRY_DISABLE_AUTO_UPLOAD: 'true'
+      SENTRY_NO_UPLOAD: '1'
+      EXPO_PUBLIC_FIREBASE_ANALYTICS_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm ci
+      - name: 设置独立构建号
+        run: |
+          node -e "const fs=require('fs');const p=require('./app.json');p.expo.ios.buildNumber=process.env.GITHUB_RUN_NUMBER;fs.writeFileSync('app.json',JSON.stringify(p,null,2)+'\n')"
+      - name: 生成 iOS 工程
+        run: |
+          npx expo prebuild --platform ios --no-install
+          cd ios
+          pod install
+      - name: 编译 iPhone Release
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          WORKSPACE=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/minust-build" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' \
+            COMPILER_INDEX_STORE_ENABLE=NO build > "$RUNNER_TEMP/minust-xcode.log" 2>&1
+      - name: 校验并打包
+        run: python3 scripts/package-minust.py "$RUNNER_TEMP/minust-build/Build/Products/Release-iphoneos" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Zhihu-minusT-unsigned
+          path: |
+            dist/*.ipa
+            dist/*.json
+            dist/*.txt
+          if-no-files-found: error
+      - name: 发布正式安装包
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./app.json').expo.version")
+          TAG="v${VERSION}-build.${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" dist/*.ipa dist/*.json dist/*.txt --target "$GITHUB_SHA" \
+            --title "知乎 minusT ${VERSION} · ${GITHUB_RUN_NUMBER}" \
+            --notes-file docs/MINUST-RELEASE.txt
+      - name: 保存编译日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minust-build-log
+          path: ${{ runner.temp }}/minust-xcode.log

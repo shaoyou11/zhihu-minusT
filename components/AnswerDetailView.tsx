@@ -61,6 +61,7 @@ import {
 } from '@/hooks/useAnswerDetailRead';
 import { useDoubleTapAction } from '@/hooks/useDoubleTapAction';
 import { useOptimisticToggle } from '@/hooks/useOptimisticToggle';
+import { useReadingActionBar } from '@/hooks/useReadingActionBar';
 import { useReadingContentMeasurement } from '@/hooks/useReadingContentMeasurement';
 import { useReadingProgress } from '@/hooks/useReadingProgress';
 import { getAuthSessionVersion, useAuthStore } from '@/store/useAuthStore';
@@ -121,6 +122,12 @@ export const AnswerDetailView = ({
   const sessionVersion = useAuthStore(() => getAuthSessionVersion());
   const insets = useSafeAreaInsets();
   const actionBarBottom = getContentActionBarBottom(insets.bottom);
+  const {
+    beginDrag,
+    onScroll: scrollActions,
+    endScroll,
+    style: actionBarStyle,
+  } = useReadingActionBar(id, actionBarBottom);
 
   const colorScheme = useColorScheme();
   const navigationHeight = insets.top + useDetailNavigationHeight();
@@ -322,12 +329,17 @@ export const AnswerDetailView = ({
   }, [isCurrentFocus, readingProgress.onScroll, scrollY]);
   const handleScroll = useAnimatedScrollHandler(
     {
+      onBeginDrag: beginDrag,
+      onEndDrag: endScroll,
+      onMomentumBegin: beginDrag,
+      onMomentumEnd: endScroll,
       onScroll: (event) => {
         if (activeScopeVersion?.value !== scopeVersion) return;
         const offset = event.contentOffset.y;
         scrollY.value = offset;
         if (!isFocused || (activeAnswerId && activeAnswerId.value !== id))
           return;
+        scrollActions(event);
         if (headerProgress && activeAnswerId?.value === id) {
           if (activeScrollY) activeScrollY.value = offset;
           headerProgress.value = calculateDetailHeaderAppearance(
@@ -354,6 +366,9 @@ export const AnswerDetailView = ({
       scrollY,
       collapseOffset,
       lastCallbackTime,
+      beginDrag,
+      endScroll,
+      scrollActions,
     ],
   );
 
@@ -709,6 +724,7 @@ export const AnswerDetailView = ({
       {/* Footer Actions */}
       <ContentActionBar
         bottomInset={insets.bottom}
+        style={actionBarStyle}
         shrinkLeading
         leading={
           <SegmentedVoteCapsule

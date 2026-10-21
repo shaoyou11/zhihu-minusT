@@ -19,7 +19,7 @@ import { AppDialog } from '@/components/overlays/AppDialog';
 import { Text, useThemeColor } from '@/components/Themed';
 import { getUpdateInfo, type UpdateInfo } from '@/components/UpdateChecker';
 
-const REPOSITORY_URL = 'https://github.com/huamurui/zhihu-minus-minus';
+const REPOSITORY_URL = 'https://github.com/shaoyou11/zhihu-minusT';
 
 interface AboutLinkProps {
   icon: React.ComponentProps<typeof Ionicons>['name'];
@@ -92,9 +92,9 @@ export default function AboutScreen() {
           <Image
             source={require('../assets/images/icon.png')}
             style={styles.logo}
-            accessibilityLabel="知乎-- 应用图标"
+            accessibilityLabel="知乎 minusT 应用图标"
           />
-          <Text style={styles.appName}>知乎--</Text>
+          <Text style={styles.appName}>知乎 minusT</Text>
           <Text type="secondary" style={styles.tagline}>
             一款轻量、纯净、专注阅读的第三方知乎客户端
           </Text>

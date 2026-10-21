@@ -1,3 +1,5 @@
+> 个人定制版：知乎 minusT。改动和验证说明见 [定制说明](docs/MINUST.md)。
+
 # 🐱 知乎-- (Zhihu Minus Minus)
 
 > [!IMPORTANT]

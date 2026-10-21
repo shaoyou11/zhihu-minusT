@@ -1,6 +1,6 @@
 import type { ReleaseAsset } from './updateSelection';
 
-export const UPDATE_REPOSITORY = 'huamurui/zhihu-minus-minus';
+export const UPDATE_REPOSITORY = 'shaoyou11/zhihu-minusT';
 export const MAX_APK_DOWNLOAD_BYTES = 512 * 1024 * 1024;
 export const MAX_CHECKSUM_BYTES = 256 * 1024;
 const RELEASE_TAG = /^v\d+\.\d+\.\d+$/;

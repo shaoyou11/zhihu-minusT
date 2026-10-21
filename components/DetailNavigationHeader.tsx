@@ -6,6 +6,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BouncyButton } from '@/components/BouncyButton';
+import { DetailGlassSurface } from '@/components/DetailGlassSurface';
 import { MoreActionsButton } from '@/components/MoreActionsButton';
 import { StableAvatar } from '@/components/StableAvatar';
 import { Text, useThemeColor, View } from '@/components/Themed';
@@ -60,7 +61,6 @@ export function DetailNavigationHeader({
 }: DetailNavigationHeaderProps) {
   const insets = useSafeAreaInsets();
   const navigationHeight = useDetailNavigationHeight();
-  const background = useThemeColor({}, 'backgroundSecondary');
   const foreground = useThemeColor({}, 'text');
   const divider = useThemeColor({}, 'divider');
   const shadow = useThemeColor({}, 'shadow');
@@ -99,13 +99,14 @@ export function DetailNavigationHeader({
         style={[
           styles.surface,
           {
-            backgroundColor: background,
             borderBottomColor: divider,
             shadowColor: shadow,
           },
           surfaceStyle,
         ]}
-      />
+      >
+        <DetailGlassSurface />
+      </Animated.View>
       <View
         testID={testID ? `${testID}-row` : undefined}
         pointerEvents="box-none"
@@ -191,6 +192,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   row: {
+    backgroundColor: 'transparent',
     paddingHorizontal: 8,
     flexDirection: 'row',
     alignItems: 'center',

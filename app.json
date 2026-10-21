@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "知乎--",
-    "slug": "ZhihuMinusMinus",
+    "name": "知乎 minusT",
+    "slug": "ZhihuMinusT",
     "version": "0.9.3",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
@@ -15,7 +15,7 @@
     "ios": {
       "icon": "./assets/images/app-icons/default.png",
       "supportsTablet": true,
-      "bundleIdentifier": "com.huamu013.ZhihuMinusMinus",
+      "bundleIdentifier": "com.shaoyou11.zhihuminust",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -44,7 +44,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.huamu013.ZhihuMinusMinus",
+      "package": "com.shaoyou11.zhihuminust",
       "permissions": ["REQUEST_INSTALL_PACKAGES"],
       "intentFilters": [
         {
@@ -275,7 +275,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "允许知乎--访问你的照片，以便在评论和正文中上传图片。"
+          "photosPermission": "允许知乎 minusT 访问你的照片，以便在评论和正文中上传图片。"
         }
       ],
       [
@@ -364,10 +364,7 @@
         ]
       },
       "status": "🚀 v0.9.3 - 功能完善中",
-      "lastUpdated": "2026-10-21",
-      "eas": {
-        "projectId": "faa0f061-50e6-4ec4-bb6f-accda0dbd24f"
-      }
+      "lastUpdated": "2026-10-21"
     }
   }
 }

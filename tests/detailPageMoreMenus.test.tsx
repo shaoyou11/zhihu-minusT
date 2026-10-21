@@ -265,14 +265,16 @@ jest.mock('../components/DetailNavigationHeader', () => {
     DetailNavigationHeader: ({
       onMore,
       moreAlwaysVisible,
+      collapsed,
     }: {
       onMore: () => void;
       moreAlwaysVisible?: boolean;
+      collapsed?: boolean;
     }) =>
-      moreAlwaysVisible
+      moreAlwaysVisible || collapsed
         ? react.createElement(native.Pressable, {
             accessibilityRole: 'button',
-            accessibilityLabel: '问题更多操作',
+            accessibilityLabel: moreAlwaysVisible ? '问题更多操作' : '更多操作',
             onPress: onMore,
           })
         : null,

@@ -40,7 +40,7 @@ const update: ApkUpdate = {
   tag: 'v0.8.0',
   asset: {
     name,
-    browser_download_url: `https://github.com/huamurui/zhihu-minus-minus/releases/download/v0.8.0/${name}`,
+    browser_download_url: `https://github.com/shaoyou11/zhihu-minusT/releases/download/v0.8.0/${name}`,
     size: 64,
     sha256: sha,
   },

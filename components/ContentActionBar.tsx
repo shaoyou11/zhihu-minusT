@@ -20,12 +20,12 @@ export interface ContentActionBarProps {
   shrinkLeading?: boolean;
 }
 
-/** Preserve safe-area clearance, then raise the floating bar by 20. */
+/** Align with the home bar while preserving home-indicator clearance. */
 export function getContentActionBarBottom(
   bottomInset: number,
   bottomOffset = 0,
 ): number {
-  return Math.max(bottomInset + bottomOffset, 12) + 12;
+  return Math.max(bottomInset + bottomOffset, 12);
 }
 
 /** Common floating surface; supports unified bar (Variant A) or floating islands (Variant B). */

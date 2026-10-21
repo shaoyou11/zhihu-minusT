@@ -37,6 +37,7 @@ import {
   getContentActionBarBottom,
 } from '@/components/ContentActionBar';
 import { ContentActionButton } from '@/components/ContentActionButton';
+import { DetailGlassSurface } from '@/components/DetailGlassSurface';
 import { FollowButton } from '@/components/FollowButton';
 import { MoreActionsButton } from '@/components/MoreActionsButton';
 import { QueryErrorView } from '@/components/QueryErrorView';
@@ -50,6 +51,7 @@ import Colors from '@/constants/Colors';
 import { RICH_CONTENT_STALE_TIME, ZhihuContent } from '@/features/rich-content';
 import { useDoubleTapAction } from '@/hooks/useDoubleTapAction';
 import { useOptimisticToggle } from '@/hooks/useOptimisticToggle';
+import { useReadingActionBar } from '@/hooks/useReadingActionBar';
 import { useReadingProgress } from '@/hooks/useReadingProgress';
 import { useCollectionStore } from '@/store/useCollectionStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -58,7 +60,7 @@ import { formatDate } from '@/utils/date';
 import { getCachedImageSource } from '@/utils/imageSource';
 import { shouldRetryQuery } from '@/utils/query';
 
-const ARTICLE_ACTION_BAR_OFFSET = 10;
+const ARTICLE_ACTION_BAR_OFFSET = 0;
 
 export default function ArticleDetail() {
   const dimensions = useWindowDimensions();
@@ -77,6 +79,7 @@ export default function ArticleDetail() {
   const textColor = Colors[colorScheme].text;
 
   const contentIdentity = `${isDaily ? 'daily' : 'article'}:${String(id ?? '')}`;
+  const actionBar = useReadingActionBar(contentIdentity, actionBarBottom);
   const [openMenuIdentity, setOpenMenuIdentity] = useState<string | null>(null);
   const menuVisible = openMenuIdentity === contentIdentity;
 
@@ -331,14 +334,15 @@ export default function ArticleDetail() {
           style={[
             StyleSheet.absoluteFillObject,
             {
-              backgroundColor: Colors[colorScheme].backgroundSecondary,
               opacity: headerBgOpacity,
               borderBottomWidth: StyleSheet.hairlineWidth,
               borderBottomColor: Colors[colorScheme].divider,
             },
           ]}
           pointerEvents="none"
-        />
+        >
+          <DetailGlassSurface />
+        </Animated.View>
 
         <BouncyButton
           onPress={() => router.back()}
@@ -379,14 +383,28 @@ export default function ArticleDetail() {
               [{ nativeEvent: { contentOffset: { y: scrollY } } }],
               {
                 useNativeDriver: true,
-                listener: (event: NativeSyntheticEvent<NativeScrollEvent>) =>
-                  readingProgress.onScroll(event.nativeEvent.contentOffset.y),
+                listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+                  actionBar.onScroll(event.nativeEvent);
+                  readingProgress.onScroll(event.nativeEvent.contentOffset.y);
+                },
               },
             )}
+            onScrollBeginDrag={(event) =>
+              actionBar.beginDrag(event.nativeEvent)
+            }
             onLayout={readingProgress.onLayout}
             onContentSizeChange={readingProgress.onContentSizeChange}
-            onScrollEndDrag={readingProgress.commitProgress}
-            onMomentumScrollEnd={readingProgress.commitProgress}
+            onScrollEndDrag={() => {
+              actionBar.endScroll();
+              readingProgress.commitProgress();
+            }}
+            onMomentumScrollBegin={(event) =>
+              actionBar.beginDrag(event.nativeEvent)
+            }
+            onMomentumScrollEnd={() => {
+              actionBar.endScroll();
+              readingProgress.commitProgress();
+            }}
             contentContainerStyle={{
               paddingTop: isDaily ? 0 : insets.top + 60,
               paddingBottom: isDaily
@@ -551,6 +569,7 @@ export default function ArticleDetail() {
           bottomInset={insets.bottom}
           shrinkLeading
           bottomOffset={ARTICLE_ACTION_BAR_OFFSET}
+          style={actionBar.style}
           leading={
             <SegmentedVoteCapsule
               id={id as string}

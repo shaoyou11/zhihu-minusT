@@ -14,10 +14,10 @@ import { isVersionNewer } from '../utils/updateSelection';
 
 const tag = 'v0.8.0';
 const name = 'zhihu-minus-minus-v0.8.0-arm64-v8a.apk';
-const releaseUrl = `https://github.com/huamurui/zhihu-minus-minus/releases/tag/${tag}`;
-const assetUrl = `https://github.com/huamurui/zhihu-minus-minus/releases/download/${tag}/${name}`;
+const releaseUrl = `https://github.com/shaoyou11/zhihu-minusT/releases/tag/${tag}`;
+const assetUrl = `https://github.com/shaoyou11/zhihu-minusT/releases/download/${tag}/${name}`;
 const apiUrl =
-  'https://api.github.com/repos/huamurui/zhihu-minus-minus/releases/latest';
+  'https://api.github.com/repos/shaoyou11/zhihu-minusT/releases/latest';
 const sha = 'a'.repeat(64);
 const originalFetch = global.fetch;
 const fetchMock = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>();
@@ -82,9 +82,9 @@ test.each([
 });
 
 test.each([
-  'http://github.com/huamurui/zhihu-minus-minus/releases/tag/v0.8.0',
-  'https://github.com.evil.invalid/huamurui/zhihu-minus-minus/releases/tag/v0.8.0',
-  'https://synthetic@github.com/huamurui/zhihu-minus-minus/releases/tag/v0.8.0',
+  'http://github.com/shaoyou11/zhihu-minusT/releases/tag/v0.8.0',
+  'https://github.com.evil.invalid/shaoyou11/zhihu-minusT/releases/tag/v0.8.0',
+  'https://synthetic@github.com/shaoyou11/zhihu-minusT/releases/tag/v0.8.0',
   'https://github.com/other/repo/releases/tag/v0.8.0',
   `${releaseUrl}?synthetic=private`,
 ])('rejects a release URL outside the exact public repository: %s', (url) => {

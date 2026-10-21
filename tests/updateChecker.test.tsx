@@ -99,14 +99,14 @@ const release = {
   notes: 'Synthetic notes',
   prerelease: false,
   publishedAt: null,
-  url: 'https://github.com/huamurui/zhihu-minus-minus/releases/tag/v0.8.0',
+  url: 'https://github.com/shaoyou11/zhihu-minusT/releases/tag/v0.8.0',
   assets: [
     {
       name: 'zhihu-minus-minus-v0.8.0-arm64-v8a.apk',
       size: 64,
       sha256: 'a'.repeat(64),
       browser_download_url:
-        'https://github.com/huamurui/zhihu-minus-minus/releases/download/v0.8.0/zhihu-minus-minus-v0.8.0-arm64-v8a.apk',
+        'https://github.com/shaoyou11/zhihu-minusT/releases/download/v0.8.0/zhihu-minus-minus-v0.8.0-arm64-v8a.apk',
     },
   ],
 };

@@ -17,6 +17,10 @@ import {
 } from '@/components/ContentActionBar';
 import { ContentActionButton } from '@/components/ContentActionButton';
 import { ContentRelationshipNotice } from '@/components/ContentRelationshipNotice';
+import {
+  DetailNavigationHeader,
+  useDetailNavigationHeight,
+} from '@/components/DetailNavigationHeader';
 import { FollowButton } from '@/components/FollowButton';
 import { MoreActionsButton } from '@/components/MoreActionsButton';
 import { PinPollCard } from '@/components/PinPollCard';
@@ -31,6 +35,7 @@ import Colors from '@/constants/Colors';
 import { RICH_CONTENT_STALE_TIME, ZhihuContent } from '@/features/rich-content';
 import { useDoubleTapAction } from '@/hooks/useDoubleTapAction';
 import { useOptimisticToggle } from '@/hooks/useOptimisticToggle';
+import { useReadingActionBar } from '@/hooks/useReadingActionBar';
 import { useReadingProgress } from '@/hooks/useReadingProgress';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import type { ZhihuPin } from '@/types/zhihu';
@@ -43,13 +48,13 @@ export default function PinDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const actionBarBottom = getContentActionBarBottom(insets.bottom);
-  const textColor = Colors[colorScheme].text;
-  const backgroundColor = Colors[colorScheme].background;
+  const navigationHeight = useDetailNavigationHeight();
 
   const primaryColor = useThemeColor({}, 'primary');
   const primaryTransparent = useThemeColor({}, 'primaryTransparent');
 
   const contentIdentity = `pin:${String(id ?? '')}`;
+  const actionBar = useReadingActionBar(contentIdentity, actionBarBottom);
   const [openMenuIdentity, setOpenMenuIdentity] = React.useState<string | null>(
     null,
   );
@@ -174,19 +179,12 @@ export default function PinDetailScreen() {
 
   return (
     <View type="default" className="flex-1">
-      <Stack.Screen
-        options={{
-          headerTitle: '想法详情',
-          headerShadowVisible: false,
-          headerStyle: { backgroundColor },
-          headerTintColor: textColor,
-          headerRight: () => (
-            <MoreActionsButton
-              onPress={() => setOpenMenuIdentity(contentIdentity)}
-              style={{ marginRight: 10 }}
-            />
-          ),
-        }}
+      <Stack.Screen options={{ headerShown: false, title: '想法详情' }} />
+      <DetailNavigationHeader
+        title="想法详情"
+        collapsed
+        onBack={() => router.back()}
+        onMore={() => setOpenMenuIdentity(contentIdentity)}
       />
 
       <ShareMenu
@@ -211,14 +209,28 @@ export default function PinDetailScreen() {
             ref={scrollViewRef}
             className="flex-1"
             scrollEventThrottle={16}
-            onScroll={(event) =>
-              readingProgress.onScroll(event.nativeEvent.contentOffset.y)
+            onScrollBeginDrag={(event) =>
+              actionBar.beginDrag(event.nativeEvent)
             }
+            onScroll={(event) => {
+              actionBar.onScroll(event.nativeEvent);
+              readingProgress.onScroll(event.nativeEvent.contentOffset.y);
+            }}
             onLayout={readingProgress.onLayout}
             onContentSizeChange={readingProgress.onContentSizeChange}
-            onScrollEndDrag={readingProgress.commitProgress}
-            onMomentumScrollEnd={readingProgress.commitProgress}
+            onScrollEndDrag={() => {
+              actionBar.endScroll();
+              readingProgress.commitProgress();
+            }}
+            onMomentumScrollBegin={(event) =>
+              actionBar.beginDrag(event.nativeEvent)
+            }
+            onMomentumScrollEnd={() => {
+              actionBar.endScroll();
+              readingProgress.commitProgress();
+            }}
             contentContainerStyle={{
+              paddingTop: insets.top + navigationHeight,
               paddingBottom: CONTENT_ACTION_BAR_HEIGHT + 36 + actionBarBottom,
             }}
           >
@@ -302,6 +314,7 @@ export default function PinDetailScreen() {
       {/* 底部交互栏 */}
       <ContentActionBar
         bottomInset={insets.bottom}
+        style={actionBar.style}
         leading={
           <SegmentedVoteCapsule
             id={pin?.id ?? ''}
