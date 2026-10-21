@@ -1,10 +1,11 @@
 import { useCallback, useEffect } from 'react';
 import type { NativeScrollEvent } from 'react-native';
 import {
+  Easing,
   ReduceMotion,
   useDerivedValue,
   useSharedValue,
-  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { CONTENT_ACTION_BAR_HEIGHT } from '@/components/ContentActionBar';
 import { nextReadingActionBarOffset } from '@/utils/readingActionBar';
@@ -46,12 +47,10 @@ export function useReadingActionBar(identity: string, bottom: number) {
     tracking.value = false;
     offset.value = offset.value >= hideDistance * 0.5 ? hideDistance : 0;
   };
-  const collapseProgress = useDerivedValue(() =>
-    withSpring(offset.value / hideDistance, {
-      damping: 28,
-      stiffness: 320,
-      mass: 0.8,
-      overshootClamping: true,
+  const collapseProgress = useDerivedValue<number>(() =>
+    withTiming(offset.value >= hideDistance * 0.5 ? 1 : 0, {
+      duration: 280,
+      easing: Easing.bezier(0.22, 1, 0.36, 1),
       reduceMotion: ReduceMotion.System,
     }),
   );

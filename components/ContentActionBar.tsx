@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import {
+  ScrollView,
   type StyleProp,
   StyleSheet,
   useWindowDimensions,
@@ -11,11 +12,13 @@ import {
 import Animated, {
   Extrapolation,
   interpolate,
+  ReduceMotion,
   runOnJS,
   type SharedValue,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 import { BouncyButton } from '@/components/BouncyButton';
 import { useRuntimeThemeColors } from '@/components/Themed';
@@ -69,33 +72,65 @@ export function ContentActionBar({
   const glassColor = reduceTransparency
     ? colors.backgroundSecondary
     : colorScheme === 'dark'
-      ? 'rgba(20,20,24,0.22)'
-      : 'rgba(255,255,255,0.12)';
-  const glassTint =
-    colorScheme === 'dark'
-      ? 'systemUltraThinMaterialDark'
-      : 'systemUltraThinMaterialLight';
+      ? 'rgba(20,20,24,0.12)'
+      : 'rgba(255,255,255,0.06)';
+  // System material tints add their own opaque grey wash on iOS. A light
+  // blur plus a thin highlight preserves the actual content behind the bar.
+  const glassTint = colorScheme === 'dark' ? 'dark' : 'light';
   const { width: windowWidth } = useWindowDimensions();
-  const expandedWidth = useSharedValue(0);
+  const availableWidth = Math.max(CONTENT_ACTION_BAR_HEIGHT, windowWidth - 32);
+  const [contentWidth, setContentWidth] = useState(0);
+  const [interactionExpanded, setInteractionExpanded] = useState(false);
   const morphs = Boolean(collapseProgress && onExpand);
   const [collapsed, setCollapsed] = useState(false);
+  const targetWidth = interactionExpanded
+    ? availableWidth
+    : Math.max(
+        CONTENT_ACTION_BAR_HEIGHT,
+        Math.min(availableWidth, contentWidth || availableWidth),
+      );
+  const expandedWidth = useSharedValue(targetWidth);
+  useEffect(() => {
+    expandedWidth.value = withTiming(targetWidth, {
+      duration: 200,
+      reduceMotion: ReduceMotion.System,
+    });
+  }, [expandedWidth, targetWidth]);
+  const updateCollapsed = useCallback((value: boolean) => {
+    setCollapsed(value);
+    if (value) setInteractionExpanded(false);
+  }, []);
   useAnimatedReaction(
     () => (collapseProgress?.value ?? 0) >= 0.5,
     (value, previous) => {
-      if (value !== previous) runOnJS(setCollapsed)(value);
+      if (value !== previous) runOnJS(updateCollapsed)(value);
     },
-    [collapseProgress],
+    [collapseProgress, updateCollapsed],
   );
+  const expandForInteraction = () => {
+    if (!visible) return;
+    setInteractionExpanded(true);
+    onExpand?.();
+  };
   const surfaceStyle = useAnimatedStyle(() => {
-    if (!morphs || expandedWidth.value <= 0) return {};
-    const progress = Math.max(0, Math.min(1, collapseProgress?.value ?? 0));
-    const width = Math.min(expandedWidth.value, windowWidth * 0.92);
+    const progress = morphs
+      ? Math.max(0, Math.min(1, collapseProgress?.value ?? 0))
+      : 0;
+    // Fade controls before narrowing the surface; never compress the labels
+    // during the morph. In reverse, the capsule opens before controls return.
+    const contraction = interpolate(
+      progress,
+      [0.2, 1],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
+    const width = Math.min(expandedWidth.value, availableWidth);
     return {
-      width: width + (CONTENT_ACTION_BAR_HEIGHT - width) * progress,
+      width: width + (CONTENT_ACTION_BAR_HEIGHT - width) * contraction,
       transform: [
         {
           translateX:
-            (16 - (windowWidth - CONTENT_ACTION_BAR_HEIGHT) / 2) * progress,
+            (16 - (windowWidth - CONTENT_ACTION_BAR_HEIGHT) / 2) * contraction,
         },
       ],
     };
@@ -103,15 +138,18 @@ export function ContentActionBar({
   const expandedStyle = useAnimatedStyle(() => {
     const progress = collapseProgress?.value ?? 0;
     return {
-      opacity: interpolate(progress, [0, 0.65], [1, 0], Extrapolation.CLAMP),
+      // The viewport never follows the collapsing surface's width. Measuring
+      // a child constrained by that width used to feed clipped widths back in.
+      width: Math.min(expandedWidth.value, availableWidth),
+      opacity: interpolate(progress, [0, 0.2], [1, 0], Extrapolation.CLAMP),
       pointerEvents:
-        !visible || progress >= 0.5 ? ('none' as const) : ('auto' as const),
+        !visible || progress >= 0.2 ? ('none' as const) : ('auto' as const),
     };
   });
   const iconStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       collapseProgress?.value ?? 0,
-      [0.45, 1],
+      [0.7, 1],
       [0, 1],
       Extrapolation.CLAMP,
     ),
@@ -153,7 +191,7 @@ export function ContentActionBar({
             ]}
           >
             <BlurView
-              intensity={reduceTransparency ? 0 : 65}
+              intensity={reduceTransparency ? 0 : 24}
               tint={glassTint}
               style={[
                 styles.surface,
@@ -185,7 +223,7 @@ export function ContentActionBar({
               ]}
             >
               <BlurView
-                intensity={reduceTransparency ? 0 : 65}
+                intensity={reduceTransparency ? 0 : 24}
                 tint={glassTint}
                 style={[
                   styles.surface,
@@ -217,7 +255,7 @@ export function ContentActionBar({
               ]}
             >
               <BlurView
-                intensity={reduceTransparency ? 0 : 65}
+                intensity={reduceTransparency ? 0 : 24}
                 tint={glassTint}
                 style={[
                   styles.surface,
@@ -241,6 +279,8 @@ export function ContentActionBar({
 
   return (
     <Animated.View
+      testID="content-action-bar"
+      onTouchStart={expandForInteraction}
       pointerEvents={visible ? 'auto' : 'none'}
       accessibilityElementsHidden={!visible}
       importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
@@ -262,7 +302,7 @@ export function ContentActionBar({
       ]}
     >
       <BlurView
-        intensity={reduceTransparency ? 0 : 65}
+        intensity={reduceTransparency ? 0 : 24}
         tint={glassTint}
         style={[
           styles.surface,
@@ -275,35 +315,44 @@ export function ContentActionBar({
         ]}
       >
         <Animated.View
+          testID="content-action-bar-viewport"
           accessibilityElementsHidden={collapsed}
           importantForAccessibility={collapsed ? 'no-hide-descendants' : 'auto'}
-          onLayout={(event) => {
-            if (morphs) expandedWidth.value = event.nativeEvent.layout.width;
-          }}
           style={[styles.expandedContent, expandedStyle]}
         >
-          {leading || trailing || accessory ? (
-            <View style={styles.barRow}>
-              {leading ? (
-                <View
-                  style={[
-                    styles.leadingSlot,
-                    shrinkLeading && styles.shrinkableLeading,
-                  ]}
-                >
-                  {leading}
+          <ScrollView
+            testID="content-action-bar-actions"
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            scrollEnabled={contentWidth > availableWidth}
+            bounces={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            <View
+              testID="content-action-bar-intrinsic"
+              style={styles.intrinsicContent}
+              onLayout={(event) => {
+                const width = event.nativeEvent.layout.width;
+                if (width > 0) setContentWidth(width);
+              }}
+            >
+              {leading || trailing || accessory ? (
+                <View style={styles.barRow}>
+                  {leading ? (
+                    <View style={styles.leadingSlot}>{leading}</View>
+                  ) : null}
+                  <View style={styles.trailingSlot}>
+                    {trailing}
+                    {accessory ? (
+                      <View style={styles.accessorySlot}>{accessory}</View>
+                    ) : null}
+                  </View>
                 </View>
-              ) : null}
-              <View style={styles.trailingSlot}>
-                {trailing}
-                {accessory ? (
-                  <View style={styles.accessorySlot}>{accessory}</View>
-                ) : null}
-              </View>
+              ) : (
+                children
+              )}
             </View>
-          ) : (
-            children
-          )}
+          </ScrollView>
         </Animated.View>
         {morphs && (
           <Animated.View
@@ -317,7 +366,7 @@ export function ContentActionBar({
             <BouncyButton
               accessibilityRole="button"
               accessibilityLabel="展开阅读操作栏"
-              onPress={onExpand}
+              onPress={expandForInteraction}
               style={{
                 flex: 1,
                 alignItems: 'center',
@@ -341,13 +390,12 @@ const styles = StyleSheet.create({
   container: { position: 'absolute', zIndex: 1000 },
   compactContainer: {
     alignSelf: 'center',
-    maxWidth: '92%',
   },
   surface: { overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth },
   shadow: {
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
     elevation: 4,
   },
   expandedContent: {
@@ -355,7 +403,16 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     height: CONTENT_ACTION_BAR_HEIGHT,
   },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  intrinsicContent: {
+    flexShrink: 0,
+  },
   barRow: {
+    flexShrink: 0,
     height: CONTENT_ACTION_BAR_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
@@ -365,11 +422,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   leadingSlot: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'transparent',
   },
   trailingSlot: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',

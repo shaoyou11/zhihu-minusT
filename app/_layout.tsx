@@ -55,6 +55,7 @@ function RootLayout() {
   useQueryConnectivity(queryClient);
   const router = useRouter();
   const pathname = usePathname();
+  const readingRoute = /^\/(?:answer|article|pin)\/[^/]+$/.test(pathname);
   const isDark = useThemeStore((state) => state.isDark);
   const hasThemeHydrated = useThemeStore((state) => state.hasHydrated);
   const appThemeColors = useRuntimeThemeColors();
@@ -317,8 +318,12 @@ function RootLayout() {
                 />
               </Stack>
 
-              {/* 全局状态栏和底部安全区渐变模糊遮罩 */}
-              <GradientMaskOverlay isDark={isDark} showTop={pathname !== '/'} />
+              {/* 首页在原生容器内绘制顶部玻璃，避免根级重复覆盖。 */}
+              <GradientMaskOverlay
+                isDark={isDark}
+                topEdge={pathname === '/' ? 'none' : 'gradient'}
+                bottomEdge={readingRoute ? 'safe-area' : 'gradient'}
+              />
 
               {/* 全局状态栏控制 */}
               <StatusBar style={isDark ? 'light' : 'dark'} />

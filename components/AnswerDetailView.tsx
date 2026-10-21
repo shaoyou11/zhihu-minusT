@@ -727,7 +727,6 @@ export const AnswerDetailView = ({
         bottomInset={insets.bottom}
         collapseProgress={collapseProgress}
         onExpand={expandActionBar}
-        shrinkLeading
         leading={
           <SegmentedVoteCapsule
             id={answer?.id ?? ''}
@@ -737,7 +736,6 @@ export const AnswerDetailView = ({
               (answer?.reaction?.relation?.vote === 'UP' ? 1 : 0)
             }
             type="answers"
-            allowCountShrink
           />
         }
         trailing={

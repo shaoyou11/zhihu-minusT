@@ -71,7 +71,9 @@ import { hasReusableAnswerDetail } from '@/features/rich-content';
 import { useCollapsibleChromeScroll } from '@/hooks/useCollapsibleChromeScroll';
 import { useFeedPageReadTouch } from '@/hooks/useFeedPageReadTouch';
 import { useGuestBootstrap } from '@/hooks/useGuestBootstrap';
+import { useRefreshSnapshot } from '@/hooks/useRefreshSnapshot';
 import { useScopedAsyncValue } from '@/hooks/useScopedAsyncValue';
+import { useScopedRefreshAction } from '@/hooks/useScopedRefreshAction';
 import {
   type FeedCacheContext,
   feedCacheRepository,
@@ -106,8 +108,9 @@ import {
   createFeedReadTouchBatch,
   type FeedReadTouchBatch,
 } from '@/utils/feedReadTouch';
+import { refreshFeedQuery } from '@/utils/feedRefresh';
 import { resolveLocalAccountKey } from '@/utils/localAccount';
-import { refreshInfiniteQuery, shouldRetryQuery } from '@/utils/query';
+import { shouldRetryQuery } from '@/utils/query';
 import { normalizeAnswerType, parseRecommendData } from '@/utils/recommendFeed';
 import { getZhihuErrorMessage } from '@/utils/zhihuError';
 import ProfileScreen from './profile';
@@ -166,7 +169,6 @@ interface FeedListHandle extends TabListHandle {
 // 折叠模式下过滤项仍占一行，不需要补页。
 const MIN_RENDERABLE_ITEMS = 8;
 const MAX_AUTO_FETCH_ROUNDS = 3;
-const MIN_REFRESH_INDICATOR_MS = 500;
 
 export default function HomeScreen() {
   const { width: windowWidth } = useWindowDimensions();
@@ -497,7 +499,7 @@ export default function HomeScreen() {
   });
 
   return (
-    <View style={styles.container}>
+    <View type="default" style={styles.container}>
       {/* 1. 内容 Pager 放在顶部导航之前 */}
       <GestureDetector gesture={pagerGesture}>
         <AnimatedPagerView
@@ -930,8 +932,6 @@ const FeedList = React.forwardRef<
     const tintColor = useThemeColor({}, 'primary');
     const backgroundColor = useThemeColor({}, 'background');
     const indicatorTrackColor = useThemeColor({}, 'border');
-    const [isRefreshing, setIsRefreshing] = useState(false);
-    const refreshInFlightRef = useRef(false);
 
     const localAccountKey = useMemo(
       () => resolveLocalAccountKey(me, Boolean(cookies)),
@@ -1114,6 +1114,36 @@ const FeedList = React.forwardRef<
         ['zhihu-feed', queryAccountKey, tab, recommendationRequestKey] as const,
       [queryAccountKey, recommendationRequestKey, tab],
     );
+    const {
+      refresh: handleRefresh,
+      refreshing: isRefreshing,
+      isRefreshingNow,
+    } = useScopedRefreshAction(
+      feedQueryKey,
+      async () => {
+        setExpandedCollapsedKeys(new Set());
+        autoFetchRounds.current = 0;
+        setAutoFetchExhausted(false);
+        const keys = await refreshFeedQuery(
+          queryClient,
+          feedQueryKey,
+          localDedupEnabled && exposureContext
+            ? async () => {
+                try {
+                  return await feedExposureRepository.getRecentContentKeys(
+                    exposureContext,
+                  );
+                } catch {
+                  console.warn('刷新本地 Feed 曝光记录失败');
+                  return undefined;
+                }
+              }
+            : undefined,
+        );
+        if (keys) setRecentExposureKeys(keys);
+      },
+      onRefreshStateChange,
+    );
     const isGuestRecommend = tab === 'recommend' && !cookies;
     const {
       data,
@@ -1136,7 +1166,7 @@ const FeedList = React.forwardRef<
         const requestUrl = getFeedRequestUrl(
           pageParam,
           FEED_URLS[tab],
-          refreshInFlightRef.current,
+          isRefreshingNow(),
         );
         const isInitialUrl = pageParam === FEED_URLS[tab];
         const data = await getFeed(requestUrl, { signal });
@@ -1195,61 +1225,14 @@ const FeedList = React.forwardRef<
       isActive && !isRefreshing,
     );
 
-    const handleRefresh = useCallback(async () => {
-      if (refreshInFlightRef.current) return;
-
-      refreshInFlightRef.current = true;
-      const startedAt = Date.now();
-      setIsRefreshing(true);
-      onRefreshStateChange?.(true);
-      // 刷新即重置折叠展开状态（计划要求展开不持久化）
-      setExpandedCollapsedKeys(new Set());
-      // 新一轮刷新重新计算补页预算
-      autoFetchRounds.current = 0;
-      setAutoFetchExhausted(false);
-      try {
-        if (localDedupEnabled && exposureContext) {
-          try {
-            const keys =
-              await feedExposureRepository.getRecentContentKeys(
-                exposureContext,
-              );
-            setRecentExposureKeys(keys);
-          } catch {
-            console.warn('刷新本地 Feed 曝光记录失败');
-          }
-        }
-        const initialParam =
-          tab === 'local' ? 'zhihu://local-feed' : FEED_URLS[tab];
-        await refreshInfiniteQuery(
-          queryClient,
-          feedQueryKey,
-          refetch,
-          initialParam,
-        );
-      } catch (_e) {
-      } finally {
-        const remaining = MIN_REFRESH_INDICATOR_MS - (Date.now() - startedAt);
-        if (remaining > 0) {
-          await new Promise<void>((resolve) => setTimeout(resolve, remaining));
-        }
-        setIsRefreshing(false);
-        onRefreshStateChange?.(false);
-        refreshInFlightRef.current = false;
-      }
-    }, [
-      exposureContext,
-      localDedupEnabled,
-      onRefreshStateChange,
-      queryClient,
+    const visibleData = useRefreshSnapshot(
       feedQueryKey,
-      refetch,
-      setRecentExposureKeys,
-      tab,
-    ]);
-
+      data,
+      isRefreshing,
+      isPending || isPaused || isError,
+    );
     const flattenedData = useMemo(() => {
-      const all = data?.pages.flatMap((page) => page.items) ?? [];
+      const all = visibleData?.pages.flatMap((page) => page.items) ?? [];
       const seen = new Set<string>();
       const deduped: FeedListItem[] = [];
       for (const item of all) {
@@ -1299,7 +1282,7 @@ const FeedList = React.forwardRef<
       }
       return deduped;
     }, [
-      data,
+      visibleData,
       localDedupEnabled,
       recentExposureKeys,
       filterEnabled,
@@ -1395,7 +1378,7 @@ const FeedList = React.forwardRef<
               isActive &&
               hasNextPage &&
               !isFetching &&
-              !refreshInFlightRef.current &&
+              !isRefreshingNow() &&
               !isFetchNextPageError &&
               (!(filterEnabled || localDedupEnabled) ||
                 flattenedData.length >= MIN_RENDERABLE_ITEMS)
@@ -1462,6 +1445,18 @@ const FeedList = React.forwardRef<
                 compact
                 message="更多内容加载失败"
                 onRetry={() => void fetchNextPage()}
+              />
+            ) : isPaused && !isRefreshing && flattenedData.length > 0 ? (
+              <QueryErrorView
+                compact
+                message="等待网络恢复，已保留原有内容"
+                onRetry={() => void handleRefresh()}
+              />
+            ) : isError && !isRefreshing && flattenedData.length > 0 ? (
+              <QueryErrorView
+                compact
+                message="刷新失败，已保留原有内容"
+                onRetry={() => void handleRefresh()}
               />
             ) : (filterEnabled || localDedupEnabled) &&
               !isRefreshing &&
@@ -1631,7 +1626,13 @@ function parseHotData(item: RawFeedItem, index: number): HotItem {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   pager: { flex: 1 },
-  topNavContainer: { position: 'absolute', left: 16, right: 16, zIndex: 100 },
+  topNavContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    zIndex: 100,
+  },
   topNavSurface: { backgroundColor: 'transparent' },
   topGlass: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 99 },
   topNav: {

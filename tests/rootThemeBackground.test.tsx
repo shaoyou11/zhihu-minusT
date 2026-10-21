@@ -8,6 +8,7 @@ import { useThemeStore } from '../store/useThemeStore';
 
 const mockNavigationMount = jest.fn();
 const mockNavigationUnmount = jest.fn();
+let mockPathname = '/';
 
 jest.mock('../global.css', () => ({}));
 jest.mock('@sentry/react-native', () => ({
@@ -52,8 +53,8 @@ jest.mock('expo-router', () => {
   Stack.Screen = () => null;
   return {
     Stack,
-    usePathname: () => '/',
     useRouter: () => ({ push: jest.fn() }),
+    usePathname: () => mockPathname,
   };
 });
 jest.mock('react-native-gesture-handler', () => ({
@@ -90,7 +91,22 @@ jest.mock('../components/DoubleTapActionSheet', () => ({
   DoubleTapActionSheet: () => null,
 }));
 jest.mock('../components/GradientMaskOverlay', () => ({
-  GradientMaskOverlay: () => null,
+  GradientMaskOverlay: ({
+    topEdge,
+    bottomEdge,
+  }: {
+    topEdge: string;
+    bottomEdge: string;
+  }) => {
+    const { View } = jest.requireActual('react-native');
+    return (
+      <View
+        testID="safe-area-overlay"
+        accessibilityLabel={topEdge}
+        accessibilityHint={bottomEdge}
+      />
+    );
+  },
 }));
 jest.mock('../components/UpdateChecker', () => ({ UpdateChecker: () => null }));
 jest.mock('../components/VerificationModal', () => ({
@@ -126,6 +142,7 @@ jest.mock('../store/useSettingsStore', () => ({
 beforeEach(() => {
   mockNavigationMount.mockClear();
   mockNavigationUnmount.mockClear();
+  mockPathname = '/';
   useThemeStore.setState({ isDark: false });
   useSettingsStore.setState({ readingBackground: 'default' });
 });
@@ -162,4 +179,64 @@ test('the surface behind fading screens follows appearance changes without remou
 
   await act(() => useThemeStore.setState({ isDark: false }));
   expectOpaqueThemeBackground('light');
+});
+
+test('home delegates its top glass to the native screen while other routes keep their root gradient', async () => {
+  const host = await render(<RootLayout />);
+  expect(host.getByTestId('safe-area-overlay')).toHaveProp(
+    'accessibilityLabel',
+    'none',
+  );
+
+  for (const pathname of ['/answer/42', '/profile', '/publish', '/settings']) {
+    mockPathname = pathname;
+    await host.rerender(<RootLayout />);
+    expect(host.getByTestId('safe-area-overlay')).toHaveProp(
+      'accessibilityLabel',
+      'gradient',
+    );
+  }
+
+  mockPathname = '/';
+  await host.rerender(<RootLayout />);
+  expect(host.getByTestId('safe-area-overlay')).toHaveProp(
+    'accessibilityLabel',
+    'none',
+  );
+  expect(mockNavigationMount).toHaveBeenCalledTimes(1);
+  expect(mockNavigationUnmount).not.toHaveBeenCalled();
+});
+
+test('only reading routes keep the bottom overlay clear of the floating action bar', async () => {
+  const host = await render(<RootLayout />);
+  for (const pathname of ['/answer/42', '/article/42', '/pin/42']) {
+    mockPathname = pathname;
+    await host.rerender(<RootLayout />);
+    expect(host.getByTestId('safe-area-overlay')).toHaveProp(
+      'accessibilityHint',
+      'safe-area',
+    );
+    expect(host.getByTestId('safe-area-overlay')).toHaveProp(
+      'accessibilityLabel',
+      'gradient',
+    );
+  }
+
+  for (const pathname of [
+    '/',
+    '/profile',
+    '/question/42',
+    '/answer/42/comments',
+    '/article',
+    '/settings',
+  ]) {
+    mockPathname = pathname;
+    await host.rerender(<RootLayout />);
+    expect(host.getByTestId('safe-area-overlay')).toHaveProp(
+      'accessibilityHint',
+      'gradient',
+    );
+  }
+  expect(mockNavigationMount).toHaveBeenCalledTimes(1);
+  expect(mockNavigationUnmount).not.toHaveBeenCalled();
 });

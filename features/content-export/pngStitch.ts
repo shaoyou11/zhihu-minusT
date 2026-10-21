@@ -342,11 +342,9 @@ async function appendPng(
     if (received > expected) throw new PngStitchError('invalid');
     // fflate intentionally omits the Zlib checksum; verify Adler-32 ourselves.
     for (let start = 0; start < data.length; start += 5552) {
-      for (
-        let index = start;
-        index < Math.min(start + 5552, data.length);
-        index++
-      ) {
+      // The block bound is invariant: do not recompute it for every decoded byte.
+      const end = Math.min(start + 5552, data.length);
+      for (let index = start; index < end; index++) {
         adlerA += data[index];
         adlerB += adlerA;
       }
