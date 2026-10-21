@@ -284,7 +284,7 @@ export function ContentActionBar({
             styles.container,
             {
               bottom,
-              alignSelf: 'center',
+              left: 16,
               width: CONTENT_ACTION_BAR_HEIGHT,
               height: CONTENT_ACTION_BAR_HEIGHT,
             },
