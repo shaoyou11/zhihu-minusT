@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { FlashList } from '@shopify/flash-list';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
@@ -461,7 +462,26 @@ export default function ReplyDetailScreen() {
       className="flex-1"
       style={{ backgroundColor: Colors[colorScheme].backgroundSecondary }}
     >
-      <Stack.Screen options={{ title: '所有回复' }} />
+      <Stack.Screen
+        options={{
+          title: '所有回复',
+          headerLeft: () => (
+            <BouncyButton
+              accessibilityRole="button"
+              accessibilityLabel="返回评论"
+              onPress={() => router.back()}
+              style={{
+                width: 44,
+                height: 44,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons name="chevron-back" size={24} color={textColor} />
+            </BouncyButton>
+          ),
+        }}
+      />
       <View style={StyleSheet.absoluteFill}>
         <FlashList
           data={replies}

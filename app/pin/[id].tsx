@@ -330,7 +330,7 @@ export default function PinDetailScreen() {
             <ContentActionButton
               accessibilityRole="button"
               accessibilityLabel="评论"
-              className="items-center justify-center ml-2 px-2.5 py-1.5 flex-row bg-transparent"
+              className="items-center justify-center px-2 py-1.5 flex-row bg-transparent"
               onPress={() => router.push(`/comments/${id}?type=pin`)}
             >
               <ThemedIcon

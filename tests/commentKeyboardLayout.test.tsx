@@ -249,3 +249,25 @@ test('uses the iOS window position and keyboard animation duration', async () =>
   expect(withTiming).toHaveBeenCalledWith(0, { duration: 180 });
   await host.unmount();
 });
+
+test('remeasures the iOS comment sheet when keyboard and detents resize its container', async () => {
+  const host = await mountLayout(34, 'ios');
+  await emit('keyboardWillShow', keyboardEvent(500, 300));
+  const initial = host.windowMeasures.at(-1) as WindowMeasureCallback;
+  await act(() => initial(0, 300, 400, 500));
+  expect(host.result.current.inputBarAnimatedStyle.bottom).toBe(300);
+  // UIKit can resize the sheet to end above the keyboard; do not lift twice.
+  await act(() => host.result.current.onContainerLayout());
+  const resized = host.windowMeasures.at(-1) as WindowMeasureCallback;
+  await act(() => resized(0, 180, 400, 320));
+  expect(host.result.current.inputBarAnimatedStyle.bottom).toBe(0);
+  // Dragging to the larger detent must use the new window frame.
+  await act(() => host.result.current.onContainerLayout());
+  const expanded = host.windowMeasures.at(-1) as WindowMeasureCallback;
+  await act(() => expanded(0, 100, 400, 620));
+  expect(host.result.current.inputBarAnimatedStyle.bottom).toBe(220);
+  await emit('keyboardWillHide', keyboardEvent(800, 0));
+  expect(host.result.current.inputBarAnimatedStyle.bottom).toBe(0);
+  expect(host.result.current.inputBarAnimatedStyle.paddingBottom).toBe(34);
+  await host.unmount();
+});

@@ -220,6 +220,27 @@ function RootLayout() {
                   options={{ headerShown: false, title: '知乎' }}
                 />
 
+                {/* 评论保留正文背景，以系统半屏浮层展示；楼中楼也沿用浮层。 */}
+                {(['comments/[id]', 'comments/replies/[id]'] as const).map(
+                  (name) => (
+                    <Stack.Screen
+                      key={name}
+                      name={name}
+                      options={{
+                        presentation: 'formSheet',
+                        sheetAllowedDetents: [0.62, 0.94],
+                        sheetInitialDetentIndex: 0,
+                        sheetGrabberVisible: true,
+                        sheetExpandsWhenScrolledToEdge: true,
+                        gestureEnabled: true,
+                        contentStyle: {
+                          backgroundColor: appThemeColors.backgroundSecondary,
+                        },
+                      }}
+                    />
+                  ),
+                )}
+
                 {/* 登录页：建议做成从底部弹出的 Modal */}
                 <Stack.Screen
                   name="login/index"

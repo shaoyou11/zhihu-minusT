@@ -5,7 +5,7 @@ import Animated from 'react-native-reanimated';
 import { useRuntimeThemeColors } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 
-export const CONTENT_ACTION_BAR_HEIGHT = 52;
+export const CONTENT_ACTION_BAR_HEIGHT = 48;
 
 export interface ContentActionBarProps {
   bottomInset: number;
@@ -170,6 +170,7 @@ export function ContentActionBar({
       importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
       style={[
         styles.container,
+        styles.compactContainer,
         {
           bottom,
           height: CONTENT_ACTION_BAR_HEIGHT,
@@ -224,7 +225,11 @@ export function ContentActionBar({
 }
 
 const styles = StyleSheet.create({
-  container: { position: 'absolute', left: 16, right: 16, zIndex: 1000 },
+  container: { position: 'absolute', zIndex: 1000 },
+  compactContainer: {
+    alignSelf: 'center',
+    maxWidth: '92%',
+  },
   surface: { overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth },
   shadow: {
     shadowOffset: { width: 0, height: 10 },
@@ -236,8 +241,9 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
     backgroundColor: 'transparent',
   },
   leadingSlot: {
@@ -256,6 +262,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   islandsContainer: {
+    left: 16,
+    right: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

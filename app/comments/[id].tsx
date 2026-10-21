@@ -373,6 +373,21 @@ export default function CommentScreen() {
       <Stack.Screen
         options={{
           title: `评论${count ? ` (${count})` : ''}`,
+          headerLeft: () => (
+            <BouncyButton
+              accessibilityRole="button"
+              accessibilityLabel="关闭评论"
+              onPress={() => router.back()}
+              style={{
+                width: 44,
+                height: 44,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons name="close" size={22} color={textColor} />
+            </BouncyButton>
+          ),
           headerRight: () =>
             !isSegmentDiscussion && (
               <BouncyButton
