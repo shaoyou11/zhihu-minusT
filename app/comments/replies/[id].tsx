@@ -470,13 +470,6 @@ export default function ReplyDetailScreen() {
       className="flex-1"
       style={{ backgroundColor: Colors[colorScheme].backgroundSecondary }}
     >
-      {KeyboardAnchorNativeView && (
-        <KeyboardAnchorNativeView
-          pointerEvents="none"
-          style={StyleSheet.absoluteFill}
-          onOverlapChange={onNativeOverlapChange}
-        />
-      )}
       <Stack.Screen
         options={{
           title: '所有回复',
@@ -516,6 +509,8 @@ export default function ReplyDetailScreen() {
             fetchNextPage()
           }
           onEndReachedThreshold={0.3}
+          // iOS 浮层标题栏覆盖内容区域，交由系统计算列表的顶部安全边距。
+          contentInsetAdjustmentBehavior="automatic"
           keyboardDismissMode="on-drag"
           ListFooterComponent={
             isFetchingNextPage ? (
@@ -549,6 +544,14 @@ export default function ReplyDetailScreen() {
         />
       </View>
 
+      {/* 保持列表为首个原生子视图，供 iOS 浮层识别滚动视图及其边距。 */}
+      {KeyboardAnchorNativeView && (
+        <KeyboardAnchorNativeView
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+          onOverlapChange={onNativeOverlapChange}
+        />
+      )}
       {/* 输入框：按页面与键盘的实际重叠定位，兼容 Android 窗口缩放。 */}
       <Reanimated.View
         onLayout={(event) => setInputBarHeight(event.nativeEvent.layout.height)}
