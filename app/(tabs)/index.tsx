@@ -57,6 +57,7 @@ import {
 } from '@/api/zhihu';
 import { BouncyButton } from '@/components/BouncyButton';
 import { DailyList } from '@/components/DailyList';
+import { DetailGlassSurface } from '@/components/DetailGlassSurface';
 import { FeedCard } from '@/components/FeedCard';
 import { GuestBootstrap } from '@/components/GuestBootstrap';
 import { HotCard, type HotItem } from '@/components/HotCard';
@@ -363,6 +364,27 @@ export default function HomeScreen() {
     pagerRef.current?.setPage(index);
   };
 
+  // Keep the glass inside the native tab screen so its scroll content is sampled.
+  const topGlassStyle = useAnimatedStyle(() => {
+    const homeVisibility =
+      homeTabsCount > 0
+        ? interpolate(
+            scrollX.value,
+            [homeTabsCount - 1, homeTabsCount],
+            [1, 0],
+            Extrapolate.CLAMP,
+          )
+        : 0;
+    return {
+      height:
+        insets.top +
+        30 +
+        TOP_NAV_HEIGHT *
+          homeVisibility *
+          (1 - topNavOffset.value / (insets.top + TOP_NAV_HEIGHT)),
+    };
+  });
+
   // 顶部导航栏动画样式
   const topNavAnimStyle = useAnimatedStyle(() => {
     if (homeTabsCount === 0) {
@@ -550,6 +572,13 @@ export default function HomeScreen() {
           })}
         </AnimatedPagerView>
       </GestureDetector>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.topGlass, topGlassStyle]}
+      >
+        <DetailGlassSurface />
+      </Animated.View>
 
       {/* 2. 顶部 Tab 导航 (Home 专属) */}
       <Animated.View
@@ -1604,6 +1633,7 @@ const styles = StyleSheet.create({
   pager: { flex: 1 },
   topNavContainer: { position: 'absolute', left: 16, right: 16, zIndex: 100 },
   topNavSurface: { backgroundColor: 'transparent' },
+  topGlass: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 99 },
   topNav: {
     flexDirection: 'row',
     alignItems: 'center',

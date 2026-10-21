@@ -50,7 +50,11 @@ jest.mock('expo-router', () => {
     return <View testID="navigator">{children}</View>;
   };
   Stack.Screen = () => null;
-  return { Stack, useRouter: () => ({ push: jest.fn() }) };
+  return {
+    Stack,
+    usePathname: () => '/',
+    useRouter: () => ({ push: jest.fn() }),
+  };
 });
 jest.mock('react-native-gesture-handler', () => ({
   GestureHandlerRootView: (props: ViewProps) => {

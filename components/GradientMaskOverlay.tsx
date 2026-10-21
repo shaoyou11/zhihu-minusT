@@ -6,7 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { effects } from '@/constants/designTokens';
 import { useThemeColor } from './Themed';
 
-export function GradientMaskOverlay({ isDark }: { isDark: boolean }) {
+export function GradientMaskOverlay({
+  isDark,
+  showTop = true,
+}: {
+  isDark: boolean;
+  showTop?: boolean;
+}) {
   const insets = useSafeAreaInsets();
   const overlayColor = useThemeColor({}, 'contentOverlayStrong');
 
@@ -15,7 +21,7 @@ export function GradientMaskOverlay({ isDark }: { isDark: boolean }) {
       pointerEvents="none"
       style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
     >
-      {insets.top > 0 && (
+      {showTop && insets.top > 0 && (
         <MaskedView
           style={{
             position: 'absolute',

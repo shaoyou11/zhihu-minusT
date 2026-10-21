@@ -28,7 +28,8 @@ export default function NativeTabLayout() {
         selected: { color: tintColor },
       }}
     >
-      <NativeTabs.Trigger name="index">
+      {/* Home already manages its safe-area padding and scroll-edge glass. */}
+      <NativeTabs.Trigger name="index" disableAutomaticContentInsets>
         <NativeTabs.Trigger.Label>首页</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
           sf={{ default: 'house', selected: 'house.fill' }}
