@@ -39,7 +39,7 @@ jobs:
       - run: npm ci
       - name: 设置独立构建号
         run: |
-          node -e "const fs=require('fs');const p=require('./app.json');p.expo.ios.buildNumber=process.env.GITHUB_RUN_NUMBER;fs.writeFileSync('app.json',JSON.stringify(p,null,2)+'\n')"
+          node -e "const fs=require('fs');const p=require('./app.json');p.expo.ios.buildNumber=String(100+Number(process.env.GITHUB_RUN_NUMBER));fs.writeFileSync('app.json',JSON.stringify(p,null,2)+'\n')"
       - name: 生成 iOS 工程
         run: |
           npx expo prebuild --platform ios --no-install

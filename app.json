@@ -15,7 +15,7 @@
     "ios": {
       "icon": "./assets/images/app-icons/default.png",
       "supportsTablet": true,
-      "bundleIdentifier": "com.shaoyou11.zhihuminust",
+      "bundleIdentifier": "com.huamu013.ZhihuMinusMinus",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -44,7 +44,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.shaoyou11.zhihuminust",
+      "package": "com.huamu013.ZhihuMinusMinus",
       "permissions": ["REQUEST_INSTALL_PACKAGES"],
       "intentFilters": [
         {
