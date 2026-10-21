@@ -369,6 +369,31 @@ test('rejects bad Adler checksums, truncated Zlib and wrong decoded row counts',
   await expect(collect([bomb])).rejects.toMatchObject({ code: 'invalid' });
 });
 
+test('verifies complete and partial Adler blocks within one inflate push', async () => {
+  const width = 64;
+  const height = 100;
+  const stride = width * 4 + 1;
+  const raw = new Uint8Array(stride * height).fill(255);
+  for (let row = 0; row < height; row++) raw[row * stride] = 0;
+  const compressed = zlibSync(raw);
+  // One compressed push expands past several 5552-byte checksum blocks and
+  // leaves a partial final block. High byte values also exercise modular sums.
+  expect(compressed.length).toBeLessThan(256);
+  const png = rewrite(makePng({ width, height }).png, (part) => [
+    part.type === 'IDAT' ? { ...part, data: compressed } : part,
+  ]);
+  const [output] = await collect([png]);
+  expect(pixels(output.bytes)).toEqual(
+    new Uint8Array(width * height * 4).fill(255),
+  );
+  const corrupt = compressed.slice();
+  corrupt[corrupt.length - 1] ^= 1;
+  const badAdler = rewrite(png, (part) => [
+    part.type === 'IDAT' ? { ...part, data: corrupt } : part,
+  ]);
+  await expect(collect([badAdler])).rejects.toMatchObject({ code: 'invalid' });
+});
+
 test('rejects invalid row filters and noncontiguous IDAT data', async () => {
   await expect(collect([makePng({ filter: 5 }).png])).rejects.toMatchObject({
     code: 'unsupported',

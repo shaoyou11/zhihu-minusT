@@ -511,7 +511,6 @@ export default function ArticleDetail() {
       {!isDaily && (
         <ContentActionBar
           bottomInset={insets.bottom}
-          shrinkLeading
           bottomOffset={ARTICLE_ACTION_BAR_OFFSET}
           collapseProgress={actionBar.collapseProgress}
           onExpand={actionBar.expand}
@@ -521,7 +520,6 @@ export default function ArticleDetail() {
               count={zhihuData?.voteup_count ?? 0}
               voted={zhihuData?.relationship?.voting ?? 0}
               type="articles"
-              allowCountShrink
             />
           }
           trailing={

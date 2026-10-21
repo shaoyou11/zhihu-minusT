@@ -253,3 +253,17 @@ test('a server count replaces a string count and reaches the external callback',
     expect(onVoteChange).toHaveBeenCalledWith(-1, 12500);
   });
 });
+
+test.each([
+  1116, 123456789,
+])('reading counts remain complete rather than ellipsized: %d', async (count) => {
+  const host = await render(
+    <QueryClientProvider client={createClient()}>
+      <SegmentedVoteCapsule id="synthetic-answer" count={count} />
+    </QueryClientProvider>,
+  );
+  expect(host.getByRole('button', { name: `赞同，${count}` })).toBeTruthy();
+  const label = host.getByText(String(count));
+  expect(label.props.numberOfLines).toBeUndefined();
+  expect(label.props.ellipsizeMode).toBeUndefined();
+});

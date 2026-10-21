@@ -141,7 +141,7 @@ export const LikeButton = ({
     <BouncyButton
       accessibilityRole="button"
       accessibilityLabel={
-        allowCountShrink
+        allowCountShrink || variant === 'segmented'
           ? `${isUpvoted ? '取消赞同' : '赞同'}，${count}`
           : undefined
       }

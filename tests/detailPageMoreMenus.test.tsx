@@ -208,6 +208,7 @@ jest.mock('react-native-reanimated', () => {
     withTiming: (value: number) => value,
     withSpring: (value: number) => value,
     ReduceMotion: { System: 'system' },
+    Easing: { bezier: () => 'ease' },
     Extrapolation: { CLAMP: 'clamp' },
     withDelay: (_delay: number, value: number) => value,
     withSequence: (...values: number[]) => values.at(-1),

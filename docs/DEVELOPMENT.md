@@ -121,6 +121,8 @@ npm run analyze:rich-content
 npm run analyze:rich-content:inbox
 ```
 
+Jest 将 `Math` 注入测试沙箱，避免 PNG/DEFLATE 等计算密集路径反复跨 VM 查询全局对象。这只消除测试运行器开销，不提高超时上限、替换压缩实现或削弱断言，也不能代表 iPhone 实际导出耗时。
+
 本地macOS具备Swift工具链时，可运行 `bash modules/zhihu-rich-text/tests/run-model-smoke.sh`，直接编译并检查iOS纯Foundation模型的UTF-16范围、非法输入和附件语义复制。它不加载UIKit，不替代iOS app编译、装饰/附件视觉及系统手势验收。
 
 `npm run lint` 不修改文件；需要自动修复时使用 `npm run lint:fix` 或 `npm run format`，然后逐项检查 diff。富文本专项的 fixture 投递、脱敏和 manifest 规则见 [`features/rich-content/README.md`](../features/rich-content/README.md)。

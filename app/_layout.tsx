@@ -5,7 +5,7 @@ import {
 } from '@react-navigation/native';
 import * as Sentry from '@sentry/react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { type Href, Stack, useRouter } from 'expo-router';
+import { type Href, Stack, usePathname, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -54,6 +54,8 @@ export const unstable_settings = {
 function RootLayout() {
   useQueryConnectivity(queryClient);
   const router = useRouter();
+  const pathname = usePathname();
+  const readingRoute = /^\/(?:answer|article|pin)\/[^/]+$/.test(pathname);
   const isDark = useThemeStore((state) => state.isDark);
   const hasThemeHydrated = useThemeStore((state) => state.hasHydrated);
   const appThemeColors = useRuntimeThemeColors();
@@ -316,8 +318,12 @@ function RootLayout() {
                 />
               </Stack>
 
-              {/* 全局状态栏和底部安全区渐变模糊遮罩 */}
-              <GradientMaskOverlay isDark={isDark} />
+              {/* 首页状态栏与栏目同底色，其他路由和底部保留渐变遮罩 */}
+              <GradientMaskOverlay
+                isDark={isDark}
+                topEdge={pathname === '/' ? 'page' : 'gradient'}
+                bottomEdge={readingRoute ? 'safe-area' : 'gradient'}
+              />
 
               {/* 全局状态栏控制 */}
               <StatusBar style={isDark ? 'light' : 'dark'} />

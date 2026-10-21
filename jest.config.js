@@ -11,6 +11,8 @@ module.exports = {
     ),
   ),
   watchman: false,
+  // PNG/DEFLATE hot loops should not pay a VM-global lookup for each Math call.
+  sandboxInjectedGlobals: ['Math'],
   transform: {
     '^.+\\.mjs$': [
       'babel-jest',
