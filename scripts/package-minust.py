@@ -27,9 +27,10 @@ ipa = output / f"Zhihu-minusT-{expected['version']}-build{info['CFBundleVersion'
 stage = output / 'package'
 (stage / 'Payload').mkdir(parents=True, exist_ok=True)
 subprocess.run(['ditto', '--norsrc', '--noextattr', '--noacl', str(app), str(stage / 'Payload' / app.name)], check=True)
-subprocess.run(['ditto', '-c', '-k', '--norsrc', '--noextattr', 'Payload', str(ipa)], cwd=stage, check=True)
+subprocess.run(['ditto', '-c', '-k', '--keepParent', '--norsrc', '--noextattr', 'Payload', str(ipa)], cwd=stage, check=True)
 with zipfile.ZipFile(ipa) as archive:
     assert archive.testzip() is None
+    assert f'Payload/{app.name}/Info.plist' in archive.namelist(), 'IPA 缺少 Payload 层级'
 sha = hashlib.sha256(ipa.read_bytes()).hexdigest()
 (output / 'SHA256SUMS.txt').write_text(f'{sha}  {ipa.name}\n')
 (output / 'minust-build.json').write_text(json.dumps({
