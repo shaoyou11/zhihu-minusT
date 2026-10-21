@@ -70,6 +70,7 @@ import { hasReusableAnswerDetail } from '@/features/rich-content';
 import { useCollapsibleChromeScroll } from '@/hooks/useCollapsibleChromeScroll';
 import { useFeedPageReadTouch } from '@/hooks/useFeedPageReadTouch';
 import { useGuestBootstrap } from '@/hooks/useGuestBootstrap';
+import { useReduceTransparency } from '@/hooks/useReduceTransparency';
 import { useScopedAsyncValue } from '@/hooks/useScopedAsyncValue';
 import {
   type FeedCacheContext,
@@ -249,6 +250,9 @@ export default function HomeScreen() {
   const textColor = useThemeColor({}, 'text');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const indicatorBgColor = useThemeColor({}, 'primary_26');
+  const topIndicatorBgColor = useThemeColor({}, 'primary_14');
+  const solidSurfaceColor = useThemeColor({}, 'backgroundSecondary');
+  const reduceTransparency = useReduceTransparency();
   const [currentPage, setCurrentPage] = useState(initialPageIndex);
   const tabStripRef = useRef<ScrollView>(null);
   const [tabStripWidth, setTabStripWidth] = useState(0);
@@ -552,23 +556,23 @@ export default function HomeScreen() {
 
       {/* 2. 顶部 Tab 导航 (Home 专属) */}
       <Animated.View
-        style={[
-          styles.topNavContainer,
-          colorScheme === 'light' && styles.lightTranslucentShadow,
-          { top: insets.top },
-          topNavAnimStyle,
-        ]}
+        style={[styles.topNavContainer, { top: insets.top }, topNavAnimStyle]}
       >
         <BlurView
-          intensity={100}
-          tint={colorScheme === 'dark' ? 'dark' : 'light'}
+          intensity={reduceTransparency ? 0 : 45}
+          tint={
+            colorScheme === 'dark'
+              ? 'systemUltraThinMaterialDark'
+              : 'systemUltraThinMaterialLight'
+          }
           style={[
             styles.blurWrapper,
             {
-              backgroundColor:
-                colorScheme === 'dark'
-                  ? 'rgba(0,0,0,0.7)'
-                  : 'rgba(255,255,255,0.85)',
+              backgroundColor: reduceTransparency
+                ? solidSurfaceColor
+                : colorScheme === 'dark'
+                  ? 'rgba(24,24,28,0.14)'
+                  : 'rgba(255,255,255,0.06)',
             },
           ]}
         >
@@ -597,7 +601,7 @@ export default function HomeScreen() {
                 <Animated.View
                   style={[
                     styles.topPill,
-                    { backgroundColor: indicatorBgColor },
+                    { backgroundColor: topIndicatorBgColor },
                     topIndicatorStyle,
                   ]}
                 />
@@ -1622,8 +1626,6 @@ const styles = StyleSheet.create({
   blurWrapper: {
     borderRadius: 25,
     overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   topNav: {
     flexDirection: 'row',
