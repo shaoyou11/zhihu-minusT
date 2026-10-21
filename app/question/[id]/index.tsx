@@ -767,6 +767,7 @@ export default function QuestionDetail() {
 
       <View className="flex-1">
         <DetailNavigationHeader
+          scrollY={scrollY}
           title={question?.title || initialTitle || '问题'}
           collapsed={headerCollapsed}
           progress={headerProgress}

@@ -169,6 +169,8 @@ export interface AppSettings {
   filterMode: FilterMode;
   /** 折叠模式下是否在占位行上显示原因文案（仅折叠模式有载体）。 */
   filterShowReason: boolean;
+  /** 隐藏推广类折叠提示，仍过滤对应内容。 */
+  filterHideAdPlaceholders: boolean;
   // 推广 / 营销类开关型规则
   /** answer_type === 'PAID' 或 paid_info != null（知乎盐选付费内容） */
   filterBlockPaid: boolean;
@@ -232,6 +234,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   filterRegexPatterns: [],
   filterMode: 'collapse',
   filterShowReason: true,
+  filterHideAdPlaceholders: true,
   filterBlockPaid: true,
   filterBlockAdPlatform: true,
   filterBlockZhihuSchool: true,
@@ -337,7 +340,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'zhihu-settings-storage',
       storage: createJSONStorage(() => settingsStorage),
-      version: 18,
+      version: 19,
       migrate: (rawPersistedState: unknown, version: number) => {
         const persistedState =
           normalizePersistedSettingsState(rawPersistedState);
@@ -427,6 +430,10 @@ export const useSettingsStore = create<SettingsState>()(
         if (version < 12) {
           persistedState.useNativeIOSBottomTabs =
             persistedState.useNativeIOSBottomTabs ?? true;
+        }
+
+        if (version < 19) {
+          persistedState.filterHideAdPlaceholders = true;
         }
 
         persistedState.readingBackground = isValidReadingBackground(

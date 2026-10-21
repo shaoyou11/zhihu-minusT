@@ -652,3 +652,40 @@ test('finishes pathological and diverse Unicode matches in an isolated process w
   });
   expect(output).toBe('ok\n');
 }, 20000);
+
+describe('advertising placeholders', () => {
+  test('hides promotion rows while retaining quality placeholders and normal items', () => {
+    const ad = item({ id: 'ad', isLabeled: true });
+    const low = item({ id: 'low', voteCount: 0 });
+    const normal = item({ id: 'normal' });
+    const config = rules({ blockLabeled: true, enableQuality: true });
+    const result = applyFeedFilter([ad, low, normal], config, 'collapse', true);
+    expect(result).toHaveLength(2);
+    expect(isCollapsedGroup(result[0]) && result[0].items).toEqual([low]);
+    expect(result[1]).toBe(normal);
+    expect(applyFeedFilter([ad], config, 'collapse', false)).toHaveLength(1);
+  });
+  test('preserves exemptions and disabled ad rules', () => {
+    const normal = item({
+      id: 'kept',
+      isLabeled: true,
+      isFollowingAuthor: true,
+    });
+    expect(
+      applyFeedFilter(
+        [normal],
+        rules({ blockLabeled: true }),
+        'collapse',
+        true,
+      ),
+    ).toEqual([normal]);
+    expect(
+      applyFeedFilter(
+        [normal],
+        rules({ keepFollowing: false }),
+        'collapse',
+        true,
+      ),
+    ).toEqual([normal]);
+  });
+});

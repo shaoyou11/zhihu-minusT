@@ -324,6 +324,8 @@ function AnswerDetailScreen() {
       <Stack.Screen options={{ headerShown: false, title: '回答' }} />
 
       <DetailNavigationHeader
+        key={currentId}
+        scrollY={headerState.activeScrollY}
         title={headerTitle || '加载中...'}
         collapsed={headerState.collapsed}
         progress={headerState.headerProgress}

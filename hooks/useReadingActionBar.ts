@@ -8,6 +8,7 @@ import { nextReadingActionBarOffset } from '@/utils/readingActionBar';
 export function useReadingActionBar(identity: string, bottom: number) {
   const offset = useSharedValue(0);
   const lastY = useSharedValue(0);
+  const scrollY = useSharedValue(0);
   const tracking = useSharedValue(false);
   const hideDistance = bottom + CONTENT_ACTION_BAR_HEIGHT + 16;
 
@@ -24,6 +25,7 @@ export function useReadingActionBar(identity: string, bottom: number) {
   };
   const onScroll = (event: NativeScrollEvent) => {
     'worklet';
+    scrollY.value = event.contentOffset.y;
     if (!tracking.value) return;
     offset.value = nextReadingActionBarOffset(
       offset.value,
@@ -39,7 +41,10 @@ export function useReadingActionBar(identity: string, bottom: number) {
     tracking.value = false;
   };
   const style = useAnimatedStyle(() => ({
+    opacity: 1 - offset.value / hideDistance,
+    pointerEvents:
+      offset.value >= hideDistance ? ('none' as const) : ('auto' as const),
     transform: [{ translateY: offset.value }],
   }));
-  return { beginDrag, onScroll, endScroll, style };
+  return { beginDrag, onScroll, endScroll, style, scrollY };
 }

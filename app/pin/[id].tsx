@@ -181,6 +181,7 @@ export default function PinDetailScreen() {
     <View type="default" className="flex-1">
       <Stack.Screen options={{ headerShown: false, title: '想法详情' }} />
       <DetailNavigationHeader
+        scrollY={actionBar.scrollY}
         title="想法详情"
         collapsed
         onBack={() => router.back()}

@@ -10,7 +10,6 @@ import {
   type ScrollView as NativeScrollView,
   type NativeSyntheticEvent,
   View as RawView,
-  StyleSheet,
   useWindowDimensions,
 } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
@@ -37,7 +36,7 @@ import {
   getContentActionBarBottom,
 } from '@/components/ContentActionBar';
 import { ContentActionButton } from '@/components/ContentActionButton';
-import { DetailGlassSurface } from '@/components/DetailGlassSurface';
+import { DetailNavigationHeader } from '@/components/DetailNavigationHeader';
 import { FollowButton } from '@/components/FollowButton';
 import { MoreActionsButton } from '@/components/MoreActionsButton';
 import { QueryErrorView } from '@/components/QueryErrorView';
@@ -76,7 +75,6 @@ export default function ArticleDetail() {
   const router = useRouter();
 
   const isDaily = source === 'daily';
-  const textColor = Colors[colorScheme].text;
 
   const contentIdentity = `${isDaily ? 'daily' : 'article'}:${String(id ?? '')}`;
   const actionBar = useReadingActionBar(contentIdentity, actionBarBottom);
@@ -253,18 +251,6 @@ export default function ArticleDetail() {
   };
 
   // Header Animation values
-  const headerBgOpacity = scrollY.interpolate({
-    inputRange: [0, 80],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
-
-  const headerTitleOpacity = scrollY.interpolate({
-    inputRange: [80, 140],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
-
   if (isLoading && !data) {
     return (
       <View className="flex-1 justify-center items-center">
@@ -319,56 +305,14 @@ export default function ArticleDetail() {
       {/* Hide native header */}
       <Stack.Screen options={{ headerShown: false, title: '正文' }} />
 
-      {/* Floating Header Bar */}
-      <View
-        className="flex-row items-center justify-between px-2.5 absolute left-0 right-0 z-50"
-        style={{
-          top: 0,
-          paddingTop: insets.top,
-          height: 56 + insets.top,
-          backgroundColor: 'transparent',
-        }}
-        pointerEvents="box-none"
-      >
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFillObject,
-            {
-              opacity: headerBgOpacity,
-              borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: Colors[colorScheme].divider,
-            },
-          ]}
-          pointerEvents="none"
-        >
-          <DetailGlassSurface />
-        </Animated.View>
-
-        <BouncyButton
-          onPress={() => router.back()}
-          className="w-10 h-10 justify-center items-center z-50 rounded-full"
-        >
-          <Ionicons name="chevron-back" size={28} color={textColor} />
-        </BouncyButton>
-
-        <Animated.View
-          className="flex-1 mx-4"
-          style={{ opacity: headerTitleOpacity }}
-          pointerEvents="none"
-        >
-          <Text
-            className="text-[16px] font-bold text-center"
-            numberOfLines={1}
-            style={{ color: textColor }}
-          >
-            {data.title}
-          </Text>
-        </Animated.View>
-
-        <MoreActionsButton
-          onPress={() => setOpenMenuIdentity(contentIdentity)}
-        />
-      </View>
+      <DetailNavigationHeader
+        key={contentIdentity}
+        scrollY={actionBar.scrollY}
+        title={data.title}
+        collapsed
+        onBack={() => router.back()}
+        onMore={() => setOpenMenuIdentity(contentIdentity)}
+      />
 
       <GestureDetector gesture={doubleTapVote}>
         <RawView collapsable={false} style={{ flex: 1 }}>

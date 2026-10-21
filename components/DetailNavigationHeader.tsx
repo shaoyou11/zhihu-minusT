@@ -2,7 +2,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, {
   type SharedValue,
+  useAnimatedReaction,
   useAnimatedStyle,
+  useSharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BouncyButton } from '@/components/BouncyButton';
@@ -32,6 +34,7 @@ export function useDetailNavigationHeight(): number {
 }
 
 interface DetailNavigationHeaderProps {
+  scrollY?: SharedValue<number>;
   title: string;
   collapsed: boolean;
   progress?: SharedValue<number>;
@@ -50,6 +53,7 @@ interface DetailNavigationHeaderProps {
 /** Stable navigation geometry shared by question and answer reading screens. */
 export function DetailNavigationHeader({
   title,
+  scrollY,
   collapsed,
   progress,
   onBack,
@@ -62,14 +66,31 @@ export function DetailNavigationHeader({
   const insets = useSafeAreaInsets();
   const navigationHeight = useDetailNavigationHeight();
   const foreground = useThemeColor({}, 'text');
-  const divider = useThemeColor({}, 'divider');
-  const shadow = useThemeColor({}, 'shadow');
+  const hidden = useSharedValue(0);
+  const hideDistance = insets.top + navigationHeight;
+  useAnimatedReaction(
+    () => Math.max(0, scrollY?.value ?? 0),
+    (y, previous) => {
+      if (y <= 0) hidden.value = 0;
+      else if (previous !== null)
+        hidden.value = Math.max(
+          0,
+          Math.min(hideDistance, hidden.value + y - previous),
+        );
+    },
+    [scrollY, hideDistance],
+  );
+  const chromeStyle = useAnimatedStyle(() => ({
+    opacity: 1 - hidden.value / hideDistance,
+    transform: [{ translateY: -hidden.value }],
+    pointerEvents:
+      hidden.value >= hideDistance ? ('none' as const) : ('box-none' as const),
+  }));
   const surfaceStyle = useAnimatedStyle(() => {
     const appearance = progress ? progress.value : collapsed ? 1 : 0;
     return {
       opacity: appearance,
       height: (insets.top + navigationHeight) * (0.75 + appearance * 0.25),
-      shadowOpacity: appearance * 0.06,
     };
   }, [progress, collapsed, insets.top, navigationHeight]);
   const contentStyle = useAnimatedStyle(() => {
@@ -81,7 +102,7 @@ export function DetailNavigationHeader({
   }, [progress, collapsed]);
 
   return (
-    <View
+    <Animated.View
       testID={testID}
       pointerEvents="box-none"
       style={[
@@ -90,20 +111,14 @@ export function DetailNavigationHeader({
           paddingTop: insets.top,
           backgroundColor: 'transparent',
         },
+        chromeStyle,
       ]}
     >
       <Animated.View
         testID={testID ? `${testID}-surface` : undefined}
         pointerEvents="none"
         accessible={false}
-        style={[
-          styles.surface,
-          {
-            borderBottomColor: divider,
-            shadowColor: shadow,
-          },
-          surfaceStyle,
-        ]}
+        style={[styles.surface, surfaceStyle]}
       >
         <DetailGlassSurface />
       </Animated.View>
@@ -170,7 +185,7 @@ export function DetailNavigationHeader({
           <View pointerEvents="none" style={styles.iconButton} />
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -187,9 +202,6 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
   },
   row: {
     backgroundColor: 'transparent',

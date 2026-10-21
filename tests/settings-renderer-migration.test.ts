@@ -30,12 +30,12 @@ beforeEach(() => {
   jest.mocked(SecureStore.getItemAsync).mockResolvedValue(null);
 });
 
-test('defaults to tiqian-super-mini with visual feedback and filtering enabled in settings version 18', () => {
+test('defaults to tiqian-super-mini with visual feedback and filtering enabled in settings version 19', () => {
   expect(useSettingsStore.getState().richContentRenderer).toBe('native-v2');
   expect(useSettingsStore.getState().enablePressFeedback).toBe(true);
   expect(useSettingsStore.getState().enableLocalFeedFilter).toBe(true);
   expect(useSettingsStore.getState().filterRegexPatterns).toEqual([]);
-  expect(useSettingsStore.persist.getOptions().version).toBe(18);
+  expect(useSettingsStore.persist.getOptions().version).toBe(19);
 });
 
 test('leaves the double-tap action unset until the user picks one', () => {
@@ -144,7 +144,7 @@ test('hydrates legacy settings and writes back only the new renderer field', asy
       fontSizeScale: 1.3,
       enablePressFeedback: true,
     },
-    version: 18,
+    version: 19,
   });
   expect(JSON.parse(persistedJson).state).not.toHaveProperty('useWebView');
 });
@@ -271,7 +271,7 @@ test('persists and restores sanitized custom regex rules together with a disable
       enableLocalFeedFilter: false,
       filterRegexPatterns: expectedPatterns,
     },
-    version: 18,
+    version: 19,
   });
   useSettingsStore.setState({
     enableLocalFeedFilter: true,
@@ -379,4 +379,17 @@ test('preserves an explicit new regex rule order without mutating saved rules', 
     '广告\\s*推广',
   ]);
   expect(savedPatterns).toEqual(['广告\\s*推广', '^(?:优惠|福利)']);
+});
+
+test('migrates ad placeholders without changing existing filter mode and persists opt-out', async () => {
+  expect(
+    await migrate({ filterMode: 'collapse', filterBlockAdPlatform: true }, 18),
+  ).toMatchObject({
+    filterHideAdPlaceholders: true,
+    filterMode: 'collapse',
+    filterBlockAdPlatform: true,
+  });
+  expect(await migrate({ filterHideAdPlaceholders: false }, 19)).toMatchObject({
+    filterHideAdPlaceholders: false,
+  });
 });

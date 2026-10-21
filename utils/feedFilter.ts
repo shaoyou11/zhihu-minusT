@@ -198,6 +198,7 @@ export function applyFeedFilter(
   items: FeedItem[],
   rules: FeedFilterRules,
   mode: FilterMode,
+  hideAdPlaceholders = false,
 ): FilteredFeedItem[] {
   if (mode === 'hide') {
     return items.filter(
@@ -227,6 +228,13 @@ export function applyFeedFilter(
 
   for (const item of items) {
     const verdict = evaluateFeedItem(item, rules);
+    if (
+      hideAdPlaceholders &&
+      verdict.reason !== null &&
+      verdict.category === 'ad'
+    ) {
+      continue;
+    }
     if (verdict.reason === null) {
       flush();
       out.push(item);

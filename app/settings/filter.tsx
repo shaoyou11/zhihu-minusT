@@ -47,6 +47,7 @@ export default function FilterSettings() {
     enableLocalFeedFilter,
     filterMode,
     filterShowReason,
+    filterHideAdPlaceholders,
     filterBlockPaid,
     filterBlockAdPlatform,
     filterBlockZhihuSchool,
@@ -457,6 +458,16 @@ export default function FilterSettings() {
                   </BouncyButton>
                 </RNView>
               </SettingItem>
+              <Toggle
+                label="隐藏广告折叠提示"
+                icon="eye-off-outline"
+                colorScheme={colorScheme}
+                value={filterHideAdPlaceholders}
+                onValueChange={(v) =>
+                  updateSettings({ filterHideAdPlaceholders: v })
+                }
+                {...switchProps}
+              />
               {filterMode === 'collapse' && (
                 <Toggle
                   label="显示过滤原因"

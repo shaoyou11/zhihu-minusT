@@ -19,6 +19,7 @@ import React, {
 import {
   ActivityIndicator,
   Platform,
+  ScrollView,
   StyleSheet,
   useWindowDimensions,
 } from 'react-native';
@@ -249,6 +250,22 @@ export default function HomeScreen() {
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const indicatorBgColor = useThemeColor({}, 'primary_26');
   const [currentPage, setCurrentPage] = useState(initialPageIndex);
+  const tabStripRef = useRef<ScrollView>(null);
+  const [tabStripWidth, setTabStripWidth] = useState(0);
+  useEffect(() => {
+    if (currentPage >= homeTabsCount) return;
+    tabStripRef.current?.scrollTo({
+      x: Math.max(
+        0,
+        Math.min(
+          currentPage * 58 + 27 - tabStripWidth / 2,
+          homeTabsCount * 58 - tabStripWidth,
+        ),
+      ),
+      animated: true,
+    });
+  }, [currentPage, homeTabsCount, tabStripWidth]);
+
   const { ready: guestCookieReady, attempt: guestBootstrapAttempt } =
     useGuestBootstrap(!cookies);
 
@@ -556,52 +573,65 @@ export default function HomeScreen() {
           ]}
         >
           <View style={styles.topNav}>
-            <View
-              style={{
-                flexDirection: 'row',
-                flex: 1,
-                backgroundColor: 'transparent',
+            <ScrollView
+              ref={tabStripRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ flex: 1 }}
+              onLayout={(event) =>
+                setTabStripWidth(event.nativeEvent.layout.width)
+              }
+              contentContainerStyle={{
+                flexGrow: 1,
+                justifyContent: 'center',
                 alignItems: 'center',
-                position: 'relative',
               }}
             >
-              <Animated.View
-                style={[
-                  styles.topPill,
-                  { backgroundColor: indicatorBgColor },
-                  topIndicatorStyle,
-                ]}
-              />
-              {currentTabs
-                .filter((t) => !['publish', 'profile'].includes(t))
-                .map((tab, index) => {
-                  const labels: Record<string, string> = {
-                    following: '关注',
-                    recommend: '推荐',
-                    local: localCityName || '同城',
-                    hot: '热榜',
-                    daily: '日报',
-                  };
-                  return (
-                    <BouncyButton
-                      key={tab}
-                      onPress={() => handleTabPress(index)}
-                      style={[
-                        styles.navItem,
-                        { width: 54, paddingHorizontal: 0 },
-                      ]}
-                    >
-                      <TopTabLabel
-                        index={index}
-                        label={labels[tab]}
-                        scrollX={scrollX}
-                        activeColor={tintColor}
-                        inactiveColor={secondaryTextColor}
-                      />
-                    </BouncyButton>
-                  );
-                })}
-            </View>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: 'transparent',
+                }}
+              >
+                <Animated.View
+                  style={[
+                    styles.topPill,
+                    { backgroundColor: indicatorBgColor },
+                    topIndicatorStyle,
+                  ]}
+                />
+                {currentTabs
+                  .filter((t) => !['publish', 'profile'].includes(t))
+                  .map((tab, index) => {
+                    const labels: Record<string, string> = {
+                      following: '关注',
+                      recommend: '推荐',
+                      local: localCityName || '同城',
+                      hot: '热榜',
+                      daily: '日报',
+                    };
+                    return (
+                      <BouncyButton
+                        key={tab}
+                        onPress={() => handleTabPress(index)}
+                        style={[
+                          styles.navItem,
+                          { width: 54, paddingHorizontal: 0 },
+                        ]}
+                      >
+                        <TopTabLabel
+                          index={index}
+                          label={labels[tab]}
+                          scrollX={scrollX}
+                          activeColor={tintColor}
+                          inactiveColor={secondaryTextColor}
+                        />
+                      </BouncyButton>
+                    );
+                  })}
+              </View>
+            </ScrollView>
             <BouncyButton
               onPress={() => router.push('/search')}
               style={styles.searchBtn}
@@ -870,6 +900,7 @@ const FeedList = React.forwardRef<
       enableLocalFeedFilter,
       filterMode,
       filterShowReason,
+      filterHideAdPlaceholders,
       filterBlockPaid,
       filterBlockAdPlatform,
       filterBlockZhihuSchool,
@@ -1236,6 +1267,7 @@ const FeedList = React.forwardRef<
           deduped as FeedItem[],
           filterRules,
           filterMode,
+          filterHideAdPlaceholders,
         );
         const out: FeedListItem[] = [];
         for (const item of filtered) {
@@ -1260,6 +1292,7 @@ const FeedList = React.forwardRef<
       filterEnabled,
       filterRules,
       filterMode,
+      filterHideAdPlaceholders,
       expandedCollapsedKeys,
     ]);
 

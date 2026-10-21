@@ -23,6 +23,8 @@ jest.mock('react-native-reanimated', () => ({
       .View,
   },
   useAnimatedStyle: (style: () => unknown) => style(),
+  useSharedValue: (value: number) => ({ value }),
+  useAnimatedReaction: () => {},
 }));
 jest.mock('../components/Themed', () => {
   const native =
