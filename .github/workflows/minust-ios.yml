@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths-ignore: ['docs/**', '**.md']
   workflow_dispatch:
+  schedule:
+    - cron: '37 20 */2 * *'
 permissions:
   contents: read
 concurrency:
@@ -12,16 +14,37 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+      build: ${{ steps.source.outputs.build }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22.x
           cache: npm
+      - name: 同步正式版并保留定制
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/sync-minust.py
       - run: npm ci
       - run: npm run check
+      - name: 保存已验证源码并判断是否需要编译
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git push origin HEAD:main
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          python3 scripts/minust-build-needed.py
   ios:
     needs: quality
+    if: needs.quality.outputs.build == 'true'
     runs-on: macos-26
     timeout-minutes: 60
     permissions:
@@ -32,6 +55,8 @@ jobs:
       EXPO_PUBLIC_FIREBASE_ANALYTICS_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.quality.outputs.commit }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22.x
@@ -72,7 +97,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('./app.json').expo.version")
           TAG="v${VERSION}-build.${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" dist/*.ipa dist/*.json dist/*.txt --target "$GITHUB_SHA" \
+          gh release create "$TAG" dist/*.ipa dist/*.json dist/*.txt --target "${{ needs.quality.outputs.commit }}" \
             --title "知乎 minusT ${VERSION} · ${GITHUB_RUN_NUMBER}" \
             --notes-file docs/MINUST-RELEASE.txt
       - name: 保存编译日志

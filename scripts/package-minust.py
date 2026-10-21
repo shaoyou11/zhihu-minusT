@@ -35,7 +35,9 @@ sha = hashlib.sha256(ipa.read_bytes()).hexdigest()
 (output / 'minust-build.json').write_text(json.dumps({
     'name': expected['name'], 'bundleId': info['CFBundleIdentifier'],
     'version': expected['version'], 'build': info['CFBundleVersion'],
-    'sourceCommit': os.environ.get('GITHUB_SHA', ''), 'sha256': sha,
+    'sourceCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), 'sha256': sha,
+    'kind': 'minust-custom', 'branch': 'main',
+    'upstreamTag': json.loads(Path('custom/upstream.json').read_text())['tag'],
     'repository': os.environ.get('GITHUB_REPOSITORY', ''),
 }, ensure_ascii=False, indent=2) + '\n')
 print(f'已校验：{expected["name"]}，版本 {expected["version"]}，构建 {info["CFBundleVersion"]}')
