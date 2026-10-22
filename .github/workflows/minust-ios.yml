@@ -4,6 +4,12 @@ on:
     branches: [main]
     paths-ignore: ['docs/**', '**.md']
   workflow_dispatch:
+    inputs:
+      force_build:
+        description: 即使源码未变化也重新编译发布
+        required: false
+        default: false
+        type: boolean
   schedule:
     - cron: '37 20 */2 * *'
 permissions:
@@ -38,10 +44,16 @@ jobs:
         id: source
         env:
           GH_TOKEN: ${{ github.token }}
+          FORCE_MINUST_BUILD: ${{ inputs.force_build }}
         run: |
           git push origin HEAD:main
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          python3 scripts/minust-build-needed.py
+          if [ "$FORCE_MINUST_BUILD" = "true" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "手动强制重新编译发布"
+          else
+            python3 scripts/minust-build-needed.py
+          fi
   ios:
     needs: quality
     if: needs.quality.outputs.build == 'true'
