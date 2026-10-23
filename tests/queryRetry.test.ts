@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { AxiosError, AxiosHeaders, CanceledError } from 'axios';
-import { shouldRetryQuery } from '../utils/query';
+import { shouldRetryQuery } from '../src/utils/query';
 
 function httpError(status: number, data: unknown = {}): AxiosError {
   return new AxiosError(
@@ -33,22 +33,25 @@ test.each([
   ['verification', httpError(500, { error: { code: 40352 } }), 1],
   ['cancellation', new CanceledError('Canceled'), 1],
   ['non-transport failure', new Error('Invalid response'), 1],
-] as const)('bounds query attempts after %s', async (_label, error, attempts) => {
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: shouldRetryQuery, retryDelay: 0, gcTime: Infinity },
-    },
-  });
-  const queryFn = jest.fn().mockRejectedValue(error);
-  try {
-    await expect(
-      client.fetchQuery({ queryKey: ['retry-policy'], queryFn }),
-    ).rejects.toBe(error);
-    expect(queryFn).toHaveBeenCalledTimes(attempts);
-  } finally {
-    client.clear();
-  }
-});
+] as const)(
+  'bounds query attempts after %s',
+  async (_label, error, attempts) => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: shouldRetryQuery, retryDelay: 0, gcTime: Infinity },
+      },
+    });
+    const queryFn = jest.fn().mockRejectedValue(error);
+    try {
+      await expect(
+        client.fetchQuery({ queryKey: ['retry-policy'], queryFn }),
+      ).rejects.toBe(error);
+      expect(queryFn).toHaveBeenCalledTimes(attempts);
+    } finally {
+      client.clear();
+    }
+  },
+);
 
 test('recovers from a transport failure on its single automatic retry', async () => {
   const client = new QueryClient({

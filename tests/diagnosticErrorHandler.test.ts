@@ -1,4 +1,4 @@
-import { installDiagnosticErrorHandler } from '../utils/diagnosticErrorHandler';
+import { installDiagnosticErrorHandler } from '../src/utils/diagnosticErrorHandler';
 
 test('records fatal errors synchronously before delegating without changing them', () => {
   const calls: string[] = [];

@@ -1,17 +1,17 @@
 import axios, { CanceledError } from 'axios';
-import apiClient from '../api/client';
+import apiClient from '../src/api/client';
 import {
   getZhihuVideo,
   getZhihuVideoPlayback,
   normalizeZhihuVideoDetail,
-} from '../api/zhihu/video';
+} from '../src/api/zhihu/video';
 import {
   isPlayableVideoUrl,
   parseZhihuVideoId,
   parseZhihuVideoReference,
-} from '../utils/zhihuVideo';
+} from '../src/utils/zhihuVideo';
 
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { get: jest.fn() },
 }));

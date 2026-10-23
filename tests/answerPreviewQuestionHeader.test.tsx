@@ -5,27 +5,27 @@ import {
   followQuestion,
   getQuestion,
   type ZhihuQuestionDetail,
-} from '../api/zhihu/question';
-import { AnswerPreviewQuestionHeader } from '../components/AnswerPreviewQuestionHeader';
+} from '../src/api/zhihu/question';
+import { AnswerPreviewQuestionHeader } from '../src/components/AnswerPreviewQuestionHeader';
 
 let mockSessionVersion = 1;
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
   useAuthStore: (selector: (state: { cookies: string }) => unknown) =>
     selector({ cookies: 'synthetic-authentication' }),
 }));
-jest.mock('../api/client', () => ({ hasAuthenticationCookie: () => true }));
-jest.mock('../api/zhihu/question', () => ({
+jest.mock('../src/api/client', () => ({ hasAuthenticationCookie: () => true }));
+jest.mock('../src/api/zhihu/question', () => ({
   getQuestion: jest.fn(),
   followQuestion: jest.fn(),
   unfollowQuestion: jest.fn(),
 }));
-jest.mock('../utils/toast', () => ({ showToast: jest.fn() }));
+jest.mock('../src/utils/toast', () => ({ showToast: jest.fn() }));
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn() }),
 }));
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -37,23 +37,23 @@ jest.mock('../components/Themed', () => {
     }),
   };
 });
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/ContentActionButton', () => ({
+jest.mock('../src/components/ContentActionButton', () => ({
   ContentActionButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/FollowButton', () => ({
+jest.mock('../src/components/FollowButton', () => ({
   FollowButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/MoreActionsButton', () => ({
+jest.mock('../src/components/MoreActionsButton', () => ({
   MoreActionsButton: () => null,
 }));
-jest.mock('../components/ShareMenu', () => ({ ShareMenu: () => null }));
-jest.mock('../components/QueryErrorView', () => ({
+jest.mock('../src/components/ShareMenu', () => ({ ShareMenu: () => null }));
+jest.mock('../src/components/QueryErrorView', () => ({
   QueryErrorView: () => null,
 }));
-jest.mock('../features/rich-content', () => ({
+jest.mock('../src/features/rich-content', () => ({
   RICH_CONTENT_STALE_TIME: 60_000,
   ZhihuContent: () => null,
 }));

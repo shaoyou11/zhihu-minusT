@@ -6,7 +6,7 @@ import {
   QueryClient,
   QueryObserver,
 } from '@tanstack/react-query';
-import { restartInterruptedQueries } from '../utils/queryRecovery';
+import { restartInterruptedQueries } from '../src/utils/queryRecovery';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -99,53 +99,53 @@ test('retains cached data while restarting and ignores a late failure from the o
   expect(observer.getCurrentResult().data).toBe('fresh content');
 });
 
-test.each([
-  'forward',
-  'backward',
-] as const)('restarts %s pagination without fetching the previously loaded pages', async (direction) => {
-  const requests: Array<{
-    pageParam: number;
-    signal: AbortSignal;
-    result: ReturnType<typeof deferred<number>>;
-  }> = [];
-  const observer = new InfiniteQueryObserver(client, {
-    queryKey: ['pages', direction],
-    initialPageParam: 1,
-    initialData: { pages: [1, 2], pageParams: [1, 2] },
-    staleTime: Infinity,
-    queryFn: ({ pageParam, signal }) => {
-      const result = deferred<number>();
-      requests.push({ pageParam, signal, result });
-      return result.promise;
-    },
-    getNextPageParam: (lastPage) => lastPage + 1,
-    getPreviousPageParam: (firstPage) => firstPage - 1,
-  });
-  cleanups.push(observer.subscribe(() => undefined));
-  const interrupted =
-    direction === 'forward'
-      ? observer.fetchNextPage()
-      : observer.fetchPreviousPage();
+test.each(['forward', 'backward'] as const)(
+  'restarts %s pagination without fetching the previously loaded pages',
+  async (direction) => {
+    const requests: Array<{
+      pageParam: number;
+      signal: AbortSignal;
+      result: ReturnType<typeof deferred<number>>;
+    }> = [];
+    const observer = new InfiniteQueryObserver(client, {
+      queryKey: ['pages', direction],
+      initialPageParam: 1,
+      initialData: { pages: [1, 2], pageParams: [1, 2] },
+      staleTime: Infinity,
+      queryFn: ({ pageParam, signal }) => {
+        const result = deferred<number>();
+        requests.push({ pageParam, signal, result });
+        return result.promise;
+      },
+      getNextPageParam: (lastPage) => lastPage + 1,
+      getPreviousPageParam: (firstPage) => firstPage - 1,
+    });
+    cleanups.push(observer.subscribe(() => undefined));
+    const interrupted =
+      direction === 'forward'
+        ? observer.fetchNextPage()
+        : observer.fetchPreviousPage();
 
-  restartInterruptedQueries(client);
+    restartInterruptedQueries(client);
 
-  const requestedPage = direction === 'forward' ? 3 : 0;
-  expect(requests.map((request) => request.pageParam)).toEqual([
-    requestedPage,
-    requestedPage,
-  ]);
-  expect(requests[0].signal.aborted).toBe(true);
-  expect(observer.getCurrentResult().data?.pages).toEqual([1, 2]);
-  requests[0].result.resolve(999);
-  requests[1].result.resolve(requestedPage);
-  await interrupted;
-  await jest.advanceTimersByTimeAsync(0);
-  const expectedPages = direction === 'forward' ? [1, 2, 3] : [0, 1, 2];
-  expect(observer.getCurrentResult().data).toEqual({
-    pages: expectedPages,
-    pageParams: expectedPages,
-  });
-});
+    const requestedPage = direction === 'forward' ? 3 : 0;
+    expect(requests.map((request) => request.pageParam)).toEqual([
+      requestedPage,
+      requestedPage,
+    ]);
+    expect(requests[0].signal.aborted).toBe(true);
+    expect(observer.getCurrentResult().data?.pages).toEqual([1, 2]);
+    requests[0].result.resolve(999);
+    requests[1].result.resolve(requestedPage);
+    await interrupted;
+    await jest.advanceTimersByTimeAsync(0);
+    const expectedPages = direction === 'forward' ? [1, 2, 3] : [0, 1, 2];
+    expect(observer.getCurrentResult().data).toEqual({
+      pages: expectedPages,
+      pageParams: expectedPages,
+    });
+  },
+);
 
 test('starts one paused replacement before reconnect and resumes it once', async () => {
   const { queryFn, requests } = controlledQuery<string>();

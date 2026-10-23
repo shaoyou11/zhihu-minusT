@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { useLayoutEffect } from 'react';
-import { useRefreshSnapshot } from '../hooks/useRefreshSnapshot';
-import { useScopedRefreshAction } from '../hooks/useScopedRefreshAction';
+import { useRefreshSnapshot } from '../src/hooks/useRefreshSnapshot';
+import { useScopedRefreshAction } from '../src/hooks/useScopedRefreshAction';
 
 function deferred() {
   let resolve!: () => void;

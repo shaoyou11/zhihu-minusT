@@ -1,20 +1,20 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Platform } from 'react-native';
 import type { WebViewProps } from 'react-native-webview';
-import { ContentExportScreen } from '../features/content-export/ContentExportScreen';
-import { ContentExportError } from '../features/content-export/errors';
+import { ContentExportScreen } from '../src/features/content-export/ContentExportScreen';
+import { ContentExportError } from '../src/features/content-export/errors';
 import {
   saveExport,
   saveExportImages,
   shareExport,
-} from '../features/content-export/files';
+} from '../src/features/content-export/files';
 import type {
   ExportResult,
   ExportSource,
   ExportTarget,
   ExportTaskContext,
-} from '../features/content-export/types';
-import type { useContentExport } from '../features/content-export/useContentExport';
+} from '../src/features/content-export/types';
+import type { useContentExport } from '../src/features/content-export/useContentExport';
 
 let mockJob: ReturnType<typeof useContentExport>;
 const mockColors = {
@@ -28,37 +28,37 @@ const mockColors = {
   onPrimary: '#ffffff',
 };
 const mockCapture = jest.fn();
-jest.mock('../features/content-export/useContentExport', () => ({
+jest.mock('../src/features/content-export/useContentExport', () => ({
   useContentExport: () => mockJob,
   exportErrorMessage: (error: unknown, fallback: string) => {
     const { ContentExportError } = jest.requireActual(
-      '../features/content-export/errors',
+      '../src/features/content-export/errors',
     );
     return error instanceof ContentExportError
       ? (error as Error).message
       : fallback;
   },
 }));
-jest.mock('../features/content-export/ImageExportRenderer', () => ({
+jest.mock('../src/features/content-export/ImageExportRenderer', () => ({
   useImageExport: () => ({ capture: mockCapture, renderer: null }),
 }));
-jest.mock('../features/content-export/files', () => ({
+jest.mock('../src/features/content-export/files', () => ({
   saveExport: jest.fn(),
   saveExportImages: jest.fn(),
   shareExport: jest.fn(),
 }));
-jest.mock('../features/content-export/serializers', () => ({
+jest.mock('../src/features/content-export/serializers', () => ({
   serializeExportHtml: () => '<p>合成正文预览</p>',
   serializeExportMarkdown: () => '合成正文预览',
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   Text: jest.requireActual('react-native').Text,
   useRuntimeThemeColors: () => mockColors,
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: (
     selector: (state: {
       fontSizeScale: number;
@@ -215,24 +215,24 @@ test('iOS save describes opening the system panel without claiming the file was 
   expect(host.queryByText('文件已保存到所选目录')).toBeNull();
 });
 
-test.each([
-  '保存到文件',
-  '分享文件',
-])('a %s failure clears success notices and never displays native exception details', async (label) => {
-  mockJob.result = output;
-  const operation = label === '保存到文件' ? saveExport : shareExport;
-  jest
-    .mocked(operation)
-    .mockRejectedValue(new Error('synthetic-private-native-config'));
-  const host = await setup();
-  await fireEvent.press(host.getByRole('button', { name: label }));
-  await waitFor(() =>
-    expect(host.getByText('保存或分享失败，请重试')).toBeTruthy(),
-  );
-  expect(host.queryByText('synthetic-private-native-config')).toBeNull();
-  expect(host.queryByText('文件已保存到所选目录')).toBeNull();
-  expect(host.queryByText('已打开系统分享')).toBeNull();
-});
+test.each(['保存到文件', '分享文件'])(
+  'a %s failure clears success notices and never displays native exception details',
+  async (label) => {
+    mockJob.result = output;
+    const operation = label === '保存到文件' ? saveExport : shareExport;
+    jest
+      .mocked(operation)
+      .mockRejectedValue(new Error('synthetic-private-native-config'));
+    const host = await setup();
+    await fireEvent.press(host.getByRole('button', { name: label }));
+    await waitFor(() =>
+      expect(host.getByText('保存或分享失败，请重试')).toBeTruthy(),
+    );
+    expect(host.queryByText('synthetic-private-native-config')).toBeNull();
+    expect(host.queryByText('文件已保存到所选目录')).toBeNull();
+    expect(host.queryByText('已打开系统分享')).toBeNull();
+  },
+);
 
 test('an expired result cannot reach the system save or share operation', async () => {
   mockJob.result = output;
@@ -270,35 +270,38 @@ test('delivery locks format controls and prevents a second operation until compl
   expect(host.getByRole('button', { name: '保存到文件' })).toBeEnabled();
 });
 
-test.each([
-  1, 2,
-])('merged long-image output can save all %i files to the photo library', async (count) => {
-  const host = await setup();
-  await fireEvent.press(host.getByRole('radio', { name: '长图' }));
-  mockJob.result = {
-    ...output,
-    files: Array.from({ length: count }, (_, index) => ({
-      name: `合成问题-${index + 1}.png`,
-      uri: `file:///test/export/${index + 1}.png`,
-      mimeType: 'image/png',
-    })),
-  };
-  await host.rerender(<ContentExportScreen target={target} active />);
-  expect(
-    host.getByText(
-      count === 1 ? '已自动合并为一张长图' : '内容较长，已自动合并为 2 张长图',
-    ),
-  ).toBeTruthy();
-  await fireEvent.press(
-    host.getByRole('button', {
-      name: count === 1 ? '保存到相册' : '全部保存到相册',
-    }),
-  );
-  await waitFor(() =>
-    expect(saveExportImages).toHaveBeenCalledWith(mockJob.result, context),
-  );
-  expect(host.getByText('图片已保存到相册')).toBeTruthy();
-});
+test.each([1, 2])(
+  'merged long-image output can save all %i files to the photo library',
+  async (count) => {
+    const host = await setup();
+    await fireEvent.press(host.getByRole('radio', { name: '长图' }));
+    mockJob.result = {
+      ...output,
+      files: Array.from({ length: count }, (_, index) => ({
+        name: `合成问题-${index + 1}.png`,
+        uri: `file:///test/export/${index + 1}.png`,
+        mimeType: 'image/png',
+      })),
+    };
+    await host.rerender(<ContentExportScreen target={target} active />);
+    expect(
+      host.getByText(
+        count === 1
+          ? '已自动合并为一张长图'
+          : '内容较长，已自动合并为 2 张长图',
+      ),
+    ).toBeTruthy();
+    await fireEvent.press(
+      host.getByRole('button', {
+        name: count === 1 ? '保存到相册' : '全部保存到相册',
+      }),
+    );
+    await waitFor(() =>
+      expect(saveExportImages).toHaveBeenCalledWith(mockJob.result, context),
+    );
+    expect(host.getByText('图片已保存到相册')).toBeTruthy();
+  },
+);
 
 test('revoking partial-content consent also prevents retrying or continuing a pending missing-image export', async () => {
   mockJob.source = { ...source, completeness: 'partial' };
@@ -342,24 +345,24 @@ test.each([
   { label: 'HTML', format: 'html' },
   { label: 'PDF', format: 'pdf' },
   { label: '长图', format: 'image' },
-])('Android $label preview retains the drag gesture inside its WebView', async ({
-  label,
-  format,
-}) => {
-  jest.replaceProperty(Platform, 'OS', 'android');
-  const host = await setup();
-  await fireEvent.press(host.getByRole('radio', { name: label }));
-  await waitFor(() =>
-    expect(host.getByTestId('export-preview-webview')).toBeTruthy(),
-  );
-  const webview = host.getByTestId('export-preview-webview');
-  // RNCWebView.onTouchEvent uses this flag to prevent parent interception.
-  expect(webview.props.nestedScrollEnabled).toBe(true);
-  expect(webview.props.scrollEnabled).not.toBe(false);
-  expect(
-    host.container.queryAll((node) => node.type.endsWith('ScrollView'))[0].props
-      .nestedScrollEnabled,
-  ).toBe(true);
-  await fireEvent.press(host.getByRole('button', { name: `生成 ${label}` }));
-  expect(mockJob.generate).toHaveBeenCalledWith(format, expect.any(Object));
-});
+])(
+  'Android $label preview retains the drag gesture inside its WebView',
+  async ({ label, format }) => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const host = await setup();
+    await fireEvent.press(host.getByRole('radio', { name: label }));
+    await waitFor(() =>
+      expect(host.getByTestId('export-preview-webview')).toBeTruthy(),
+    );
+    const webview = host.getByTestId('export-preview-webview');
+    // RNCWebView.onTouchEvent uses this flag to prevent parent interception.
+    expect(webview.props.nestedScrollEnabled).toBe(true);
+    expect(webview.props.scrollEnabled).not.toBe(false);
+    expect(
+      host.container.queryAll((node) => node.type.endsWith('ScrollView'))[0]
+        .props.nestedScrollEnabled,
+    ).toBe(true);
+    await fireEvent.press(host.getByRole('button', { name: `生成 ${label}` }));
+    expect(mockJob.generate).toHaveBeenCalledWith(format, expect.any(Object));
+  },
+);

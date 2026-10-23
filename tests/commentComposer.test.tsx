@@ -1,14 +1,14 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { createRef } from 'react';
-import { Alert, type TextInput } from 'react-native';
-import { type UploadedImage, uploadImage } from '../api/zhihu/image';
+import { Alert, type TextInputInstance } from 'react-native';
+import { type UploadedImage, uploadImage } from '../src/api/zhihu/image';
 import {
   CommentComposer,
   type CommentDraft,
-} from '../components/CommentComposer';
+} from '../src/components/CommentComposer';
 
-jest.mock('../api/zhihu/image', () => ({ uploadImage: jest.fn() }));
+jest.mock('../src/api/zhihu/image', () => ({ uploadImage: jest.fn() }));
 jest.mock('expo-image-picker', () => ({
   requestMediaLibraryPermissionsAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
@@ -17,20 +17,20 @@ jest.mock(
   '@expo/vector-icons/Ionicons',
   () => jest.requireActual('react-native').View,
 );
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').View,
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native = jest.requireActual('react-native');
   return { Text: native.Text, View: native.View };
 });
-jest.mock('../constants/Colors', () => ({
+jest.mock('../src/constants/Colors', () => ({
   __esModule: true,
   default: {
     light: { textSecondary: '#666', textTertiary: '#777', danger: '#f00' },
   },
 }));
-jest.mock('../utils/zhihuError', () => ({
+jest.mock('../src/utils/zhihuError', () => ({
   getZhihuErrorMessage: () => '上传失败',
 }));
 
@@ -54,7 +54,7 @@ async function setup(
     <CommentComposer
       colorScheme="light"
       borderColor="#ddd"
-      inputRef={createRef<TextInput>()}
+      inputRef={createRef<TextInputInstance>()}
       inputText="合成草稿"
       isSubmitting={false}
       onChangeText={onChangeText}

@@ -16,7 +16,7 @@
 | 动态流 | `GET /moments_v3` | `action`、`feed_type`、`moment_start_offset`、`offset`、`page_num`、`session_id` 等 | `3.0.93` / `43` |
 | 聚合动态来源 | `GET /moments/{id}/origin` | `limit` | `3.0.93` / `172` |
 
-已接入接口的参数类型、URL 构造器和稳定请求头定义集中在 `api/zhihu/appApi.ts`。初始请求只填入可安全推导的默认值；翻页时直接使用服务端下发的 URL，保留 `session_token`、cursor、offset 和频控状态。
+已接入接口的参数类型、URL 构造器和稳定请求头定义集中在 `src/api/zhihu/appApi.ts`。初始请求只填入可安全推导的默认值；翻页时直接使用服务端下发的 URL，保留 `session_token`、cursor、offset 和频控状态。
 
 `/next-render` 的请求头分类、参数类型、`answer | login_prompt` 返回体和 `structured_content` 分段正文详见 [知乎 next-render 请求与返回体结构](./ZHIHU_NEXT_RENDER.md)。其中正文的 `paging` 是 JSON 字符串，续取路径为 `/next-content-render`，与外层回答流分页不同。预览卡片列表已按此结构接入请求，开发案例继续提供独立 JSON 渲染对照。初始请求仅使用当前回答、已知问题 ID 和固定场景参数，未知会话/游标留空；此最小参数组合尚未进行线上验证。
 

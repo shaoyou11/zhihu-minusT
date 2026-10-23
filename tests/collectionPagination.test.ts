@@ -1,11 +1,11 @@
-import apiClient from '../api/client';
-import { getAllContentCollectionStatus } from '../api/zhihu/collection';
+import apiClient from '../src/api/client';
+import { getAllContentCollectionStatus } from '../src/api/zhihu/collection';
 
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { get: jest.fn() },
 }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   useAuthStore: { getState: jest.fn() },
 }));
 

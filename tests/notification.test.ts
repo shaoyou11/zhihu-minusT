@@ -1,8 +1,8 @@
-import type { ZhihuNotificationItem } from '../types/zhihu';
+import type { ZhihuNotificationItem } from '../src/types/zhihu';
 import {
   getNotificationBody,
   getNotificationPath,
-} from '../utils/notification';
+} from '../src/utils/notification';
 
 const base: ZhihuNotificationItem = {
   id: '10',

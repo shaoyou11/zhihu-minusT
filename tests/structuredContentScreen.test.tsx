@@ -1,11 +1,11 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
-import RichContentFixturesScreen from '../app/dev/rich-content/index';
-import StructuredContentScreen from '../app/dev/rich-content/structured';
+import RichContentFixturesScreen from '../src/app/dev/rich-content/index';
+import StructuredContentScreen from '../src/app/dev/rich-content/structured';
 import {
   mergeStructuredContentPages,
   structuredContentCases,
-} from '../features/rich-content/dev/structuredCases';
-import type { ZhihuStructuredContent } from '../types/zhihu';
+} from '../src/features/rich-content/dev/structuredCases';
+import type { ZhihuStructuredContent } from '../src/types/zhihu';
 
 interface StructuredProps {
   content: ZhihuStructuredContent;
@@ -38,17 +38,17 @@ jest.mock('@expo/vector-icons/Ionicons', () => () => null);
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native = jest.requireActual('react-native');
   return { Text: native.Text, useThemeColor: () => '#345678' };
 });
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../constants/Colors', () => ({
+jest.mock('../src/constants/Colors', () => ({
   __esModule: true,
   default: {
     light: {
@@ -58,10 +58,10 @@ jest.mock('../constants/Colors', () => ({
     },
   },
 }));
-jest.mock('../features/rich-content/dev/fixtures', () => ({
+jest.mock('../src/features/rich-content/dev/fixtures', () => ({
   getRichContentFixtureSummaries: () => [],
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: Object.assign(
     () => ({ setRichContentRenderer: mockWriteSettings }),
     {
@@ -70,11 +70,11 @@ jest.mock('../store/useSettingsStore', () => ({
     },
   ),
 }));
-jest.mock('../features/rich-content', () => {
+jest.mock('../src/features/rich-content', () => {
   const React = jest.requireActual('react');
   const native = jest.requireActual('react-native');
   const parsing = jest.requireActual(
-    '../features/rich-content/structuredContent',
+    '../src/features/rich-content/structuredContent',
   );
   return {
     parseStructuredContentPaging: parsing.parseStructuredContentPaging,

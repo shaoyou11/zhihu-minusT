@@ -2,29 +2,29 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import {
   type PreparedExportAssets,
   prepareExportAssets,
-} from '../features/content-export/assets';
+} from '../src/features/content-export/assets';
 import {
   cleanupExpiredExports,
   createExportDirectory,
   discardExportDirectory,
   writeTextExport,
-} from '../features/content-export/files';
-import { resolveExportSource } from '../features/content-export/resolveSource';
+} from '../src/features/content-export/files';
+import { resolveExportSource } from '../src/features/content-export/resolveSource';
 import {
   serializeExportHtml,
   serializeExportMarkdown,
-} from '../features/content-export/serializers';
+} from '../src/features/content-export/serializers';
 import type {
   ExportResult,
   ExportSource,
   ExportTarget,
-} from '../features/content-export/types';
-import { useContentExport } from '../features/content-export/useContentExport';
+} from '../src/features/content-export/types';
+import { useContentExport } from '../src/features/content-export/useContentExport';
 
-jest.mock('../features/content-export/assets', () => ({
+jest.mock('../src/features/content-export/assets', () => ({
   prepareExportAssets: jest.fn(),
 }));
-jest.mock('../features/content-export/files', () => ({
+jest.mock('../src/features/content-export/files', () => ({
   cleanupExpiredExports: jest.fn(),
   createExportDirectory: jest.fn(),
   discardExportDirectory: jest.fn(),
@@ -32,18 +32,18 @@ jest.mock('../features/content-export/files', () => ({
   writePdfExport: jest.fn(),
   writeImageExport: jest.fn(),
 }));
-jest.mock('../features/content-export/resolveSource', () => ({
+jest.mock('../src/features/content-export/resolveSource', () => ({
   resolveExportSource: jest.fn(),
 }));
-jest.mock('../features/content-export/serializers', () => ({
+jest.mock('../src/features/content-export/serializers', () => ({
   serializeExportHtml: jest.fn(),
   serializeExportMarkdown: jest.fn(),
 }));
-jest.mock('../features/content-export/ImageExportRenderer', () => ({
+jest.mock('../src/features/content-export/ImageExportRenderer', () => ({
   releaseImageCaptures: jest.fn(),
 }));
 let mockSessionVersion = 8;
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
 }));
 
@@ -181,40 +181,40 @@ test('late source details cannot replace the selected content after reopening', 
   expect(host.result.current.source?.target.id).toBe('456');
 });
 
-test.each([
-  'html',
-  'markdown',
-] as const)('embeds partial-body and missing-image warnings after explicit %s continuation', async (format) => {
-  jest.mocked(resolveExportSource).mockResolvedValue({
-    ...source(),
-    completeness: 'partial',
-    warnings: ['正文尚未完整获取'],
-  });
-  jest.mocked(prepareExportAssets).mockResolvedValue({
-    ...assets,
-    offline: false,
-    warnings: ['1 个图片资源未能获取'],
-  });
-  const host = await setup();
-  await act(async () => {
-    await host.result.current.generate(format, options);
-  });
-  expect(host.result.current.missing).toEqual(['1 个图片资源未能获取']);
-  expect(writeTextExport).not.toHaveBeenCalled();
-  await act(async () => {
-    host.result.current.continueWithoutImages();
-  });
-  await waitFor(() => expect(host.result.current.result).not.toBeNull());
-  const request = jest.mocked(writeTextExport).mock.calls[0][0];
-  expect(JSON.parse(request.content)).toMatchObject({
-    completeness: 'partial',
-    warnings: ['正文尚未完整获取', '1 个图片资源未能获取'],
-  });
-  expect(request.warnings).toEqual([
-    '正文尚未完整获取',
-    '1 个图片资源未能获取',
-  ]);
-});
+test.each(['html', 'markdown'] as const)(
+  'embeds partial-body and missing-image warnings after explicit %s continuation',
+  async (format) => {
+    jest.mocked(resolveExportSource).mockResolvedValue({
+      ...source(),
+      completeness: 'partial',
+      warnings: ['正文尚未完整获取'],
+    });
+    jest.mocked(prepareExportAssets).mockResolvedValue({
+      ...assets,
+      offline: false,
+      warnings: ['1 个图片资源未能获取'],
+    });
+    const host = await setup();
+    await act(async () => {
+      await host.result.current.generate(format, options);
+    });
+    expect(host.result.current.missing).toEqual(['1 个图片资源未能获取']);
+    expect(writeTextExport).not.toHaveBeenCalled();
+    await act(async () => {
+      host.result.current.continueWithoutImages();
+    });
+    await waitFor(() => expect(host.result.current.result).not.toBeNull());
+    const request = jest.mocked(writeTextExport).mock.calls[0][0];
+    expect(JSON.parse(request.content)).toMatchObject({
+      completeness: 'partial',
+      warnings: ['正文尚未完整获取', '1 个图片资源未能获取'],
+    });
+    expect(request.warnings).toEqual([
+      '正文尚未完整获取',
+      '1 个图片资源未能获取',
+    ]);
+  },
+);
 
 test('a finished result context becomes unusable on account change and after closing and reopening', async () => {
   const host = await setup();

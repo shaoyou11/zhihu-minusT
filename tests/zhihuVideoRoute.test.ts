@@ -1,7 +1,7 @@
 import {
   getDirectZhihuVideoUrl,
   getZhihuVideoRoute,
-} from '../utils/zhihuVideoRoute';
+} from '../src/utils/zhihuVideoRoute';
 
 test('Lens identity takes priority over a different zvideo page and expiring media resource', () => {
   expect(
@@ -21,11 +21,14 @@ test.each([
   ['https://www.zhihu.com/zvideo/101', 'zvideo'],
   ['zhihu://videos/101', 'lens'],
   ['https://api.zhihu.com/zvideos/101', 'zvideo'],
-])('routes a recognized video URL %s using its actual identity type', (url, source) => {
-  expect(getZhihuVideoRoute({ url })).toBe(
-    `zhihu--:///video/101?source=${source}`,
-  );
-});
+])(
+  'routes a recognized video URL %s using its actual identity type',
+  (url, source) => {
+    expect(getZhihuVideoRoute({ url })).toBe(
+      `zhihu--:///video/101?source=${source}`,
+    );
+  },
+);
 
 test('preserves direct media query parameters and encodes its title once', () => {
   const uri = 'https://example.com/synthetic.m3u8?quality=hd&part=1';

@@ -2,7 +2,7 @@ import {
   classifyDiagnosticMessage,
   sanitizeCodeFilename,
   sanitizeDiagnosticContext,
-} from '../utils/errorDiagnostics';
+} from '../src/utils/errorDiagnostics';
 
 describe('safe diagnostic messages', () => {
   test.each([
@@ -83,11 +83,14 @@ describe('safe diagnostic messages', () => {
     ],
     ['HTTP failure: 503', 'http.failure', 'HTTP failure: 503'],
     ['Network failure: timeout', 'network.failure', 'Network failure: timeout'],
-  ])('classifies %s and remains safe after reading it back', (input, code, summary) => {
-    const expected = { code, summary };
-    expect(classifyDiagnosticMessage(input)).toEqual(expected);
-    expect(classifyDiagnosticMessage(summary)).toEqual(expected);
-  });
+  ])(
+    'classifies %s and remains safe after reading it back',
+    (input, code, summary) => {
+      const expected = { code, summary };
+      expect(classifyDiagnosticMessage(input)).toEqual(expected);
+      expect(classifyDiagnosticMessage(summary)).toEqual(expected);
+    },
+  );
 
   test.each([
     'Cookie: z_c0=synthetic-private-token',
@@ -121,11 +124,14 @@ describe('safe source locations', () => {
     '/Users/synthetic-private-user/project/components/RecentMoments.tsx',
     'https://synthetic-private-host.invalid/components/RecentMoments.tsx?token=synthetic-private-token#account',
     'C:\\synthetic-private-user\\components\\RecentMoments.tsx',
-  ])('keeps the exact repository file without the machine or URL', (filename) => {
-    expect(sanitizeCodeFilename(filename, sourceFiles)).toBe(
-      'components/RecentMoments.tsx',
-    );
-  });
+  ])(
+    'keeps the exact repository file without the machine or URL',
+    (filename) => {
+      expect(sanitizeCodeFilename(filename, sourceFiles)).toBe(
+        'components/RecentMoments.tsx',
+      );
+    },
+  );
   test('keeps encoded route filenames only when present in the build allowlist', () => {
     expect(
       sanitizeCodeFilename(
@@ -177,16 +183,16 @@ describe('safe source locations', () => {
       sanitizeCodeFilename('/private/synthetic-token.txt'),
     ).toBeUndefined();
   });
-  test.each([
-    '.virtual-metro-entry',
-    '.virtual-metro-entry.bundle',
-  ])('keeps the known Expo development entry %s without the host or parameters', (entry) => {
-    expect(
-      sanitizeCodeFilename(
-        `http://private.invalid/node_modules/.expo/${entry}?token=synthetic-private-token`,
-      ),
-    ).toBe('entry.bundle');
-  });
+  test.each(['.virtual-metro-entry', '.virtual-metro-entry.bundle'])(
+    'keeps the known Expo development entry %s without the host or parameters',
+    (entry) => {
+      expect(
+        sanitizeCodeFilename(
+          `http://private.invalid/node_modules/.expo/${entry}?token=synthetic-private-token`,
+        ),
+      ).toBe('entry.bundle');
+    },
+  );
 });
 
 test('keeps only explicitly allowed diagnostic context fields', () => {

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
-import apiClient from '../api/client';
+import apiClient from '../src/api/client';
 import {
   buildZhihuNextRenderUrl,
   getAnswerPreviewContinuation,
@@ -10,45 +10,45 @@ import {
   getStructuredContentContinuation,
   normalizeZhihuAnswerPreviewPage,
   validateZhihuRenderUrl,
-} from '../api/zhihu/nextRender';
-import { compileZhihuDocument } from '../features/rich-content/compileRichText';
+} from '../src/api/zhihu/nextRender';
+import { compileZhihuDocument } from '../src/features/rich-content/compileRichText';
 import {
   decodeRichContentDevFixture,
   parseRichContentFixtureManifest,
-} from '../features/rich-content/dev/fixtureDecoder';
-import nextRenderCollectionFixture from '../features/rich-content/fixtures/cases/next-render-collection-card-ordered-001.json';
-import nextRenderSegLikeFixture from '../features/rich-content/fixtures/cases/next-render-seg-like-001.json';
-import richContentManifest from '../features/rich-content/fixtures/manifest.json';
+} from '../src/features/rich-content/dev/fixtureDecoder';
+import nextRenderCollectionFixture from '../src/features/rich-content/fixtures/cases/next-render-collection-card-ordered-001.json';
+import nextRenderSegLikeFixture from '../src/features/rich-content/fixtures/cases/next-render-seg-like-001.json';
+import richContentManifest from '../src/features/rich-content/fixtures/manifest.json';
 import {
   mergeStructuredContentPages,
   normalizeZhihuStructuredContent,
   parseStructuredContentPaging,
-} from '../features/rich-content/structuredContent';
-import { useAnswerPreviewBody } from '../hooks/useAnswerPreviewBody';
+} from '../src/features/rich-content/structuredContent';
+import { useAnswerPreviewBody } from '../src/hooks/useAnswerPreviewBody';
 import {
   type AnswerPreviewQueryOptions,
   useAnswerPreviewQuery,
-} from '../hooks/useAnswerPreviewQuery';
-import { useAuthStore } from '../store/useAuthStore';
-import type { ZhihuStructuredContent } from '../types/zhihu';
-import { seedAnswerEndorsements } from '../utils/answerEndorsements';
+} from '../src/hooks/useAnswerPreviewQuery';
+import { useAuthStore } from '../src/store/useAuthStore';
+import type { ZhihuStructuredContent } from '../src/types/zhihu';
+import { seedAnswerEndorsements } from '../src/utils/answerEndorsements';
 import {
   createAnswerPreviewEntry,
   getAnswerPreviewEntryKey,
   seedAnswerPreviewEntry,
-} from '../utils/answerPreviewEntry';
+} from '../src/utils/answerPreviewEntry';
 
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { get: jest.fn() },
 }));
-jest.mock('../features/rich-content', () => ({
-  ...jest.requireActual('../features/rich-content/structuredContent'),
-  ...jest.requireActual('../features/rich-content/queryPolicy'),
+jest.mock('../src/features/rich-content', () => ({
+  ...jest.requireActual('../src/features/rich-content/structuredContent'),
+  ...jest.requireActual('../src/features/rich-content/queryPolicy'),
 }));
 
 let mockSessionVersion = 1;
-jest.mock('../store/useAuthStore', () => {
+jest.mock('../src/store/useAuthStore', () => {
   const { create } = jest.requireActual('zustand');
   return {
     getAuthSessionVersion: () => mockSessionVersion,

@@ -6,19 +6,19 @@ import {
   getCollectionDetail,
   getMyCollections,
   updateCollection,
-} from '../api/zhihu';
-import CollectionDetailScreen from '../app/collections/[id]';
-import MyCollectionsScreen from '../app/collections/index';
+} from '../src/api/zhihu';
+import CollectionDetailScreen from '../src/app/collections/[id]';
+import MyCollectionsScreen from '../src/app/collections/index';
 
 let mockCookies: string | null = 'z_c0=synthetic';
 const mockNavigation = { setOptions: jest.fn() };
 const mockRouter = { push: jest.fn() };
 const mockVideoTypes = new Map<string, string | undefined>();
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   hasAuthenticationCookie: (cookies: string | null) => Boolean(cookies),
 }));
-jest.mock('../api/zhihu', () => ({
+jest.mock('../src/api/zhihu', () => ({
   getCollection: jest.fn(),
   getCollectionDetail: jest.fn(),
   getMyCollections: jest.fn(),
@@ -31,21 +31,21 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => ({ id: '17' }),
 }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   useAuthStore: (selector: (state: { cookies: string | null }) => unknown) =>
     selector({ cookies: mockCookies }),
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native = jest.requireActual('react-native');
   return { Text: native.Text, View: native.View, useThemeColor: () => '#00f' };
 });
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../components/CreationCard', () => ({
+jest.mock('../src/components/CreationCard', () => ({
   CreationCard: ({
     item,
     type,
@@ -63,7 +63,7 @@ jest.mock('../components/CreationCard', () => ({
       );
   },
 }));
-jest.mock('../components/overlays/BottomSheet', () => ({
+jest.mock('../src/components/overlays/BottomSheet', () => ({
   BottomSheet: ({
     visible,
     children,
@@ -94,7 +94,7 @@ jest.mock('../components/overlays/BottomSheet', () => ({
       : null;
   },
 }));
-jest.mock('../components/overlays/ActionSheet', () => ({
+jest.mock('../src/components/overlays/ActionSheet', () => ({
   ActionSheet: ({
     visible,
     options,
@@ -115,7 +115,7 @@ jest.mock('../components/overlays/ActionSheet', () => ({
       : null;
   },
 }));
-jest.mock('../components/CollectionEditorForm', () => ({
+jest.mock('../src/components/CollectionEditorForm', () => ({
   CollectionEditorForm: ({ onSubmit }: { onSubmit: () => void }) => {
     const { createElement } = jest.requireActual('react');
     const { Pressable, Text } = jest.requireActual('react-native');

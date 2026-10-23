@@ -1,12 +1,12 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
 import type { ForwardedRef, PropsWithChildren } from 'react';
-import { ActionSheet } from '../components/overlays/ActionSheet';
-import { AppDialog } from '../components/overlays/AppDialog';
+import { ActionSheet } from '../src/components/overlays/ActionSheet';
+import { AppDialog } from '../src/components/overlays/AppDialog';
 
 const mockClose = jest.fn();
 let mockFinishClose: () => void;
 
-jest.mock('../components/overlays/BottomSheet', () => {
+jest.mock('../src/components/overlays/BottomSheet', () => {
   const React = jest.requireActual('react');
   const { View } = jest.requireActual('react-native');
   return {
@@ -26,23 +26,23 @@ jest.mock(
   '@expo/vector-icons/Ionicons',
   () => jest.requireActual('react-native').View,
 );
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   Text: jest.requireActual('react-native').Text,
   View: jest.requireActual('react-native').View,
   useThemeColor: (_props: unknown, token: string) =>
     token === 'onPrimary' ? '#000000' : '#ffffff',
 }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../constants/Colors', () => ({
+jest.mock('../src/constants/Colors', () => ({
   __esModule: true,
   default: { light: { textInverse: '#ffffff', text: '#000000' } },
 }));
-jest.mock('../utils/haptics', () => ({
+jest.mock('../src/utils/haptics', () => ({
   impactAsync: jest.fn(),
   ImpactFeedbackStyle: { Medium: 'medium' },
 }));

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { PressableProps } from 'react-native';
-import ProfileScreen from '../app/(tabs)/profile';
+import ProfileScreen from '../src/app/(tabs)/profile';
 
 const mockVerify = jest.fn();
 const mockClearCookies = jest.fn();
@@ -22,16 +22,16 @@ const mockAuthState = {
   logout: jest.fn(),
 };
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSession,
   useAuthStore: Object.assign(() => mockAuthState, {
     getState: () => mockAuthState,
   }),
 }));
-jest.mock('../api/session', () => ({
+jest.mock('../src/api/session', () => ({
   verifyZhihuSession: (...args: unknown[]) => mockVerify(...args),
 }));
-jest.mock('../api/zhihu', () => ({
+jest.mock('../src/api/zhihu', () => ({
   getMe: jest.fn(),
   getMemberWithFallback: jest.fn(),
 }));
@@ -47,7 +47,7 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-jest.mock('../components/overlays/BottomSheet', () => ({
+jest.mock('../src/components/overlays/BottomSheet', () => ({
   BottomSheet: ({
     visible,
     children,
@@ -56,11 +56,13 @@ jest.mock('../components/overlays/BottomSheet', () => ({
     children: React.ReactNode;
   }) => (visible ? children : null),
 }));
-jest.mock('../components/AuthStorageNotice', () => ({
+jest.mock('../src/components/AuthStorageNotice', () => ({
   AuthStorageNotice: () => null,
 }));
-jest.mock('../components/StableAvatar', () => ({ StableAvatar: () => null }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/StableAvatar', () => ({
+  StableAvatar: () => null,
+}));
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: ({ onPress, ...props }: PressableProps) =>
     jest
       .requireActual('react')
@@ -73,14 +75,14 @@ jest.mock('../components/BouncyButton', () => ({
         },
       }),
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native = jest.requireActual('react-native');
   return { Text: native.Text, View: native.View, useThemeColor: () => '#00f' };
 });
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: Object.assign(() => ({}), {
     getState: () => ({
       primaryColor: null,
@@ -90,16 +92,16 @@ jest.mock('../store/useSettingsStore', () => ({
     }),
   }),
 }));
-jest.mock('../store/useVerificationStore', () => ({
+jest.mock('../src/store/useVerificationStore', () => ({
   useVerificationStore: { getState: () => ({ hide: jest.fn() }) },
 }));
-jest.mock('../utils/authPersistenceFeedback', () => ({
+jest.mock('../src/utils/authPersistenceFeedback', () => ({
   persistAuthStateWithFeedback: jest.fn(),
 }));
-jest.mock('../utils/authSession', () => ({
+jest.mock('../src/utils/authSession', () => ({
   syncNativeSessionCookies: jest.fn(),
 }));
-jest.mock('../utils/haptics', () => ({
+jest.mock('../src/utils/haptics', () => ({
   impactAsync: jest.fn(),
   ImpactFeedbackStyle: { Medium: 'medium' },
 }));

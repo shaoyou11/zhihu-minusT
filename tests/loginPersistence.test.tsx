@@ -1,5 +1,5 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import LoginScreen from '../app/login';
+import LoginScreen from '../src/app/login';
 
 const mockCookieGet = jest.fn();
 const mockGetMe = jest.fn();
@@ -40,13 +40,13 @@ jest.mock('react-native-webview', () => ({
         testID: 'login-webview',
       }),
 }));
-jest.mock('../api/zhihu', () => ({ getMe: () => mockGetMe() }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/api/zhihu', () => ({ getMe: () => mockGetMe() }));
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
   saveAuthState: () => mockSaveAuthState(),
   useAuthStore: { getState: () => mockAuthState },
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: {
     getState: () => ({
       useNativeIOSBottomTabs: false,
@@ -57,25 +57,25 @@ jest.mock('../store/useSettingsStore', () => ({
     }),
   },
 }));
-jest.mock('../store/useVerificationStore', () => ({
+jest.mock('../src/store/useVerificationStore', () => ({
   useVerificationStore: {
     getState: () => ({ hide: mockHideVerification }),
   },
 }));
-jest.mock('../utils/authSession', () => ({
+jest.mock('../src/utils/authSession', () => ({
   syncNativeSessionCookies: (...args: unknown[]) =>
     mockSyncNativeSession(...args),
 }));
-jest.mock('../utils/toast', () => ({
+jest.mock('../src/utils/toast', () => ({
   showToast: (...args: unknown[]) => mockShowToast(...args),
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native = jest.requireActual('react-native');
   return { Text: native.Text, View: native.View, useThemeColor: () => '#00f' };
 });

@@ -1,5 +1,5 @@
-import type { RecentMomentItem } from '../api/zhihu/moments';
-import { createRecentMomentStream } from '../utils/recentMomentStream';
+import type { RecentMomentItem } from '../src/api/zhihu/moments';
+import { createRecentMomentStream } from '../src/utils/recentMomentStream';
 
 function moment(id: string, urlToken = id): RecentMomentItem {
   return {
@@ -59,23 +59,19 @@ test('skips malformed cached actors and preserves valid read tokens in the pager
   ]);
 });
 
-test.each([
-  null,
-  {},
-  'invalid',
-])('keeps the selected route usable when the cached array is %j', (value) => {
-  expect(createRecentMomentStream('selected', '3', value).entries).toEqual([
-    { id: 'selected', unreadCount: 3 },
-  ]);
-});
+test.each([null, {}, 'invalid'])(
+  'keeps the selected route usable when the cached array is %j',
+  (value) => {
+    expect(createRecentMomentStream('selected', '3', value).entries).toEqual([
+      { id: 'selected', unreadCount: 3 },
+    ]);
+  },
+);
 
-test.each([
-  undefined,
-  '-1',
-  'NaN',
-  '3invalid',
-  '1.5',
-])('invalid entry unread count %s does not create a false read boundary', (value) => {
-  const stream = createRecentMomentStream('selected', value);
-  expect(stream.entries).toEqual([{ id: 'selected', unreadCount: 0 }]);
-});
+test.each([undefined, '-1', 'NaN', '3invalid', '1.5'])(
+  'invalid entry unread count %s does not create a false read boundary',
+  (value) => {
+    const stream = createRecentMomentStream('selected', value);
+    expect(stream.entries).toEqual([{ id: 'selected', unreadCount: 0 }]);
+  },
+);

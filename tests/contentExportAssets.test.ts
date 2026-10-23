@@ -3,13 +3,13 @@ import {
   collectExportResources,
   EXPORT_ASSET_LIMITS,
   prepareExportAssets,
-} from '../features/content-export/assets';
-import { ContentExportError } from '../features/content-export/errors';
+} from '../src/features/content-export/assets';
+import { ContentExportError } from '../src/features/content-export/errors';
 import type {
   ExportSource,
   ExportTaskContext,
-} from '../features/content-export/types';
-import type { ZhihuBlock } from '../features/rich-content';
+} from '../src/features/content-export/types';
+import type { ZhihuBlock } from '../src/features/rich-content';
 
 jest.mock('expo/fetch', () => ({ fetch: jest.fn() }));
 

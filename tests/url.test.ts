@@ -1,41 +1,10 @@
-import { execFileSync } from 'node:child_process';
-import { redirectSystemPath } from '../app/+native-intent';
+import { redirectSystemPath } from '../src/app/+native-intent';
 import {
   getSafeExternalUrl,
   parseRichContentDevelopmentUrl,
   parseZhihuUrl,
   sanitizeNavigationUrlForLog,
-} from '../utils/url';
-
-test('the decoder backport preserves CommonJS queries and bounds malformed input work', () => {
-  const output = execFileSync(
-    process.execPath,
-    [
-      '-e',
-      String.raw`
-        const assert = require('node:assert/strict');
-        const decode = require('decode-uri-component');
-        const queryString = require('query-string');
-        assert.equal(typeof decode, 'function');
-        assert.equal(decode('a+b%2Bc'), 'a b+c');
-        assert.equal(decode('%FE%FF%C2'), '\uFFFD\uFFFD\uFFFD');
-        assert.equal(decode('中文%F0%9F%98%80%EA'), '中文😀%EA');
-        assert.throws(() => decode(null), TypeError);
-        assert.deepEqual(
-          { ...queryString.parse('value=a+b%2Bc&unicode=%E4%B8%AD%E6%96%87') },
-          { value: 'a b+c', unicode: '中文' },
-        );
-        assert.equal(queryString.stringify({ value: 'a b+c' }), 'value=a%20b%2Bc');
-        const malformed = '%EA'.repeat(2048);
-        assert.equal(decode(malformed + '%E4%B8%AD'), malformed + '中');
-        assert.equal(queryString.parse('value=' + malformed).value, malformed);
-        process.stdout.write('ok');
-      `,
-    ],
-    { cwd: process.cwd(), encoding: 'utf8', timeout: 3000 },
-  );
-  expect(output).toBe('ok');
-});
+} from '../src/utils/url';
 
 test('login navigation logs omit credentials, query and fragment', () => {
   expect(
@@ -50,6 +19,26 @@ test('login navigation logs omit credentials, query and fragment', () => {
     '[non-web-url]',
   );
 });
+
+test.each([true, false])(
+  'routes links with long malformed queries on initial=%s',
+  (initial) => {
+    const malformedQuery = '%EA'.repeat(2048);
+
+    for (const path of [
+      'https://www.zhihu.com/question/42/answer/84',
+      'zhihu://question/42/answer/84',
+      '/question/42/answer/84',
+    ]) {
+      expect(
+        redirectSystemPath({
+          path: `${path}?unused=${malformedQuery}&broken=%G&trailing=%`,
+          initial,
+        }),
+      ).toBe('/answer/84');
+    }
+  },
+);
 
 test.each([
   ['https://example.com/article?q=1', 'https://example.com/article?q=1'],

@@ -7,10 +7,10 @@ import {
   type LayoutChangeEvent,
   type MeasureOnSuccessCallback,
 } from 'react-native';
-import { useReadingContentMeasurement } from '../hooks/useReadingContentMeasurement';
-import { useReadingProgress } from '../hooks/useReadingProgress';
-import { readingProgressStorage } from '../storage/readingProgressStorage';
-import { useProgressStore } from '../store/useProgressStore';
+import { useReadingContentMeasurement } from '../src/hooks/useReadingContentMeasurement';
+import { useReadingProgress } from '../src/hooks/useReadingProgress';
+import { readingProgressStorage } from '../src/storage/readingProgressStorage';
+import { useProgressStore } from '../src/store/useProgressStore';
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
@@ -82,56 +82,59 @@ describe('reading progress disabled by default', () => {
   it.each([
     ['with a saved entry', savedEntry],
     ['without a saved entry', undefined],
-  ] as const)('does not restore or record scrolling %s, including background and unmount', async (_label, entry) => {
-    const { saveProgress, removeProgress } = await prepareProgress(entry);
-    const rehydrate = jest.spyOn(useProgressStore.persist, 'rehydrate');
-    const subscribeHydration = jest.spyOn(
-      useProgressStore.persist,
-      'onFinishHydration',
-    );
-    const scrollTo = jest.fn();
-    const onProgrammaticScroll = jest.fn();
-    let onAppStateChange: ((state: AppStateStatus) => void) | undefined;
-    const removeAppStateListener = jest.fn();
-    const appStateSubscription = jest
-      .spyOn(AppState, 'addEventListener')
-      .mockImplementation((event, listener) => {
-        if (event === 'change') onAppStateChange = listener;
-        return { remove: removeAppStateListener };
+  ] as const)(
+    'does not restore or record scrolling %s, including background and unmount',
+    async (_label, entry) => {
+      const { saveProgress, removeProgress } = await prepareProgress(entry);
+      const rehydrate = jest.spyOn(useProgressStore.persist, 'rehydrate');
+      const subscribeHydration = jest.spyOn(
+        useProgressStore.persist,
+        'onFinishHydration',
+      );
+      const scrollTo = jest.fn();
+      const onProgrammaticScroll = jest.fn();
+      let onAppStateChange: ((state: AppStateStatus) => void) | undefined;
+      const removeAppStateListener = jest.fn();
+      const appStateSubscription = jest
+        .spyOn(AppState, 'addEventListener')
+        .mockImplementation((event, listener) => {
+          if (event === 'change') onAppStateChange = listener;
+          return { remove: removeAppStateListener };
+        });
+      const host = await renderHook(() =>
+        useReadingProgress({
+          contentKey,
+          scrollRef: { current: { scrollTo } },
+          onProgrammaticScroll,
+        }),
+      );
+
+      await act(() => {
+        host.result.current.onLayout(viewport);
+        host.result.current.onContentSizeChange(320, 3800);
+        jest.advanceTimersByTime(200);
+        host.result.current.onScroll(1600);
+        jest.advanceTimersByTime(1200);
+        host.result.current.commitProgress();
+        host.result.current.scrollToTop();
+        onAppStateChange?.('background');
       });
-    const host = await renderHook(() =>
-      useReadingProgress({
-        contentKey,
-        scrollRef: { current: { scrollTo } },
-        onProgrammaticScroll,
-      }),
-    );
+      expect(host.result.current.restoredOffset).toBeNull();
+      await host.unmount();
+      await act(() => jest.advanceTimersByTime(2000));
 
-    await act(() => {
-      host.result.current.onLayout(viewport);
-      host.result.current.onContentSizeChange(320, 3800);
-      jest.advanceTimersByTime(200);
-      host.result.current.onScroll(1600);
-      jest.advanceTimersByTime(1200);
-      host.result.current.commitProgress();
-      host.result.current.scrollToTop();
-      onAppStateChange?.('background');
-    });
-    expect(host.result.current.restoredOffset).toBeNull();
-    await host.unmount();
-    await act(() => jest.advanceTimersByTime(2000));
-
-    expect(saveProgress).not.toHaveBeenCalled();
-    expect(removeProgress).not.toHaveBeenCalled();
-    expect(scrollTo).not.toHaveBeenCalled();
-    expect(onProgrammaticScroll).not.toHaveBeenCalled();
-    expect(rehydrate).not.toHaveBeenCalled();
-    expect(subscribeHydration).not.toHaveBeenCalled();
-    expect(useProgressStore.getState().progress[contentKey]).toEqual(entry);
-    expect(appStateSubscription).not.toHaveBeenCalled();
-    expect(removeAppStateListener).not.toHaveBeenCalled();
-    expectNoStorageAccess();
-  });
+      expect(saveProgress).not.toHaveBeenCalled();
+      expect(removeProgress).not.toHaveBeenCalled();
+      expect(scrollTo).not.toHaveBeenCalled();
+      expect(onProgrammaticScroll).not.toHaveBeenCalled();
+      expect(rehydrate).not.toHaveBeenCalled();
+      expect(subscribeHydration).not.toHaveBeenCalled();
+      expect(useProgressStore.getState().progress[contentKey]).toEqual(entry);
+      expect(appStateSubscription).not.toHaveBeenCalled();
+      expect(removeAppStateListener).not.toHaveBeenCalled();
+      expectNoStorageAccess();
+    },
+  );
 
   it('keeps native content measurements available for the reading scrollbar', async () => {
     const { saveProgress, removeProgress } = await prepareProgress(savedEntry);

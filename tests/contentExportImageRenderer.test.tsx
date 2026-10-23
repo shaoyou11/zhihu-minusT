@@ -2,8 +2,8 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Dimensions, Platform } from 'react-native';
 import { captureRef, releaseCapture } from 'react-native-view-shot';
 import type { WebViewMessageEvent, WebViewProps } from 'react-native-webview';
-import { useImageExport } from '../features/content-export/ImageExportRenderer';
-import type { ExportTaskContext } from '../features/content-export/types';
+import { useImageExport } from '../src/features/content-export/ImageExportRenderer';
+import type { ExportTaskContext } from '../src/features/content-export/types';
 
 let mockWebViewProps: WebViewProps | undefined;
 const mockInjectJavaScript = jest.fn();
@@ -25,11 +25,11 @@ jest.mock('react-native-view-shot', () => ({
   captureRef: jest.fn(),
   releaseCapture: jest.fn(),
 }));
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   Text: jest.requireActual<typeof import('react-native')>('react-native').Text,
   useRuntimeThemeColors: () => ({ background: '#ffffff' }),
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton:
     jest.requireActual<typeof import('react-native')>('react-native').Pressable,
 }));
@@ -99,21 +99,21 @@ test.each([
   { width: 400, height: Number.NaN },
   { width: 400, height: Number.POSITIVE_INFINITY },
   { width: 400, height: Number.NEGATIVE_INFINITY },
-])('rejects unsupported window dimensions $width × $height before opening a capture surface', async ({
-  width,
-  height,
-}) => {
-  Dimensions.set({ window: { width, height, scale: 2, fontScale: 1 } });
-  const host = await render(<Host />);
-  await act(async () => {
-    await expect(startCapture('<html></html>', context())).rejects.toThrow(
-      '当前窗口尺寸不足以生成长图，请放大窗口或旋转屏幕后重试',
-    );
-  });
-  expect(host.queryByTestId('export-webview')).toBeNull();
-  expect(captureRef).not.toHaveBeenCalled();
-  expect(releaseCapture).not.toHaveBeenCalled();
-});
+])(
+  'rejects unsupported window dimensions $width × $height before opening a capture surface',
+  async ({ width, height }) => {
+    Dimensions.set({ window: { width, height, scale: 2, fontScale: 1 } });
+    const host = await render(<Host />);
+    await act(async () => {
+      await expect(startCapture('<html></html>', context())).rejects.toThrow(
+        '当前窗口尺寸不足以生成长图，请放大窗口或旋转屏幕后重试',
+      );
+    });
+    expect(host.queryByTestId('export-webview')).toBeNull();
+    expect(captureRef).not.toHaveBeenCalled();
+    expect(releaseCapture).not.toHaveBeenCalled();
+  },
+);
 
 test('an invalid window does not block retrying after its dimensions recover', async () => {
   Dimensions.set({
@@ -323,73 +323,78 @@ test.each([
     pixelWidth: 1080,
     pixelHeight: 2000,
   },
-] as const)('captures $platform at density $density within pixel limits on a $windowWidth-point screen', async ({
-  platform,
-  density,
-  windowWidth,
-  windowHeight,
-  width,
-  height,
-  pixelWidth,
-  pixelHeight,
-}) => {
-  Platform.OS = platform;
-  Dimensions.set({
-    window: {
-      width: windowWidth,
-      height: windowHeight,
-      scale: density,
-      fontScale: 1,
-    },
-    screen: {
-      width: windowWidth,
-      height: windowHeight,
-      scale: density,
-      fontScale: 1,
-    },
-  });
-  jest
-    .mocked(captureRef)
-    .mockResolvedValueOnce('file:///first.png')
-    .mockResolvedValueOnce('file:///second.png');
-  const host = await render(<Host />);
-  const resolved = jest.fn();
-  const rejected = jest.fn();
-  await act(async () => {
-    void startCapture('<html></html>', context()).then(resolved, rejected);
-  });
-  await message({
-    type: 'measured',
-    height: height * 1.5,
-    boundaries: [height],
-  });
-  expect(host.getByText('正在截取内容 1 / 2')).toBeTruthy();
-  await layout(host, height, width);
-  await waitFor(() => expect(mockInjectJavaScript).toHaveBeenCalled());
-  await message({ type: 'positioned', index: 0 });
-  expect(host.getByText('正在截取内容 2 / 2')).toBeTruthy();
-  await layout(host, height / 2, width);
-  await message({ type: 'positioned', index: 1 });
-  expect(captureRef).toHaveBeenCalledTimes(2);
-  // Match each native backend's interpretation of view-shot's width/height.
-  const actualPixels = jest.mocked(captureRef).mock.calls.map(([, options]) => {
-    const nativeScale = platform === 'ios' ? density : 1;
-    return {
-      width: Math.round((options?.width ?? 0) * nativeScale),
-      height: Math.round((options?.height ?? 0) * nativeScale),
-    };
-  });
-  expect(actualPixels).toEqual([
-    { width: pixelWidth, height: pixelHeight },
-    { width: pixelWidth, height: pixelHeight / 2 },
-  ]);
-  for (const pixels of actualPixels) {
-    expect(pixels.width).toBeLessThanOrEqual(1080);
-    expect(pixels.height).toBeLessThanOrEqual(2000);
-  }
-  expect(resolved).toHaveBeenCalledWith([
-    'file:///first.png',
-    'file:///second.png',
-  ]);
-  expect(rejected).not.toHaveBeenCalled();
-});
+] as const)(
+  'captures $platform at density $density within pixel limits on a $windowWidth-point screen',
+  async ({
+    platform,
+    density,
+    windowWidth,
+    windowHeight,
+    width,
+    height,
+    pixelWidth,
+    pixelHeight,
+  }) => {
+    Platform.OS = platform;
+    Dimensions.set({
+      window: {
+        width: windowWidth,
+        height: windowHeight,
+        scale: density,
+        fontScale: 1,
+      },
+      screen: {
+        width: windowWidth,
+        height: windowHeight,
+        scale: density,
+        fontScale: 1,
+      },
+    });
+    jest
+      .mocked(captureRef)
+      .mockResolvedValueOnce('file:///first.png')
+      .mockResolvedValueOnce('file:///second.png');
+    const host = await render(<Host />);
+    const resolved = jest.fn();
+    const rejected = jest.fn();
+    await act(async () => {
+      void startCapture('<html></html>', context()).then(resolved, rejected);
+    });
+    await message({
+      type: 'measured',
+      height: height * 1.5,
+      boundaries: [height],
+    });
+    expect(host.getByText('正在截取内容 1 / 2')).toBeTruthy();
+    await layout(host, height, width);
+    await waitFor(() => expect(mockInjectJavaScript).toHaveBeenCalled());
+    await message({ type: 'positioned', index: 0 });
+    expect(host.getByText('正在截取内容 2 / 2')).toBeTruthy();
+    await layout(host, height / 2, width);
+    await message({ type: 'positioned', index: 1 });
+    expect(captureRef).toHaveBeenCalledTimes(2);
+    // Match each native backend's interpretation of view-shot's width/height.
+    const actualPixels = jest
+      .mocked(captureRef)
+      .mock.calls.map(([, options]) => {
+        const nativeScale = platform === 'ios' ? density : 1;
+        return {
+          width: Math.round((options?.width ?? 0) * nativeScale),
+          height: Math.round((options?.height ?? 0) * nativeScale),
+        };
+      });
+    expect(actualPixels).toEqual([
+      { width: pixelWidth, height: pixelHeight },
+      { width: pixelWidth, height: pixelHeight / 2 },
+    ]);
+    for (const pixels of actualPixels) {
+      expect(pixels.width).toBeLessThanOrEqual(1080);
+      expect(pixels.height).toBeLessThanOrEqual(2000);
+    }
+    expect(resolved).toHaveBeenCalledWith([
+      'file:///first.png',
+      'file:///second.png',
+    ]);
+    expect(rejected).not.toHaveBeenCalled();
+  },
+);

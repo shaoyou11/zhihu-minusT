@@ -5,9 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 
 const require = createRequire(import.meta.url);
-const { APP_ICONS } = require('../app-icon.config.js');
+const { APP_ICONS } = require('../plugins/app-icon.config.js');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const outputDirectory = path.join(root, 'assets/images/app-icons');
+const outputDirectory = path.join(root, 'src/assets/images/app-icons');
 const size = 1024;
 // Android guarantees that only the centered 66x66 area of a 108x108
 // adaptive-icon layer survives every OEM mask: (108 - 66) / 2 = 21.

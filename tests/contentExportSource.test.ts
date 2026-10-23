@@ -1,40 +1,43 @@
-import { getAnswer } from '../api/zhihu/answer';
-import { getArticle } from '../api/zhihu/article';
-import { getDailyDetail } from '../api/zhihu/daily';
-import { getNextContentRender, getNextRender } from '../api/zhihu/nextRender';
-import { getPin } from '../api/zhihu/pin';
-import { getQuestion } from '../api/zhihu/question';
-import { ContentExportError } from '../features/content-export/errors';
-import { resolveExportSource } from '../features/content-export/resolveSource';
+import { getAnswer } from '../src/api/zhihu/answer';
+import { getArticle } from '../src/api/zhihu/article';
+import { getDailyDetail } from '../src/api/zhihu/daily';
+import {
+  getNextContentRender,
+  getNextRender,
+} from '../src/api/zhihu/nextRender';
+import { getPin } from '../src/api/zhihu/pin';
+import { getQuestion } from '../src/api/zhihu/question';
+import { ContentExportError } from '../src/features/content-export/errors';
+import { resolveExportSource } from '../src/features/content-export/resolveSource';
 import type {
   ExportTarget,
   ExportTaskContext,
-} from '../features/content-export/types';
-import { walkZhihuDocument } from '../features/rich-content/documentTraversal';
-import type { ZhihuStructuredContent } from '../types/zhihu';
+} from '../src/features/content-export/types';
+import { walkZhihuDocument } from '../src/features/rich-content/documentTraversal';
+import type { ZhihuStructuredContent } from '../src/types/zhihu';
 
-jest.mock('../api/zhihu/answer', () => ({ getAnswer: jest.fn() }));
-jest.mock('../api/zhihu/article', () => ({ getArticle: jest.fn() }));
-jest.mock('../api/zhihu/daily', () => ({ getDailyDetail: jest.fn() }));
-jest.mock('../api/zhihu/pin', () => ({ getPin: jest.fn() }));
-jest.mock('../api/zhihu/question', () => ({ getQuestion: jest.fn() }));
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/zhihu/answer', () => ({ getAnswer: jest.fn() }));
+jest.mock('../src/api/zhihu/article', () => ({ getArticle: jest.fn() }));
+jest.mock('../src/api/zhihu/daily', () => ({ getDailyDetail: jest.fn() }));
+jest.mock('../src/api/zhihu/pin', () => ({ getPin: jest.fn() }));
+jest.mock('../src/api/zhihu/question', () => ({ getQuestion: jest.fn() }));
+jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { get: jest.fn() },
 }));
-jest.mock('../api/zhihu/nextRender', () => ({
-  ...jest.requireActual('../api/zhihu/nextRender'),
+jest.mock('../src/api/zhihu/nextRender', () => ({
+  ...jest.requireActual('../src/api/zhihu/nextRender'),
   getNextRender: jest.fn(),
   getNextContentRender: jest.fn(),
 }));
-jest.mock('../features/rich-content', () => ({
+jest.mock('../src/features/rich-content', () => ({
   ...jest.requireActual(
-    '../features/rich-content/normalization/normalizeZhihuDocument',
+    '../src/features/rich-content/normalization/normalizeZhihuDocument',
   ),
-  ...jest.requireActual('../features/rich-content/structuredContent'),
+  ...jest.requireActual('../src/features/rich-content/structuredContent'),
 }));
 let mockSessionVersion = 5;
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
 }));
 
@@ -184,18 +187,21 @@ test('retains downloaded segments and labels a failed continuation as partial', 
 test.each([
   'https://[invalid',
   '/next-content-render?url_token=123&content_type=answer&version_id=1&offset=20',
-])('retains downloaded segments when continuation URL is invalid: %s', async (next) => {
-  mockAnswer({
-    ...detail,
-    content_need_truncated: true,
-    structured_content: body('已加载正文', next),
-  });
-  const source = await resolveExportSource(target, context);
-  expect(source.completeness).toBe('partial');
-  expect(sourceText(source)).toBe('已加载正文');
-  expect(source.warnings.join('')).toContain('续页');
-  expect(getNextContentRender).not.toHaveBeenCalled();
-});
+])(
+  'retains downloaded segments when continuation URL is invalid: %s',
+  async (next) => {
+    mockAnswer({
+      ...detail,
+      content_need_truncated: true,
+      structured_content: body('已加载正文', next),
+    });
+    const source = await resolveExportSource(target, context);
+    expect(source.completeness).toBe('partial');
+    expect(sourceText(source)).toBe('已加载正文');
+    expect(source.warnings.join('')).toContain('续页');
+    expect(getNextContentRender).not.toHaveBeenCalled();
+  },
+);
 
 test('stops repeated pagination even when query parameters are reordered', async () => {
   const duplicate =
@@ -216,16 +222,19 @@ test('stops repeated pagination even when query parameters are reordered', async
 test.each([
   nextUrl(20, '999'),
   'https://example.invalid/next-content-render?url_token=123&content_type=answer',
-])('rejects a continuation belonging to another source or origin: %s', async (next) => {
-  mockAnswer({
-    ...detail,
-    content_need_truncated: true,
-    structured_content: body('首段', next),
-  });
-  const source = await resolveExportSource(target, context);
-  expect(source.completeness).toBe('partial');
-  expect(getNextContentRender).not.toHaveBeenCalled();
-});
+])(
+  'rejects a continuation belonging to another source or origin: %s',
+  async (next) => {
+    mockAnswer({
+      ...detail,
+      content_need_truncated: true,
+      structured_content: body('首段', next),
+    });
+    const source = await resolveExportSource(target, context);
+    expect(source.completeness).toBe('partial');
+    expect(getNextContentRender).not.toHaveBeenCalled();
+  },
+);
 
 test('does not combine separate revisions while following body pages', async () => {
   mockAnswer({

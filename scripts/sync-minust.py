@@ -23,7 +23,7 @@ config = json.loads(Path('app.json').read_text())['expo']
 assert config['name'] == '知乎 minusT', '定制名称变化，停止发布'
 assert config['ios']['bundleIdentifier'] == 'com.huamu013.ZhihuMinusMinus', '覆盖更新标识变化'
 assert config['version'] == json.loads(Path('package.json').read_text())['version']
-for filename in ['components/DetailGlassSurface.tsx', 'hooks/useReadingActionBar.ts']:
+for filename in ['src/components/DetailGlassSurface.tsx', 'src/hooks/useReadingActionBar.ts']:
     assert Path(filename).is_file(), '缺少定制实现，停止发布'
 state = Path('custom/upstream.json')
 state.write_text(json.dumps({'repository': 'huamurui/zhihu-minus-minus', 'tag': tag, 'commit': commit}, indent=2) + '\n')

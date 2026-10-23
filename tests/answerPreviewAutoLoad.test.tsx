@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react-native';
-import type { View } from 'react-native';
-import { useAnswerPreviewAutoLoad } from '../hooks/useAnswerPreviewAutoLoad';
+import type { ViewInstance } from 'react-native';
+import { useAnswerPreviewAutoLoad } from '../src/hooks/useAnswerPreviewAutoLoad';
 
 jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
   __esModule: true,
@@ -10,7 +10,7 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 20, left: 0, right: 0 }),
 }));
 
-type MeasureCallback = Parameters<View['measureInWindow']>[0];
+type MeasureCallback = Parameters<ViewInstance['measureInWindow']>[0];
 
 test('continues only near visible expanded footers, coalesces scrolls, and rejects concurrent and old scope work', async () => {
   let now = 1000;
@@ -27,7 +27,7 @@ test('continues only near visible expanded footers, coalesces scrolls, and rejec
   const cancel = jest
     .spyOn(global, 'cancelAnimationFrame')
     .mockImplementation((id) => {
-      frames.delete(id);
+      if (id != null) frames.delete(id);
     });
   const flushFrame = async () => {
     await act(() => {

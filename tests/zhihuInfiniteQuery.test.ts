@@ -1,4 +1,4 @@
-import { getZhihuNextOffset } from '../hooks/useZhihuInfiniteQuery';
+import { getZhihuNextOffset } from '../src/hooks/useZhihuInfiniteQuery';
 
 test('reads the exact offset parameter instead of another parameter ending in offset', () => {
   expect(

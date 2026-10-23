@@ -2,7 +2,7 @@ name: minusT iOS 自动编译发布
 on:
   push:
     branches: [main]
-    paths-ignore: ['docs/**', '**.md']
+    paths-ignore: ["docs/**", "**.md"]
   workflow_dispatch:
     inputs:
       force_build:
@@ -11,7 +11,7 @@ on:
         default: false
         type: boolean
   schedule:
-    - cron: '37 20 */2 * *'
+    - cron: "37 20 */2 * *"
 permissions:
   contents: read
 concurrency:
@@ -32,7 +32,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: 24.x
           cache: npm
       - name: 同步正式版并保留定制
         env:
@@ -62,16 +62,16 @@ jobs:
     permissions:
       contents: write
     env:
-      SENTRY_DISABLE_AUTO_UPLOAD: 'true'
-      SENTRY_NO_UPLOAD: '1'
-      EXPO_PUBLIC_FIREBASE_ANALYTICS_ENABLED: 'false'
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      SENTRY_NO_UPLOAD: "1"
+      EXPO_PUBLIC_FIREBASE_ANALYTICS_ENABLED: "false"
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ needs.quality.outputs.commit }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: 24.x
           cache: npm
       - run: npm ci
       - name: 设置独立构建号

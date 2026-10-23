@@ -4,9 +4,9 @@ import { AppState, type AppStateStatus } from 'react-native';
 import {
   getZhihuVideoPlayback,
   type ZhihuVideoDetail,
-} from '../api/zhihu/video';
-import VideoDetailScreen from '../app/video/[id]';
-import { VideoPlayback } from '../features/video/VideoPlayback';
+} from '../src/api/zhihu/video';
+import VideoDetailScreen from '../src/app/video/[id]';
+import { VideoPlayback } from '../src/features/video/VideoPlayback';
 
 type MockPlayerStatus = 'idle' | 'loading' | 'readyToPlay' | 'error';
 interface MockStatusEvent {
@@ -37,19 +37,19 @@ let mockParams: { id: string; source?: string; uri?: string; title?: string } =
   };
 const mockWebView = jest.fn(() => null);
 
-jest.mock('../api/zhihu/video', () => ({ getZhihuVideoPlayback: jest.fn() }));
-jest.mock('@react-navigation/native', () => ({
-  useIsFocused: () => mockFocused,
+jest.mock('../src/api/zhihu/video', () => ({
+  getZhihuVideoPlayback: jest.fn(),
 }));
 jest.mock('expo-router', () => ({
+  useIsFocused: () => mockFocused,
   Stack: { Screen: () => null },
   useLocalSearchParams: () => mockParams,
 }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => 1,
   useAuthStore: (selector: () => unknown) => selector(),
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native = jest.requireActual('react-native');
   return {
     Text: native.Text,
@@ -57,7 +57,7 @@ jest.mock('../components/Themed', () => {
     useThemeColor: () => '#345678',
   };
 });
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
@@ -296,15 +296,18 @@ test.each([
   'file:///synthetic.mp4',
   'https://www.zhihu.com/video/42',
   'https://user:password@example.com/synthetic.mp4',
-])('an invalid direct URL does not crash, create a player or request metadata: %s', async (uri) => {
-  mockParams = { id: 'direct', source: 'direct', uri };
-  const { host, client } = await screen();
-  expect(host.getByText('无效的视频地址')).toBeTruthy();
-  expect(mockedGetPlayback).not.toHaveBeenCalled();
-  expect(mockPlayers).toHaveLength(0);
-  await host.unmount();
-  client.clear();
-});
+])(
+  'an invalid direct URL does not crash, create a player or request metadata: %s',
+  async (uri) => {
+    mockParams = { id: 'direct', source: 'direct', uri };
+    const { host, client } = await screen();
+    expect(host.getByText('无效的视频地址')).toBeTruthy();
+    expect(mockedGetPlayback).not.toHaveBeenCalled();
+    expect(mockPlayers).toHaveLength(0);
+    await host.unmount();
+    client.clear();
+  },
+);
 
 test('a direct HLS resource uses native playback without requesting Lens metadata', async () => {
   mockParams = {

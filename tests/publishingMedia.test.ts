@@ -1,17 +1,17 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
-import { uploadImage } from '../api/zhihu/image';
-import type { PublishingMediaItem } from '../features/publishing/types';
-import { usePublishingMedia } from '../features/publishing/usePublishingMedia';
-import { publishingDraftRepository } from '../storage/publishingDraftRepository';
+import { uploadImage } from '../src/api/zhihu/image';
+import type { PublishingMediaItem } from '../src/features/publishing/types';
+import { usePublishingMedia } from '../src/features/publishing/usePublishingMedia';
+import { publishingDraftRepository } from '../src/storage/publishingDraftRepository';
 
-jest.mock('../api/zhihu/image', () => ({ uploadImage: jest.fn() }));
+jest.mock('../src/api/zhihu/image', () => ({ uploadImage: jest.fn() }));
 jest.mock('expo-image-picker', () => ({
   requestMediaLibraryPermissionsAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
 }));
-jest.mock('../storage/publishingDraftRepository', () => ({
+jest.mock('../src/storage/publishingDraftRepository', () => ({
   publishingDraftRepository: {
     retainAsset: jest.fn(async (_scope, id, asset) => ({
       ...asset,
@@ -21,7 +21,7 @@ jest.mock('../storage/publishingDraftRepository', () => ({
   },
 }));
 let mockSession = 0;
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSession,
 }));
 const scope = {

@@ -172,7 +172,7 @@ def generate_source(ipa_path, config, repository, commit, date):
     if ipa_path.name != expected_name:
         raise ValueError(f"Expected IPA filename: {expected_name}")
     website = f"https://github.com/{repository}"
-    icon_url = f"https://raw.githubusercontent.com/{repository}/{commit}/assets/images/icon.png"
+    icon_url = f"https://raw.githubusercontent.com/{repository}/{commit}/src/assets/images/icon.png"
     name = info.get("CFBundleDisplayName") or require_string(info, "CFBundleName")
     if not isinstance(name, str):
         raise ValueError("Invalid app display name")

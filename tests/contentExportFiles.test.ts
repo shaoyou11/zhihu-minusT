@@ -1,10 +1,10 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { strFromU8, unzipSync } from 'fflate';
 import { Platform } from 'react-native';
-import { ContentExportError } from '../features/content-export/errors';
+import { ContentExportError } from '../src/features/content-export/errors';
 import {
   assertOfflinePrintHtml,
   createExportDirectory,
@@ -16,14 +16,14 @@ import {
   writeImageExport,
   writePdfExport,
   writeTextExport,
-} from '../features/content-export/files';
-import { base64ToBytes } from '../features/content-export/ioShared';
-import { stitchPngImages } from '../features/content-export/pngStitch';
-import { serializeExportHtml } from '../features/content-export/serializers';
+} from '../src/features/content-export/files';
+import { base64ToBytes } from '../src/features/content-export/ioShared';
+import { stitchPngImages } from '../src/features/content-export/pngStitch';
+import { serializeExportHtml } from '../src/features/content-export/serializers';
 import type {
   ExportResult,
   ExportTaskContext,
-} from '../features/content-export/types';
+} from '../src/features/content-export/types';
 
 jest.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///test/cache/',
@@ -57,15 +57,15 @@ jest.mock('expo-print', () => ({
     numberOfPages: 1,
   })),
 }));
-jest.mock('expo-media-library', () => ({
+jest.mock('expo-media-library/legacy', () => ({
   requestPermissionsAsync: jest.fn(async () => ({ granted: true })),
   saveToLibraryAsync: jest.fn(async () => undefined),
 }));
-jest.mock('../features/rich-content', () => ({
-  ...jest.requireActual('../features/rich-content/presentation'),
-  ...jest.requireActual('../features/rich-content/exportResources'),
+jest.mock('../src/features/rich-content', () => ({
+  ...jest.requireActual('../src/features/rich-content/presentation'),
+  ...jest.requireActual('../src/features/rich-content/exportResources'),
 }));
-jest.mock('../features/content-export/pngStitch', () => ({
+jest.mock('../src/features/content-export/pngStitch', () => ({
   stitchPngImages: jest.fn(),
 }));
 
@@ -515,28 +515,31 @@ test.each([
   ['内容.pdf', 'application/pdf', '内容'],
   ['内容.png', 'image/png', '内容'],
   ['内容.zip', 'application/zip', '内容'],
-])('Android SAF preserves the required filename for %s', async (name, mimeType, providerName) => {
-  jest.replaceProperty(Platform, 'OS', 'android');
-  const output = result([name]);
-  await expect(
-    saveExport(
-      { ...output, files: [{ ...output.files[0], mimeType }] },
-      context(),
-    ),
-  ).resolves.toBe(true);
-  expect(
-    FileSystem.StorageAccessFramework.createFileAsync,
-  ).toHaveBeenCalledWith(
-    'content://synthetic/directory',
-    providerName,
-    mimeType,
-  );
-  expect(FileSystem.writeAsStringAsync).toHaveBeenCalledWith(
-    'content://synthetic/file',
-    'aW1hZ2U=',
-    { encoding: 'base64' },
-  );
-});
+])(
+  'Android SAF preserves the required filename for %s',
+  async (name, mimeType, providerName) => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const output = result([name]);
+    await expect(
+      saveExport(
+        { ...output, files: [{ ...output.files[0], mimeType }] },
+        context(),
+      ),
+    ).resolves.toBe(true);
+    expect(
+      FileSystem.StorageAccessFramework.createFileAsync,
+    ).toHaveBeenCalledWith(
+      'content://synthetic/directory',
+      providerName,
+      mimeType,
+    );
+    expect(FileSystem.writeAsStringAsync).toHaveBeenCalledWith(
+      'content://synthetic/file',
+      'aW1hZ2U=',
+      { encoding: 'base64' },
+    );
+  },
+);
 
 test('Android SAF forwards native Base64 data without decoding or re-encoding it in JavaScript', async () => {
   jest.replaceProperty(Platform, 'OS', 'android');
@@ -560,24 +563,27 @@ test.each([
   { exists: false, isDirectory: false, size: 0 },
   { exists: true, isDirectory: true, size: 0 },
   { exists: true, isDirectory: false, size: 64 * 1024 * 1024 + 1 },
-] as const)('Android SAF refuses unreadable or oversized output: %j', async (info) => {
-  jest.replaceProperty(Platform, 'OS', 'android');
-  const uri = result().files[0].uri;
-  jest
-    .mocked(FileSystem.getInfoAsync)
-    .mockResolvedValueOnce(
-      info.exists
-        ? { ...info, uri, modificationTime: 0 }
-        : { exists: false, uri, isDirectory: false },
-    );
-  await expect(saveExport(result(), context())).rejects.toMatchObject({
-    code: 'storage',
-  });
-  expect(FileSystem.readAsStringAsync).not.toHaveBeenCalled();
-  expect(
-    FileSystem.StorageAccessFramework.createFileAsync,
-  ).not.toHaveBeenCalled();
-});
+] as const)(
+  'Android SAF refuses unreadable or oversized output: %j',
+  async (info) => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const uri = result().files[0].uri;
+    jest
+      .mocked(FileSystem.getInfoAsync)
+      .mockResolvedValueOnce(
+        info.exists
+          ? { ...info, uri, modificationTime: 0 }
+          : { exists: false, uri, isDirectory: false },
+      );
+    await expect(saveExport(result(), context())).rejects.toMatchObject({
+      code: 'storage',
+    });
+    expect(FileSystem.readAsStringAsync).not.toHaveBeenCalled();
+    expect(
+      FileSystem.StorageAccessFramework.createFileAsync,
+    ).not.toHaveBeenCalled();
+  },
+);
 
 test('Android SAF creates no destination when cancelled during the native file read', async () => {
   jest.replaceProperty(Platform, 'OS', 'android');

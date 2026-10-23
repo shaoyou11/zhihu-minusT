@@ -3,18 +3,18 @@ import { Text } from 'react-native';
 import {
   Text as ThemedText,
   useRuntimeThemeColors,
-} from '../components/Themed';
-import Colors from '../constants/Colors';
-import { colors } from '../constants/designTokens';
+} from '../src/components/Themed';
+import Colors from '../src/constants/Colors';
+import { colors } from '../src/constants/designTokens';
 import {
   type ReadingBackground,
   type RuntimeThemeColors,
   resolveThemeColors,
   type ThemePreferences,
-} from '../constants/theme';
-import { useSettingsStore } from '../store/useSettingsStore';
-import { contrastRatio, rgbChannels } from '../utils/colorContrast';
-import { themeVariables } from '../utils/themeVariables';
+} from '../src/constants/theme';
+import { useSettingsStore } from '../src/store/useSettingsStore';
+import { contrastRatio, rgbChannels } from '../src/utils/colorContrast';
+import { themeVariables } from '../src/utils/themeVariables';
 
 let mockColorScheme: 'light' | 'dark' = 'light';
 
@@ -22,7 +22,7 @@ jest.mock(
   '@expo/vector-icons/Ionicons',
   () => jest.requireActual('react-native').View,
 );
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: jest.requireActual('zustand').create(() => ({
     primaryColor: null,
     readingBackground: 'default',
@@ -32,7 +32,7 @@ jest.mock('../store/useSettingsStore', () => ({
     lineHeightScale: 1.5,
   })),
 }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => mockColorScheme,
 }));
 
@@ -160,41 +160,44 @@ test('text keeps proportional leading when font and line height preferences chan
 });
 
 describe.each(['light', 'dark'] as const)('%s runtime palette', (scheme) => {
-  test.each(
-    presets,
-  )('%s keeps text and filled controls readable across all preferences', (readingBackground) => {
-    for (const textContrast of ['standard', 'high'] as const) {
-      for (const surfaceStyle of ['layered', 'flat'] as const) {
-        for (const primaryColor of seeds) {
-          const palette = resolveThemeColors(scheme, {
-            primaryColor,
-            readingBackground,
-            textContrast,
-            surfaceStyle,
-          });
-          expect(palette.primary).toMatch(/^#[\da-f]{6}$/i);
-          if (primaryColor !== 'invalid')
-            expect(palette.primary).toBe(primaryColor ?? colors.light.primary);
-          for (const background of neutralSurfaces) {
-            expect(palette[background]).toMatch(/^#[\da-f]{6}$/i);
-            for (const foreground of textRoles) {
+  test.each(presets)(
+    '%s keeps text and filled controls readable across all preferences',
+    (readingBackground) => {
+      for (const textContrast of ['standard', 'high'] as const) {
+        for (const surfaceStyle of ['layered', 'flat'] as const) {
+          for (const primaryColor of seeds) {
+            const palette = resolveThemeColors(scheme, {
+              primaryColor,
+              readingBackground,
+              textContrast,
+              surfaceStyle,
+            });
+            expect(palette.primary).toMatch(/^#[\da-f]{6}$/i);
+            if (primaryColor !== 'invalid')
+              expect(palette.primary).toBe(
+                primaryColor ?? colors.light.primary,
+              );
+            for (const background of neutralSurfaces) {
+              expect(palette[background]).toMatch(/^#[\da-f]{6}$/i);
+              for (const foreground of textRoles) {
+                expect(
+                  contrastRatio(palette[foreground], palette[background]),
+                ).toBeGreaterThanOrEqual(
+                  textContrast === 'high' && foreground === 'text' ? 7 : 4.5,
+                );
+              }
+            }
+            for (const [foreground, background] of filledPairs) {
+              expect(palette[foreground]).toMatch(/^#[\da-f]{6}$/i);
               expect(
                 contrastRatio(palette[foreground], palette[background]),
-              ).toBeGreaterThanOrEqual(
-                textContrast === 'high' && foreground === 'text' ? 7 : 4.5,
-              );
+              ).toBeGreaterThanOrEqual(foreground === 'onPrimary' ? 3 : 4.5);
             }
-          }
-          for (const [foreground, background] of filledPairs) {
-            expect(palette[foreground]).toMatch(/^#[\da-f]{6}$/i);
-            expect(
-              contrastRatio(palette[foreground], palette[background]),
-            ).toBeGreaterThanOrEqual(foreground === 'onPrimary' ? 3 : 4.5);
           }
         }
       }
-    }
-  });
+    },
+  );
 
   test('preference updates keep hooks, legacy colors and every NativeWind variable synchronized', async () => {
     mockColorScheme = scheme;

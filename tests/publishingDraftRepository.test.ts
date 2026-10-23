@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import { emptyPublishingDraft } from '../features/publishing/types';
-import { publishingDraftRepository } from '../storage/publishingDraftRepository';
+import { emptyPublishingDraft } from '../src/features/publishing/types';
+import { publishingDraftRepository } from '../src/storage/publishingDraftRepository';
 
 const mockRows = new Map<string, string>();
 const mockDatabase = {
@@ -18,7 +18,7 @@ const mockDatabase = {
     else mockRows.delete(`${params[0]}|${params[1]}`);
   }),
 };
-jest.mock('../storage/localDatabase', () => ({
+jest.mock('../src/storage/localDatabase', () => ({
   localDatabase: {
     run: (operation: (database: typeof mockDatabase) => Promise<unknown>) =>
       operation(mockDatabase),
@@ -110,16 +110,138 @@ test('a stale editor token cannot recreate the draft after account removal', asy
   expect(await publishingDraftRepository.read(a)).toBeNull();
 });
 
-test.each([
-  '{broken',
-  '{"version":7,"value":{}}',
-  '{"version":1,"value":{}}',
-])('an unreadable stored row stays intact and fails closed: %s', async (stored) => {
-  const key = `${a.accountKey}|article:new`;
+test.each(['{broken', '{"version":7,"value":{}}', '{"version":1,"value":{}}'])(
+  'an unreadable stored row stays intact and fails closed: %s',
+  async (stored) => {
+    const key = `${a.accountKey}|article:new`;
+    mockRows.set(key, stored);
+    await expect(publishingDraftRepository.read(a)).rejects.toThrow(
+      '草稿内容暂时无法读取',
+    );
+    expect(mockRows.get(key)).toBe(stored);
+    expect(mockDatabase.runAsync).not.toHaveBeenCalled();
+  },
+);
+
+test('version 1 local drafts migrate in memory and are saved with version 2 without losing content', async () => {
+  const scope = { ...a, kind: 'pin' as const };
+  const key = `${scope.accountKey}|pin:new`;
+  const legacy = {
+    ...emptyPublishingDraft(),
+    title: '合成旧标题',
+    content: '合成旧正文',
+  };
+  const stored = JSON.stringify({ version: 1, value: legacy });
   mockRows.set(key, stored);
-  await expect(publishingDraftRepository.read(a)).rejects.toThrow(
-    '草稿内容暂时无法读取',
-  );
+  const restored = await publishingDraftRepository.read(scope);
+  expect(restored).toEqual(legacy);
   expect(mockRows.get(key)).toBe(stored);
   expect(mockDatabase.runAsync).not.toHaveBeenCalled();
+  if (!restored) throw new Error('expected a restored draft');
+  await publishingDraftRepository.save(scope, {
+    ...restored,
+    pinDraftId: '42',
+  });
+  expect(JSON.parse(mockRows.get(key) ?? 'null')).toEqual({
+    version: 2,
+    value: { ...legacy, pinDraftId: '42' },
+  });
+  expect(await publishingDraftRepository.read(scope)).toEqual({
+    ...legacy,
+    pinDraftId: '42',
+  });
+  expect(
+    await publishingDraftRepository.read({ ...scope, accountKey: 'id:B' }),
+  ).toBeNull();
 });
+
+test('version 2 preserves pin image sources and supports drafts without a cloud ID', async () => {
+  const scope = { ...a, kind: 'pin' as const };
+  const value = {
+    ...emptyPublishingDraft(),
+    images: [
+      {
+        imageId: 'synthetic-image',
+        src: 'https://image.example/preview.jpg',
+        originalSrc: 'https://image.example/original.png',
+        watermark: 'watermark',
+        watermarkSrc: 'https://image.example/watermarked.jpg',
+        width: 120,
+        height: 240,
+      },
+    ],
+  };
+  await publishingDraftRepository.save(scope, value);
+  expect(await publishingDraftRepository.read(scope)).toEqual(value);
+});
+
+test('cloud pin source permissions and extended media metadata survive a local save and reload', async () => {
+  const scope = { ...a, kind: 'pin' as const };
+  const value = {
+    ...emptyPublishingDraft(),
+    pinDraftId: '42',
+    pinSourceData: {
+      commentsPermission: { comment_permission: 'self' },
+      extra_info: { view_permission: 'self', publisher: 'pc' },
+      hybrid: { html: '<p>合成云草稿</p>', textLength: 5 },
+      title: { title: '合成标题' },
+      media: {
+        medias: [
+          {
+            mediaType: 'Picture',
+            image: {
+              url: 'https://image.example/preview.jpg',
+              caption: '原始图片说明',
+              width: 120,
+              height: 240,
+            },
+          },
+        ],
+      },
+    },
+  };
+  await publishingDraftRepository.save(scope, value);
+  expect(await publishingDraftRepository.read(scope)).toEqual(value);
+  expect(
+    JSON.parse(mockRows.get(`${scope.accountKey}|pin:new`) ?? 'null'),
+  ).toEqual({
+    version: 2,
+    value,
+  });
+});
+
+test.each([null, [], 'corrupted', 42, true])(
+  'damaged cloud pin source metadata is retained on disk and blocks restoration: %j',
+  async (pinSourceData) => {
+    const scope = { ...a, kind: 'pin' as const };
+    const key = `${scope.accountKey}|pin:new`;
+    const stored = JSON.stringify({
+      version: 2,
+      value: { ...emptyPublishingDraft(), pinSourceData },
+    });
+    mockRows.set(key, stored);
+    await expect(publishingDraftRepository.read(scope)).rejects.toThrow(
+      '草稿内容暂时无法读取',
+    );
+    expect(mockRows.get(key)).toBe(stored);
+    expect(mockDatabase.runAsync).not.toHaveBeenCalled();
+  },
+);
+
+test.each([null, '', '0', '42/other', 42, {}, ' 42'])(
+  'invalid cloud draft IDs fail closed while preserving the stored row: %j',
+  async (pinDraftId) => {
+    const scope = { ...a, kind: 'pin' as const };
+    const key = `${scope.accountKey}|pin:new`;
+    const stored = JSON.stringify({
+      version: 2,
+      value: { ...emptyPublishingDraft(), pinDraftId },
+    });
+    mockRows.set(key, stored);
+    await expect(publishingDraftRepository.read(scope)).rejects.toThrow(
+      '草稿内容暂时无法读取',
+    );
+    expect(mockRows.get(key)).toBe(stored);
+    expect(mockDatabase.runAsync).not.toHaveBeenCalled();
+  },
+);

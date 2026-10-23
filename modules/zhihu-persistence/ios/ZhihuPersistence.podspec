@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
   s.description = 'Atomically replaces private files without exposing their contents.'
   s.author = ''
   s.homepage = 'https://github.com/huamurui/zhihu-minus-minus'
-  s.platforms = { :ios => '15.1' }
+  s.platforms = { :ios => '16.4' }
   s.source = { git: '' }
   s.static_framework = true
   s.dependency 'ExpoModulesCore'

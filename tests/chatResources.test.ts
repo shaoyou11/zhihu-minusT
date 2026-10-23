@@ -2,12 +2,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { createElement, type PropsWithChildren } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
-import { getMessages } from '../api/zhihu';
-import { useChatMessages } from '../hooks/useChatMessages';
+import { getMessages } from '../src/api/zhihu';
+import { useChatMessages } from '../src/hooks/useChatMessages';
 
-jest.mock('../api/zhihu', () => ({ getMessages: jest.fn() }));
+jest.mock('../src/api/zhihu', () => ({ getMessages: jest.fn() }));
 let mockFocused = true;
-jest.mock('@react-navigation/native', () => ({
+jest.mock('expo-router', () => ({
   useIsFocused: () => mockFocused,
 }));
 const initialAppState = AppState.currentState;

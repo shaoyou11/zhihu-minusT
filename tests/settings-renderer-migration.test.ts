@@ -3,7 +3,7 @@ import {
   type AppSettings,
   type RichContentRenderer,
   useSettingsStore,
-} from '../store/useSettingsStore';
+} from '../src/store/useSettingsStore';
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
@@ -62,23 +62,26 @@ test.each([
   [{ useWebView: true }, 'webview'],
   [{ useWebView: false }, 'native-v2'],
   [{}, 'native-v2'],
-] as const)('migrates the legacy renderer toggle %j to %s', async (legacy, renderer) => {
-  const migrated = await migrate(legacy);
-  expect(migrated.richContentRenderer).toBe(renderer);
-  expect(migrated).not.toHaveProperty('useWebView');
-});
+] as const)(
+  'migrates the legacy renderer toggle %j to %s',
+  async (legacy, renderer) => {
+    const migrated = await migrate(legacy);
+    expect(migrated.richContentRenderer).toBe(renderer);
+    expect(migrated).not.toHaveProperty('useWebView');
+  },
+);
 
-test.each<RichContentRenderer>([
-  'webview',
-  'native-v2',
-])('preserves an existing valid renderer %s over the legacy toggle', async (renderer) => {
-  const migrated = await migrate({
-    richContentRenderer: renderer,
-    useWebView: renderer !== 'webview',
-  });
-  expect(migrated.richContentRenderer).toBe(renderer);
-  expect(migrated).not.toHaveProperty('useWebView');
-});
+test.each<RichContentRenderer>(['webview', 'native-v2'])(
+  'preserves an existing valid renderer %s over the legacy toggle',
+  async (renderer) => {
+    const migrated = await migrate({
+      richContentRenderer: renderer,
+      useWebView: renderer !== 'webview',
+    });
+    expect(migrated.richContentRenderer).toBe(renderer);
+    expect(migrated).not.toHaveProperty('useWebView');
+  },
+);
 
 test('recovers invalid persisted renderer values using the legacy setting', async () => {
   expect(
@@ -227,29 +230,32 @@ test('adds the answer destination mode on upgrade while preserving explicit choi
   expect(useSettingsStore.getState().answerReadingMode).toBe('detail');
 });
 
-test.each([
-  false,
-  true,
-])('preserves a saved v16 filtering preference of %s', async (enabled) => {
-  expect(await migrate({ enableLocalFeedFilter: enabled }, 16)).toMatchObject({
-    enableLocalFeedFilter: enabled,
-    filterRegexPatterns: [],
-  });
-});
+test.each([false, true])(
+  'preserves a saved v16 filtering preference of %s',
+  async (enabled) => {
+    expect(await migrate({ enableLocalFeedFilter: enabled }, 16)).toMatchObject(
+      {
+        enableLocalFeedFilter: enabled,
+        filterRegexPatterns: [],
+      },
+    );
+  },
+);
 
-test.each([
-  1, 7, 16,
-])('enables filtering only for missing or invalid choices in v%s settings', async (version) => {
-  expect((await migrate({}, version)).enableLocalFeedFilter).toBe(true);
-  expect(
-    (await migrate({ enableLocalFeedFilter: 'invalid' }, version))
-      .enableLocalFeedFilter,
-  ).toBe(true);
-  expect(
-    (await migrate({ enableLocalFeedFilter: false }, version))
-      .enableLocalFeedFilter,
-  ).toBe(false);
-});
+test.each([1, 7, 16])(
+  'enables filtering only for missing or invalid choices in v%s settings',
+  async (version) => {
+    expect((await migrate({}, version)).enableLocalFeedFilter).toBe(true);
+    expect(
+      (await migrate({ enableLocalFeedFilter: 'invalid' }, version))
+        .enableLocalFeedFilter,
+    ).toBe(true);
+    expect(
+      (await migrate({ enableLocalFeedFilter: false }, version))
+        .enableLocalFeedFilter,
+    ).toBe(false);
+  },
+);
 
 test('persists and restores sanitized custom regex rules together with a disabled filter', async () => {
   const suppliedPatterns = [' 广告\\s*推广 ', '^(?:优惠|福利)', '广告\\s*推广'];
@@ -305,24 +311,22 @@ test('sanitizes invalid custom regex payloads on migration and updates', async (
   expect(useSettingsStore.getState().enableLocalFeedFilter).toBe(true);
 });
 
-test.each([
-  { patterns: [] },
-  { patterns: ['广告\\s*推广', '^(?:优惠|福利)'] },
-])('retains regex rule references across unrelated updates for %j', ({
-  patterns,
-}) => {
-  const { updateSettings } = useSettingsStore.getState();
-  updateSettings({ filterRegexPatterns: patterns });
-  const savedPatterns = useSettingsStore.getState().filterRegexPatterns;
+test.each([{ patterns: [] }, { patterns: ['广告\\s*推广', '^(?:优惠|福利)'] }])(
+  'retains regex rule references across unrelated updates for %j',
+  ({ patterns }) => {
+    const { updateSettings } = useSettingsStore.getState();
+    updateSettings({ filterRegexPatterns: patterns });
+    const savedPatterns = useSettingsStore.getState().filterRegexPatterns;
 
-  updateSettings({ fontSizeScale: 1.4 });
-  expect(useSettingsStore.getState().filterRegexPatterns).toBe(savedPatterns);
-  updateSettings({ enableLocalFeedFilter: false });
-  expect(useSettingsStore.getState().filterRegexPatterns).toBe(savedPatterns);
-  updateSettings({ enableLocalFeedFilter: true });
-  expect(useSettingsStore.getState().filterRegexPatterns).toBe(savedPatterns);
-  expect(savedPatterns).toEqual(patterns);
-});
+    updateSettings({ fontSizeScale: 1.4 });
+    expect(useSettingsStore.getState().filterRegexPatterns).toBe(savedPatterns);
+    updateSettings({ enableLocalFeedFilter: false });
+    expect(useSettingsStore.getState().filterRegexPatterns).toBe(savedPatterns);
+    updateSettings({ enableLocalFeedFilter: true });
+    expect(useSettingsStore.getState().filterRegexPatterns).toBe(savedPatterns);
+    expect(savedPatterns).toEqual(patterns);
+  },
+);
 
 test('reuses regex rules when an explicit update normalizes to the saved rules', () => {
   const { updateSettings } = useSettingsStore.getState();

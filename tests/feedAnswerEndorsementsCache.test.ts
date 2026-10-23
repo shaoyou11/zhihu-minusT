@@ -1,23 +1,23 @@
 import { QueryClient } from '@tanstack/react-query';
-import type { AnswerDetail } from '../api/zhihu/answer';
-import type { FeedItem } from '../api/zhihu/feed';
-import type { ZhihuEndorsement } from '../types/zhihu';
-import { getAnswerEndorsementsKey } from '../utils/answerEndorsements';
+import type { AnswerDetail } from '../src/api/zhihu/answer';
+import type { FeedItem } from '../src/api/zhihu/feed';
+import type { ZhihuEndorsement } from '../src/types/zhihu';
+import { getAnswerEndorsementsKey } from '../src/utils/answerEndorsements';
 import {
   getAnswerPreviewEntryKey,
   seedAnswerPreviewEntry,
-} from '../utils/answerPreviewEntry';
+} from '../src/utils/answerPreviewEntry';
 import {
   seedAnswerDetailFromList,
   seedRichContentFromFeedItem,
-} from '../utils/contentCache';
+} from '../src/utils/contentCache';
 
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => 1,
 }));
 
-jest.mock('../features/rich-content', () =>
-  jest.requireActual('../features/rich-content/queryPolicy'),
+jest.mock('../src/features/rich-content', () =>
+  jest.requireActual('../src/features/rich-content/queryPolicy'),
 );
 
 const endorsements: ZhihuEndorsement[] = [

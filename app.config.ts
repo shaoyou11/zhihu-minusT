@@ -4,7 +4,7 @@ import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
-const SOURCE_ROOTS = [
+const SOURCE_ROOTS = new Set([
   'app',
   'components',
   'hooks',
@@ -13,10 +13,9 @@ const SOURCE_ROOTS = [
   'features',
   'storage',
   'store',
-  'modules',
   'types',
   'constants',
-] as const;
+]);
 const EXCLUDED_DIRECTORIES = new Set([
   'fixtures',
   'tests',
@@ -69,6 +68,7 @@ export function createDiagnosticsManifest(root: string): DiagnosticsManifest {
       if (stat.isSymbolicLink()) return;
       if (stat.isDirectory()) {
         for (const name of readdirSync(absolute).sort()) {
+          if (relative === 'src' && !SOURCE_ROOTS.has(name)) continue;
           if (isSourceSegment(name)) visit(`${relative}/${name}`);
         }
       } else if (
@@ -80,7 +80,7 @@ export function createDiagnosticsManifest(root: string): DiagnosticsManifest {
         files.push(relative);
       }
     }
-    for (const directory of SOURCE_ROOTS) visit(directory);
+    for (const directory of ['src', 'modules']) visit(directory);
     if (files.length > 0) {
       const hash = createHash('sha256');
       for (const file of files.sort()) {

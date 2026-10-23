@@ -19,6 +19,7 @@ const { code: appearanceSource } = transformSync(
     babelrc: false,
     configFile: false,
     plugins: [
+      ['flow-parser/babel-plugin', { parseLangTypes: 'flow' }],
       '@babel/plugin-transform-flow-strip-types',
       '@babel/plugin-transform-modules-commonjs',
     ],
@@ -47,7 +48,7 @@ function loadModule(source, modules) {
 }
 
 const source = readFileSync(
-  path.join(__dirname, '../store/useThemeStore.ts'),
+  path.join(__dirname, '../src/store/useThemeStore.ts'),
   'utf8',
 );
 const { outputText } = ts.transpileModule(source, {

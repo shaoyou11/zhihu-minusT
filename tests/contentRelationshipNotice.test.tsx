@@ -5,28 +5,28 @@ import { Text } from 'react-native';
 import {
   type ContentRelationshipTip,
   getContentRelationship,
-} from '../api/zhihu/relationship';
-import { ContentRelationshipNotice } from '../components/ContentRelationshipNotice';
-import { useAuthStore } from '../store/useAuthStore';
+} from '../src/api/zhihu/relationship';
+import { ContentRelationshipNotice } from '../src/components/ContentRelationshipNotice';
+import { useAuthStore } from '../src/store/useAuthStore';
 
-jest.mock('../api/zhihu/relationship', () => ({
+jest.mock('../src/api/zhihu/relationship', () => ({
   getContentRelationship: jest.fn(),
 }));
 let mockSessionVersion = 1;
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
   useAuthStore: jest.requireActual('zustand').create(() => ({
     activeAccountIndex: 0,
   })),
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   Text: jest.requireActual('react-native').Text,
   View: jest.requireActual('react-native').View,
 }));
-jest.mock('../components/VoterListModal', () => ({
+jest.mock('../src/components/VoterListModal', () => ({
   VoterListModal: ({
     visible,
     onClose,

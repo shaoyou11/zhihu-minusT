@@ -1,0 +1,345 @@
+diff --git a/node_modules/react-native-screens/ios/helpers/scroll-view/RNSScrollViewFinder.h b/node_modules/react-native-screens/ios/helpers/scroll-view/RNSScrollViewFinder.h
+index 04d40b3..6f38fd5 100644
+--- a/node_modules/react-native-screens/ios/helpers/scroll-view/RNSScrollViewFinder.h
++++ b/node_modules/react-native-screens/ios/helpers/scroll-view/RNSScrollViewFinder.h
+@@ -16,4 +16,13 @@
+ + (nullable UIScrollView *)findScrollViewInFirstDescendantChainFrom:(nullable UIView *)view;
+
++/**
++ * Resolves the main visible vertical list, respecting hidden/disabled ancestors and clipping.
++ * Horizontal containers are returned separately so callers can refresh the binding when a pager moves.
++ * The preferred view only breaks ties; an offscreen cached list never wins over a visible page.
++ */
+++ (nullable UIScrollView *)findVisibleVerticalScrollViewFrom:(nullable UIView *)view
++                                               preferred:(nullable UIScrollView *)preferred
++                                    horizontalContainers:(nullable NSMutableSet<UIScrollView *> *)horizontalContainers;
++
+ /**
+  * Looks for UIScrollView in a similar way to `findScrollViewInFirstDescendantChainFrom`, until it finds
+diff --git a/node_modules/react-native-screens/ios/helpers/scroll-view/RNSScrollViewFinder.mm b/node_modules/react-native-screens/ios/helpers/scroll-view/RNSScrollViewFinder.mm
+index 2434c61..eb170bb 100644
+--- a/node_modules/react-native-screens/ios/helpers/scroll-view/RNSScrollViewFinder.mm
++++ b/node_modules/react-native-screens/ios/helpers/scroll-view/RNSScrollViewFinder.mm
+@@ -1,4 +1,56 @@
+ #import "RNSScrollViewFinder.h"
+
++namespace {
++struct RNSVisibleScrollViewSearch {
++  UIView *root;
++  UIScrollView *preferred;
++  NSMutableSet<UIScrollView *> *horizontalContainers;
++  UIScrollView *best;
++  CGFloat bestArea;
++  NSUInteger visited;
++};
++
++void RNSFindVisibleScrollView(UIView *view, CGRect clip, RNSVisibleScrollViewSearch &search)
++{
++  if (++search.visited > 2000 || view.hidden || view.alpha <= 0.01 || !view.userInteractionEnabled) {
++    return;
++  }
++
++  CGRect rect = [view convertRect:view.bounds toView:search.root];
++  if (view.clipsToBounds) {
++    clip = CGRectIntersection(clip, rect);
++  }
++  if (CGRectIsEmpty(clip) || CGRectIsNull(clip)) {
++    return;
++  }
++
++  if ([view isKindOfClass:UIScrollView.class]) {
++    UIScrollView *scrollView = static_cast<UIScrollView *>(view);
++    UIEdgeInsets inset = scrollView.adjustedContentInset;
++    BOOL horizontal = scrollView.alwaysBounceHorizontal ||
++        scrollView.contentSize.width > scrollView.bounds.size.width + 1.0;
++    BOOL vertical = scrollView.alwaysBounceVertical ||
++        scrollView.contentSize.height + inset.top + inset.bottom > scrollView.bounds.size.height + 1.0;
++    CGRect visibleRect = CGRectIntersection(rect, clip);
++    if (scrollView.scrollEnabled && vertical && !horizontal && !CGRectIsEmpty(visibleRect)) {
++      CGFloat area = visibleRect.size.width * visibleRect.size.height;
++      if (area > search.bestArea || (area == search.bestArea && scrollView == search.preferred)) {
++        search.best = scrollView;
++        search.bestArea = area;
++      }
++      // List cells can contain thousands of views and nested carousels. The outer list owns the bar.
++      return;
++    }
++    if (!vertical || horizontal) {
++      [search.horizontalContainers addObject:scrollView];
++    }
++  }
++
++  for (UIView *child in view.subviews) {
++    RNSFindVisibleScrollView(child, clip, search);
++  }
++}
++} // namespace
++
+ @implementation RNSScrollViewFinder
+
+@@ -20,4 +72,27 @@ + (UIScrollView *)findScrollViewInFirstDescendantChainFrom:(UIView *)view
+ }
+
+++ (nullable UIScrollView *)findVisibleVerticalScrollViewFrom:(nullable UIView *)view
++                                               preferred:(nullable UIScrollView *)preferred
++                                    horizontalContainers:(nullable NSMutableSet<UIScrollView *> *)horizontalContainers
++{
++  if (view.window == nil) {
++    return nil;
++  }
++
++  CGRect clip = view.bounds;
++  for (UIView *ancestor = view; ancestor != nil; ancestor = ancestor.superview) {
++    if (ancestor.hidden || ancestor.alpha <= 0.01 || !ancestor.userInteractionEnabled) {
++      return nil;
++    }
++    if (ancestor.clipsToBounds || ancestor == view.window) {
++      clip = CGRectIntersection(clip, [ancestor convertRect:ancestor.bounds toView:view]);
++    }
++  }
++
++  RNSVisibleScrollViewSearch search = {view, preferred, horizontalContainers, nil, 0, 0};
++  RNSFindVisibleScrollView(view, clip, search);
++  return search.best;
++}
++
+ + (nullable UIScrollView *)findContentScrollViewWithDelegatingToProvider:(nullable UIView *)view
+ {
+diff --git a/node_modules/react-native-screens/ios/helpers/scroll-view/RNSTabContentScrollViewTracker.h b/node_modules/react-native-screens/ios/helpers/scroll-view/RNSTabContentScrollViewTracker.h
+new file mode 100644
+index 0000000..8fb10a3
+--- /dev/null
++++ b/node_modules/react-native-screens/ios/helpers/scroll-view/RNSTabContentScrollViewTracker.h
+@@ -0,0 +1,15 @@
++#pragma once
++
++#import <UIKit/UIKit.h>
++
++NS_ASSUME_NONNULL_BEGIN
++
++/** Keeps UIKit's bottom-edge binding in sync with visible lists inside horizontal pagers. */
++@interface RNSTabContentScrollViewTracker : NSObject
++- (instancetype)initWithViewController:(UIViewController *)viewController;
++- (nullable UIScrollView *)resolveScrollView;
++- (void)setActive:(BOOL)active;
++- (void)setNeedsUpdate;
++@end
++
++NS_ASSUME_NONNULL_END
+diff --git a/node_modules/react-native-screens/ios/helpers/scroll-view/RNSTabContentScrollViewTracker.mm b/node_modules/react-native-screens/ios/helpers/scroll-view/RNSTabContentScrollViewTracker.mm
+new file mode 100644
+index 0000000..46497d8
+--- /dev/null
++++ b/node_modules/react-native-screens/ios/helpers/scroll-view/RNSTabContentScrollViewTracker.mm
+@@ -0,0 +1,110 @@
++#import "RNSTabContentScrollViewTracker.h"
++#import "RNSScrollViewFinder.h"
++
++static void *RNSTabScrollContainerObservation = &RNSTabScrollContainerObservation;
++
++@implementation RNSTabContentScrollViewTracker {
++  __weak UIViewController *_viewController;
++  __weak UIScrollView *_boundScrollView;
++  NSMutableSet<UIScrollView *> *_observedContainers;
++  BOOL _active;
++  BOOL _updateScheduled;
++  BOOL _hasBoundScrollView;
++}
++
++- (instancetype)initWithViewController:(UIViewController *)viewController
++{
++  if (self = [super init]) {
++    _viewController = viewController;
++    _observedContainers = [NSMutableSet new];
++  }
++  return self;
++}
++
++- (nullable UIScrollView *)resolveScrollView
++{
++  return [RNSScrollViewFinder findVisibleVerticalScrollViewFrom:_viewController.viewIfLoaded
++                                                  preferred:_boundScrollView
++                                       horizontalContainers:nil];
++}
++
++- (void)setObservedContainers:(NSSet<UIScrollView *> *)containers
++{
++  for (UIScrollView *scrollView in _observedContainers) {
++    if (![containers containsObject:scrollView]) {
++      [scrollView removeObserver:self forKeyPath:@"bounds" context:RNSTabScrollContainerObservation];
++      [scrollView removeObserver:self forKeyPath:@"contentSize" context:RNSTabScrollContainerObservation];
++    }
++  }
++  for (UIScrollView *scrollView in containers) {
++    if (![_observedContainers containsObject:scrollView]) {
++      [scrollView addObserver:self forKeyPath:@"bounds" options:0 context:RNSTabScrollContainerObservation];
++      [scrollView addObserver:self forKeyPath:@"contentSize" options:0 context:RNSTabScrollContainerObservation];
++    }
++  }
++  _observedContainers = [containers mutableCopy];
++}
++
++- (void)setActive:(BOOL)active
++{
++  _active = active;
++  if (active) {
++    [self setNeedsUpdate];
++  } else {
++    _hasBoundScrollView = NO;
++    [self setObservedContainers:[NSSet new]];
++  }
++}
++
++- (void)setNeedsUpdate
++{
++  if (!_active || _updateScheduled) {
++    return;
++  }
++  _updateScheduled = YES;
++  __weak RNSTabContentScrollViewTracker *weakSelf = self;
++  dispatch_async(dispatch_get_main_queue(), ^{
++    RNSTabContentScrollViewTracker *strongSelf = weakSelf;
++    if (strongSelf == nil) {
++      return;
++    }
++    strongSelf->_updateScheduled = NO;
++    if (strongSelf->_active) {
++      [strongSelf updateBinding];
++    }
++  });
++}
++
++- (void)updateBinding
++{
++  NSMutableSet<UIScrollView *> *containers = [NSMutableSet new];
++  UIScrollView *scrollView = [RNSScrollViewFinder findVisibleVerticalScrollViewFrom:_viewController.viewIfLoaded
++                                                                     preferred:_boundScrollView
++                                                          horizontalContainers:containers];
++  [self setObservedContainers:containers];
++  if (!_hasBoundScrollView || scrollView != _boundScrollView) {
++    _hasBoundScrollView = YES;
++    _boundScrollView = scrollView;
++    // The getter alone does not invalidate UIKit's existing scroll observation after a horizontal swipe.
++    [_viewController setContentScrollView:scrollView forEdge:NSDirectionalRectEdgeBottom];
++  }
++}
++
++- (void)observeValueForKeyPath:(NSString *)keyPath
++                     ofObject:(id)object
++                       change:(NSDictionary<NSKeyValueChangeKey, id> *)change
++                      context:(void *)context
++{
++  if (context == RNSTabScrollContainerObservation) {
++    [self setNeedsUpdate];
++  } else {
++    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
++  }
++}
++
++- (void)dealloc
++{
++  [self setObservedContainers:[NSSet new]];
++}
++
++@end
+diff --git a/node_modules/react-native-screens/ios/tabs/screen/RNSTabsScreenComponentView.mm b/node_modules/react-native-screens/ios/tabs/screen/RNSTabsScreenComponentView.mm
+index 8901893..bdeae11 100644
+--- a/node_modules/react-native-screens/ios/tabs/screen/RNSTabsScreenComponentView.mm
++++ b/node_modules/react-native-screens/ios/tabs/screen/RNSTabsScreenComponentView.mm
+@@ -11,4 +11,5 @@
+
+ #import <React/RCTConversions.h>
++#import <React/RCTMountingTransactionObserving.h>
+ #import <React/RCTImageSource.h>
+ #import <React/RCTLog.h>
+@@ -27,8 +28,10 @@
+ #pragma mark - View implementation
+
++@interface RNSTabsScreenComponentView () <RCTMountingTransactionObserving
+ #if RNS_GAMMA_ENABLED
+-@interface RNSTabsScreenComponentView () <RNSScrollViewSeeking>
+-@end
++                                         , RNSScrollViewSeeking
+ #endif
++                                         >
++@end
+
+ @implementation RNSTabsScreenComponentView {
+@@ -193,4 +196,10 @@ - (void)safeAreaInsetsDidChange
+ }
+
++- (void)mountingTransactionDidMount:(const facebook::react::MountingTransaction &)transaction
++               withSurfaceTelemetry:(const facebook::react::SurfaceTelemetry &)surfaceTelemetry
++{
++  [_controller refreshContentScrollViewBinding];
++}
++
+ #pragma mark - RCTComponentViewProtocol
+
+diff --git a/node_modules/react-native-screens/ios/tabs/screen/RNSTabsScreenViewController.h b/node_modules/react-native-screens/ios/tabs/screen/RNSTabsScreenViewController.h
+index eb156b9..c87bf74 100644
+--- a/node_modules/react-native-screens/ios/tabs/screen/RNSTabsScreenViewController.h
++++ b/node_modules/react-native-screens/ios/tabs/screen/RNSTabsScreenViewController.h
+@@ -27,4 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
+ - (void)tabItemAppearanceHasChanged;
+
++/** Refresh after Fabric lazily mounts or replaces a descendant list. */
++- (void)refreshContentScrollViewBinding;
++
+ /**
+  * Tell the controller that the tab screen it owns has got its react-props-orientation changed.
+diff --git a/node_modules/react-native-screens/ios/tabs/screen/RNSTabsScreenViewController.mm b/node_modules/react-native-screens/ios/tabs/screen/RNSTabsScreenViewController.mm
+index e47f257..f84feab 100644
+--- a/node_modules/react-native-screens/ios/tabs/screen/RNSTabsScreenViewController.mm
++++ b/node_modules/react-native-screens/ios/tabs/screen/RNSTabsScreenViewController.mm
+@@ -4,4 +4,5 @@
+ #import "RNSDefines.h"
+ #import "RNSLog.h"
++#import "RNSTabContentScrollViewTracker.h"
+ #import "RNSTabBarController.h"
+ #import "UIScrollView+RNScreens.h"
+@@ -9,4 +10,5 @@
+ @implementation RNSTabsScreenViewController {
+   RNSContainerItemSupport *_Nonnull _containerItemSupport;
++  RNSTabContentScrollViewTracker *_contentScrollViewTracker;
+ }
+
+@@ -15,8 +17,26 @@ - (instancetype)init
+   if (self = [super init]) {
+     _containerItemSupport = [RNSContainerItemSupport new];
++    _contentScrollViewTracker = [[RNSTabContentScrollViewTracker alloc] initWithViewController:self];
+   }
+   return self;
+ }
+
++- (nullable UIScrollView *)contentScrollViewForEdge:(NSDirectionalRectEdge)edge
++{
++  return edge == NSDirectionalRectEdgeBottom ? [_contentScrollViewTracker resolveScrollView]
++                                            : [super contentScrollViewForEdge:edge];
++}
++
++- (void)refreshContentScrollViewBinding
++{
++  [_contentScrollViewTracker setNeedsUpdate];
++}
++
++- (void)viewDidLayoutSubviews
++{
++  [super viewDidLayoutSubviews];
++  [self refreshContentScrollViewBinding];
++}
++
+ - (nullable RNSTabBarController *)findTabBarController
+ {
+@@ -48,4 +68,5 @@ - (void)viewDidAppear:(BOOL)animated
+ {
+   [super viewDidAppear:animated];
++  [_contentScrollViewTracker setActive:YES];
+   [self.tabScreenComponentView.reactEventEmitter emitOnDidAppear];
+ }
+@@ -54,4 +75,5 @@ - (void)viewWillDisappear:(BOOL)animated
+ {
+   [super viewWillDisappear:animated];
++  [_contentScrollViewTracker setActive:NO];
+   [self.tabScreenComponentView.reactEventEmitter emitOnWillDisappear];
+ }

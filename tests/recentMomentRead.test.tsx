@@ -5,13 +5,13 @@ import {
   markRecentMomentsRead,
   type RecentMomentItem,
   type RecentMomentsResponse,
-} from '../api/zhihu';
-import { useMarkRecentMomentRead } from '../hooks/useMarkRecentMomentRead';
+} from '../src/api/zhihu';
+import { useMarkRecentMomentRead } from '../src/hooks/useMarkRecentMomentRead';
 
-jest.mock('../api/zhihu', () => ({ markRecentMomentsRead: jest.fn() }));
+jest.mock('../src/api/zhihu', () => ({ markRecentMomentsRead: jest.fn() }));
 
 let mockSessionVersion = 1;
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
 }));
 
@@ -120,18 +120,17 @@ test('marks a valid cached actor among malformed entries and rolls back on failu
   expect(cachedItems()).toEqual([item]);
 });
 
-test.each([
-  null,
-  {},
-  'invalid',
-])('ignores a malformed cached array while marking a previous entry read: %j', async (data) => {
-  queryClient.setQueryData<unknown>(queryKey, { data });
-  const hook = await renderHook(useMarkRecentMomentRead, { wrapper });
+test.each([null, {}, 'invalid'])(
+  'ignores a malformed cached array while marking a previous entry read: %j',
+  async (data) => {
+    queryClient.setQueryData<unknown>(queryKey, { data });
+    const hook = await renderHook(useMarkRecentMomentRead, { wrapper });
 
-  await act(() => hook.result.current(moment()));
+    await act(() => hook.result.current(moment()));
 
-  expect(markRecentMomentsRead).not.toHaveBeenCalled();
-});
+    expect(markRecentMomentsRead).not.toHaveBeenCalled();
+  },
+);
 
 test('deduplicates repeated selection across hook instances and in-flight refreshes', async () => {
   const item = moment();

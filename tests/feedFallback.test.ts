@@ -4,17 +4,17 @@ import {
   type AxiosResponse,
   CanceledError,
 } from 'axios';
-import apiClient from '../api/client';
-import { FEED_URLS, getFeed } from '../api/zhihu/feed';
+import apiClient from '../src/api/client';
+import { FEED_URLS, getFeed } from '../src/api/zhihu/feed';
 
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { get: jest.fn() },
 }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   useAuthStore: { getState: () => ({ cookies: null }) },
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: {
     getState: () => ({ updateSettings: jest.fn() }),
   },
@@ -48,12 +48,15 @@ describe.each([
     ['request timeout', new AxiosError('Timed out', 'ECONNABORTED')],
     ['connection timeout', new AxiosError('Timed out', 'ETIMEDOUT')],
     ['cancellation', new CanceledError('Canceled')],
-  ] as const)('does not issue a second request after %s', async (_name, error) => {
-    get.mockRejectedValueOnce(error);
+  ] as const)(
+    'does not issue a second request after %s',
+    async (_name, error) => {
+      get.mockRejectedValueOnce(error);
 
-    await expect(getFeed(url)).rejects.toBe(error);
-    expect(get).toHaveBeenCalledTimes(1);
-  });
+      await expect(getFeed(url)).rejects.toBe(error);
+      expect(get).toHaveBeenCalledTimes(1);
+    },
+  );
 
   test('retains compatibility fallback when the endpoint responds with HTTP 403', async () => {
     const data = { data: [], paging: { is_end: true } };

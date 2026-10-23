@@ -1,13 +1,13 @@
 import { fireEvent, render } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
-import { AnswerEndorsements } from '../components/AnswerEndorsements';
+import { AnswerEndorsements } from '../src/components/AnswerEndorsements';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   Text: jest.requireActual('react-native').Text,
   View: jest.requireActual('react-native').View,
   useRuntimeThemeColors: () => ({

@@ -31,16 +31,19 @@ afterEach(() => {
 });
 
 test('fingerprint distinguishes uncommitted source contents and remains deterministic', () => {
-  write('components/RecentMoments.tsx');
-  write('app/user/[id]/stream.tsx');
+  write('src/components/RecentMoments.tsx');
+  write('src/app/user/[id]/stream.tsx');
   const initial = createDiagnosticsManifest(root);
   expect(initial).toEqual({
     commit,
     sourceFingerprint: expect.stringMatching(/^[a-f0-9]{24}$/),
-    sourceFiles: ['app/user/[id]/stream.tsx', 'components/RecentMoments.tsx'],
+    sourceFiles: [
+      'src/app/user/[id]/stream.tsx',
+      'src/components/RecentMoments.tsx',
+    ],
   });
   expect(createDiagnosticsManifest(root)).toEqual(initial);
-  write('components/RecentMoments.tsx', 'export const value = 2;');
+  write('src/components/RecentMoments.tsx', 'export const value = 2;');
   const edited = createDiagnosticsManifest(root);
   expect(edited.commit).toBe(initial.commit);
   expect(edited.sourceFingerprint).not.toBe(initial.sourceFingerprint);
@@ -49,22 +52,26 @@ test('fingerprint distinguishes uncommitted source contents and remains determin
 });
 
 test('ignores test fixtures, assets, config, credentials and files outside source roots', () => {
-  write('components/RecentMoments.tsx');
+  write('src/components/RecentMoments.tsx');
   const initial = createDiagnosticsManifest(root);
   for (const path of [
     '.env',
     'app.config.ts',
+    'src/private.ts',
+    'src/unknown/private.ts',
+    'src/modules/private.ts',
+    'components/legacy.ts',
     'tests/example.test.tsx',
-    'features/rich-content/fixtures/private.ts',
-    'components/__tests__/private.tsx',
-    'components/RecentMoments.test.tsx',
-    'components/RecentMoments.spec.tsx',
-    'components/assets/private.ts',
+    'src/features/rich-content/fixtures/private.ts',
+    'src/components/__tests__/private.tsx',
+    'src/components/RecentMoments.test.tsx',
+    'src/components/RecentMoments.spec.tsx',
+    'src/components/assets/private.ts',
     'modules/native/build/private.kt',
-    'utils/secrets.ts',
-    'utils/local.config.ts',
-    'utils/credentials/local.ts',
-    'utils/.local.ts',
+    'src/utils/secrets.ts',
+    'src/utils/local.config.ts',
+    'src/utils/credentials/local.ts',
+    'src/utils/.local.ts',
   ]) {
     write(path, 'synthetic-private-data');
   }
@@ -72,26 +79,41 @@ test('ignores test fixtures, assets, config, credentials and files outside sourc
 });
 
 test('does not follow source-file or directory symlinks', () => {
-  write('components/RecentMoments.tsx');
+  write('src/components/RecentMoments.tsx');
   write('private/outside.ts', 'synthetic-private-data');
   const initial = createDiagnosticsManifest(root);
   symlinkSync(
     join(root, 'private/outside.ts'),
-    join(root, 'components/linked.ts'),
+    join(root, 'src/components/linked.ts'),
   );
-  symlinkSync(join(root, 'private'), join(root, 'components/linked'));
+  symlinkSync(join(root, 'private'), join(root, 'src/components/linked'));
   expect(createDiagnosticsManifest(root)).toEqual(initial);
 });
 
 test('source archives still get a fingerprint without Git metadata', () => {
-  write('utils/example.ts');
+  write('src/utils/example.ts');
   jest.mocked(execFileSync).mockImplementation(() => {
     throw new Error('Missing git');
   });
   expect(createDiagnosticsManifest(root)).toEqual({
     sourceFingerprint: expect.stringMatching(/^[a-f0-9]{24}$/),
-    sourceFiles: ['utils/example.ts'],
+    sourceFiles: ['src/utils/example.ts'],
   });
+});
+
+test('includes native modules alongside application source', () => {
+  write('src/utils/example.ts');
+  write('modules/native/Example.swift');
+  expect(createDiagnosticsManifest(root).sourceFiles).toEqual([
+    'modules/native/Example.swift',
+    'src/utils/example.ts',
+  ]);
+});
+
+test('does not follow a symlink replacing the src directory', () => {
+  write('private/components/Example.tsx', 'synthetic-private-data');
+  symlinkSync(join(root, 'private'), join(root, 'src'));
+  expect(createDiagnosticsManifest(root)).toEqual({ commit });
 });
 
 test('unavailable source directory degrades without breaking configuration', () => {

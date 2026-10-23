@@ -1,17 +1,17 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { createElement } from 'react';
 import { Alert } from 'react-native';
-import { createPublishingDocument } from '../features/publishing/document';
-import { PublishingDocumentEditor } from '../features/publishing/PublishingDocumentEditor';
+import { createPublishingDocument } from '../src/features/publishing/document';
+import { PublishingDocumentEditor } from '../src/features/publishing/PublishingDocumentEditor';
 
-jest.mock('../features/rich-content', () => ({ ZhihuContent: () => null }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/features/rich-content', () => ({ ZhihuContent: () => null }));
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   Text: jest.requireActual('react-native').Text,
   View: jest.requireActual('react-native').View,
 }));

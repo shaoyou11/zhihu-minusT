@@ -3,8 +3,8 @@ import { AESSealedData, aesDecryptAsync } from 'expo-crypto';
 import {
   createAuthSealedDataFromBase64,
   decryptAuthState,
-} from '../storage/authEncryption';
-import { createEncryptedAuthStorage } from '../storage/encryptedAuthStorage';
+} from '../src/storage/authEncryption';
+import { createEncryptedAuthStorage } from '../src/storage/encryptedAuthStorage';
 
 jest.mock('expo-crypto', () => ({
   AESEncryptionKey: { import: jest.fn(async () => ({})) },
@@ -151,16 +151,17 @@ function harness(initial: Partial<Record<'primary' | 'backup', string>> = {}) {
   };
 }
 
-test.each([
-  0, 1, 2,
-])('migrates a valid legacy v%s snapshot without losing accounts', async (version) => {
-  const legacy = snapshot('z_c0=synthetic-a', version);
-  const h = harness({ primary: legacy });
-  expect(await h.storage.getItem()).toBe(legacy);
-  expect(h.files.get('primary')).not.toContain('synthetic-a');
-  expect(h.files.get('backup')).toBe(h.files.get('primary'));
-  expect(await h.reopen().getItem()).toBe(legacy);
-});
+test.each([0, 1, 2])(
+  'migrates a valid legacy v%s snapshot without losing accounts',
+  async (version) => {
+    const legacy = snapshot('z_c0=synthetic-a', version);
+    const h = harness({ primary: legacy });
+    expect(await h.storage.getItem()).toBe(legacy);
+    expect(h.files.get('primary')).not.toContain('synthetic-a');
+    expect(h.files.get('backup')).toBe(h.files.get('primary'));
+    expect(await h.reopen().getItem()).toBe(legacy);
+  },
+);
 
 test('recovers a corrupted primary from the current encrypted backup', async () => {
   const h = harness({ primary: A });
@@ -290,33 +291,33 @@ test('a readable legacy snapshot can resume migration after its key becomes avai
   expect(await h.reopen().getItem()).toBe(B);
 });
 
-test.each([
-  'truncated',
-  'missing',
-] as const)('recovery adapter restores an interrupted Android AtomicFile backup when the base is %s', async (baseState) => {
-  const h = harness({ primary: A });
-  await h.storage.getItem();
-  // Model the Android 7–10 AtomicFile contract: startWrite renames the
-  // previous base to .bak; openRead restores it before returning any bytes.
-  // This is an adapter integration test, not execution of Android's JVM stub.
-  const nativeBackups = new Map([['backup', h.files.get('backup')]]);
-  h.files.set('primary', '{corrupt-primary');
-  if (baseState === 'truncated') h.files.set('backup', '{interrupted');
-  else h.files.delete('backup');
-  const read = h.operations.read.getMockImplementation();
-  h.operations.read.mockImplementation(async (slot) => {
-    const previous = nativeBackups.get(slot);
-    if (previous !== undefined) {
-      h.files.set(slot, previous);
-      nativeBackups.delete(slot);
-    }
-    return (await read?.(slot)) ?? null;
-  });
-  expect(await h.reopen().getItem()).toBe(A);
-  expect(h.files.get('primary')).toBe(h.files.get('backup'));
-  expect(h.operations.onPresence).toHaveBeenLastCalledWith(true);
-  expect(h.operations.onFailure).toHaveBeenLastCalledWith(false);
-});
+test.each(['truncated', 'missing'] as const)(
+  'recovery adapter restores an interrupted Android AtomicFile backup when the base is %s',
+  async (baseState) => {
+    const h = harness({ primary: A });
+    await h.storage.getItem();
+    // Model the Android 7–10 AtomicFile contract: startWrite renames the
+    // previous base to .bak; openRead restores it before returning any bytes.
+    // This is an adapter integration test, not execution of Android's JVM stub.
+    const nativeBackups = new Map([['backup', h.files.get('backup')]]);
+    h.files.set('primary', '{corrupt-primary');
+    if (baseState === 'truncated') h.files.set('backup', '{interrupted');
+    else h.files.delete('backup');
+    const read = h.operations.read.getMockImplementation();
+    h.operations.read.mockImplementation(async (slot) => {
+      const previous = nativeBackups.get(slot);
+      if (previous !== undefined) {
+        h.files.set(slot, previous);
+        nativeBackups.delete(slot);
+      }
+      return (await read?.(slot)) ?? null;
+    });
+    expect(await h.reopen().getItem()).toBe(A);
+    expect(h.files.get('primary')).toBe(h.files.get('backup'));
+    expect(h.operations.onPresence).toHaveBeenLastCalledWith(true);
+    expect(h.operations.onFailure).toHaveBeenLastCalledWith(false);
+  },
+);
 
 test('explicit key reset waits for outstanding encryption and serializes later saves', async () => {
   const h = harness({ primary: A });

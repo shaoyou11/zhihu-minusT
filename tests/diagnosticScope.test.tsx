@@ -3,11 +3,11 @@ import type { ErrorBoundaryProps } from 'expo-router';
 import { Try } from 'expo-router/build/views/Try';
 import { useEffect } from 'react';
 import { Pressable, Text } from 'react-native';
-import { DiagnosticScope } from '../components/DiagnosticScope';
+import { DiagnosticScope } from '../src/components/DiagnosticScope';
 import {
   getDiagnosticContext,
   rememberDiagnosticContext,
-} from '../utils/diagnosticContext';
+} from '../src/utils/diagnosticContext';
 
 jest.mock('expo-router/build/views/Splash', () => ({ hideAsync: jest.fn() }));
 

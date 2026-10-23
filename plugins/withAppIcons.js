@@ -7,7 +7,7 @@ const {
   withInfoPlist,
   withXcodeProject,
 } = require('@expo/config-plugins');
-const { APP_ICONS } = require('../app-icon.config');
+const { APP_ICONS } = require('./app-icon.config');
 
 const ANDROID_ICON_PREFIX = 'zhihu_icon_';
 
@@ -98,11 +98,11 @@ function withAndroidAppIconResources(config) {
 
       const sourceRoot = resourceConfig.modRequest.projectRoot;
       fs.copyFileSync(
-        path.join(sourceRoot, 'assets/images/android-icon-foreground.png'),
+        path.join(sourceRoot, 'src/assets/images/android-icon-foreground.png'),
         path.join(drawableDirectory, 'zhihu_icon_foreground.png'),
       );
       fs.copyFileSync(
-        path.join(sourceRoot, 'assets/images/android-icon-monochrome.png'),
+        path.join(sourceRoot, 'src/assets/images/android-icon-monochrome.png'),
         path.join(drawableDirectory, 'zhihu_icon_monochrome.png'),
       );
 
@@ -118,7 +118,7 @@ function withAndroidAppIconResources(config) {
       for (const { id, gradient, bands } of APP_ICONS) {
         const resourceName = androidResourceName(id);
         fs.copyFileSync(
-          path.join(sourceRoot, `assets/images/app-icons/${id}.png`),
+          path.join(sourceRoot, `src/assets/images/app-icons/${id}.png`),
           path.join(mipmapDirectory, `${resourceName}.png`),
         );
         const usesImageBackground = gradient || bands;
@@ -129,7 +129,7 @@ function withAndroidAppIconResources(config) {
           fs.copyFileSync(
             path.join(
               sourceRoot,
-              `assets/images/app-icons/${id}-background.png`,
+              `src/assets/images/app-icons/${id}-background.png`,
             ),
             path.join(drawableDirectory, `${resourceName}_background.png`),
           );
@@ -210,7 +210,7 @@ function withIosAppIconAssets(config) {
         const filename = `${iosName}-1024.png`;
         fs.mkdirSync(iconDirectory, { recursive: true });
         fs.copyFileSync(
-          path.join(sourceRoot, `assets/images/app-icons/${id}.png`),
+          path.join(sourceRoot, `src/assets/images/app-icons/${id}.png`),
           path.join(iconDirectory, filename),
         );
         fs.writeFileSync(

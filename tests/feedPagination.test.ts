@@ -1,9 +1,12 @@
-import { flattenDailyPages, getDailyNextPageParam } from '../utils/dailyList';
+import {
+  flattenDailyPages,
+  getDailyNextPageParam,
+} from '../src/utils/dailyList';
 import {
   getFeedNextUrl,
   getFeedRequestUrl,
   getNextUnvisitedFeedPage,
-} from '../utils/feedPagination';
+} from '../src/utils/feedPagination';
 
 test('refresh keeps the virtual local entry resolvable while marking HTTP feed refreshes', () => {
   expect(

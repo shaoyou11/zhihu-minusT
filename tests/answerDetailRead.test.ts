@@ -1,21 +1,21 @@
 import { act, renderHook } from '@testing-library/react-native';
-import { readContents } from '../api/zhihu/lastRead';
+import { readContents } from '../src/api/zhihu/lastRead';
 import {
   useAnswerDetailRead,
   useAnswerReadSession,
-} from '../hooks/useAnswerDetailRead';
+} from '../src/hooks/useAnswerDetailRead';
 
-jest.mock('../api/zhihu/lastRead', () => ({ readContents: jest.fn() }));
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/zhihu/lastRead', () => ({ readContents: jest.fn() }));
+jest.mock('../src/api/client', () => ({
   hasAuthenticationCookie: (cookie: string | null) => Boolean(cookie),
 }));
 let mockActive = true;
 let mockSessionVersion = 1;
 let mockCookies: string | null = 'synthetic-authentication';
-jest.mock('../hooks/useActiveScreen', () => ({
+jest.mock('../src/hooks/useActiveScreen', () => ({
   useActiveScreen: () => mockActive,
 }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
   useAuthStore: (selector: (state: { cookies: string | null }) => unknown) =>
     selector({ cookies: mockCookies }),

@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react-native';
-import { useRefreshAction } from '../hooks/useRefreshAction';
+import { useRefreshAction } from '../src/hooks/useRefreshAction';
 
 test('keeps the refresh indicator active through all work and coalesces duplicate pulls', async () => {
   let finish: () => void = () => {};

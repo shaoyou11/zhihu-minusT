@@ -1,11 +1,13 @@
 import type { Event } from '@sentry/react-native';
 import {
+  getSentryBuildIdentity,
   sanitizeSentryEvent,
   type TelemetryBuildContext,
-} from '../utils/telemetrySanitizer';
+} from '../src/utils/telemetrySanitizer';
 
 const build: TelemetryBuildContext = {
   appVersion: '0.9.2',
+  applicationId: 'com.example.zhihu',
   buildNumber: '37',
   commit: 'a'.repeat(40),
   sourceFingerprint: 'b'.repeat(24),
@@ -58,6 +60,7 @@ test('retains an actionable cause, build, location and fixed context without run
       frames: [
         {
           filename: 'components/RecentMoments.tsx',
+          abs_path: 'components/RecentMoments.tsx',
           lineno: 43,
           colno: 9,
           debug_id: '12345678-1234-1234-1234-123456789abc',
@@ -82,6 +85,67 @@ test('retains an actionable cause, build, location and fixed context without run
     app_build: '37',
   });
   expect(safe).not.toBeNull();
+  if (safe) expect(sanitizeSentryEvent(safe, build)).toEqual(safe);
+});
+
+test.each(['android', 'ios'] as const)(
+  '%s events use the release and dist of the native upload instead of incoming metadata',
+  (platform) => {
+    const safe = sanitizeSentryEvent<Event>(
+      { release: 'synthetic-private-value', dist: 'synthetic-private-value' },
+      { ...build, platform },
+    );
+    expect(safe).toMatchObject({
+      release: 'com.example.zhihu@0.9.2+37',
+      dist: '37',
+    });
+    expect(JSON.stringify(safe)).not.toContain('synthetic-private-value');
+    expect(getSentryBuildIdentity({ ...build, platform })).toEqual({
+      release: safe?.release,
+      dist: safe?.dist,
+    });
+  },
+);
+
+test.each([
+  { applicationId: 'https://private.invalid/session' },
+  { applicationId: 'private@example.invalid' },
+  { appVersion: 'synthetic-private-version' },
+  { buildNumber: 'synthetic-private-build' },
+])('invalid native release components cannot enter events: %s', (metadata) => {
+  const safe = sanitizeSentryEvent<Event>(
+    { release: 'synthetic-private-release', dist: 'synthetic-private-dist' },
+    { ...build, ...metadata },
+  );
+  expect(safe?.release).toBeUndefined();
+  expect(JSON.stringify(safe)).not.toContain('synthetic-private');
+  expect(JSON.stringify(safe)).not.toContain('private.invalid');
+});
+
+test('retains matching sanitized abs_path and code_file for Debug ID association', () => {
+  const debugId = '12345678-1234-1234-1234-123456789abc';
+  const path = 'app:///index.android.bundle?cookie=synthetic-private';
+  const safe = sanitizeSentryEvent<Event>(
+    {
+      exception: {
+        values: [
+          {
+            stacktrace: { frames: [{ filename: path, lineno: 1, colno: 50 }] },
+          },
+        ],
+      },
+      debug_meta: {
+        images: [{ type: 'sourcemap', debug_id: debugId, code_file: path }],
+      },
+    },
+    build,
+  );
+  const frame = safe?.exception?.values?.[0].stacktrace?.frames?.[0];
+  const image = safe?.debug_meta?.images?.[0];
+  expect(frame?.abs_path).toBe('app:///index.android.bundle');
+  expect(frame?.abs_path).toBe(image?.code_file);
+  expect(image?.debug_id).toBe(debugId);
+  expect(JSON.stringify(safe)).not.toContain('synthetic-private');
   if (safe) expect(sanitizeSentryEvent(safe, build)).toEqual(safe);
 });
 

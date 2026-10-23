@@ -3,10 +3,10 @@ import {
   buildContentShareText,
   resolveContentShareUrl,
   shareContent,
-} from '../utils/contentActions';
-import { showToast } from '../utils/toast';
+} from '../src/utils/contentActions';
+import { showToast } from '../src/utils/toast';
 
-jest.mock('../utils/toast', () => ({ showToast: jest.fn() }));
+jest.mock('../src/utils/toast', () => ({ showToast: jest.fn() }));
 
 const initialPlatform = Platform.OS;
 const share = jest.spyOn(Share, 'share');
@@ -14,7 +14,10 @@ const share = jest.spyOn(Share, 'share');
 beforeEach(() => {
   jest.clearAllMocks();
   Platform.OS = 'android';
-  share.mockResolvedValue({ action: Share.sharedAction });
+  share.mockResolvedValue({
+    action: Share.sharedAction,
+    activityType: undefined,
+  });
 });
 
 afterEach(() => {
@@ -41,23 +44,17 @@ test('uses a question link when known and preserves long string IDs without roun
   ).toBe('https://www.zhihu.com/question/7/answer/19012345678901234567');
 });
 
-test.each([
-  '',
-  'undefined',
-  'NaN',
-  '0',
-  -1,
-  1.5,
-  Number.NaN,
-  1e20,
-])('does not share an invalid content identity %s', (id) => {
-  expect(
-    resolveContentShareUrl('answer', {
-      id,
-      url: 'https://www.zhihu.com/answer/42',
-    }),
-  ).toBe('');
-});
+test.each(['', 'undefined', 'NaN', '0', -1, 1.5, Number.NaN, 1e20])(
+  'does not share an invalid content identity %s',
+  (id) => {
+    expect(
+      resolveContentShareUrl('answer', {
+        id,
+        url: 'https://www.zhihu.com/answer/42',
+      }),
+    ).toBe('');
+  },
+);
 
 test.each([
   'https://www.zhihu.com/api/v4/answers/42',
@@ -109,17 +106,17 @@ test('does not invent missing author metadata or generate text for invalid IDs',
   expect(buildContentShareText('answer', { id: '' }, 'markdown')).toBe('');
 });
 
-test.each([
-  'android',
-  'web',
-] as const)('%s shares a link in message so Android does not drop it', async (platform) => {
-  Platform.OS = platform;
-  await shareContent('answer', { id: 42, title: '示例问题' }, 'link');
-  expect(share).toHaveBeenCalledWith(
-    { message: 'https://www.zhihu.com/answer/42', title: '示例问题' },
-    { subject: '示例问题', dialogTitle: '示例问题' },
-  );
-});
+test.each(['android', 'web'] as const)(
+  '%s shares a link in message so Android does not drop it',
+  async (platform) => {
+    Platform.OS = platform;
+    await shareContent('answer', { id: 42, title: '示例问题' }, 'link');
+    expect(share).toHaveBeenCalledWith(
+      { message: 'https://www.zhihu.com/answer/42', title: '示例问题' },
+      { subject: '示例问题', dialogTitle: '示例问题' },
+    );
+  },
+);
 
 test('iOS shares the URL once and information shares title, author and link once', async () => {
   Platform.OS = 'ios';
@@ -154,7 +151,10 @@ test('handles native failures and invalid content without rejecting menu callbac
 });
 
 test('treats canceled system sharing as cancellation', async () => {
-  share.mockResolvedValueOnce({ action: Share.dismissedAction });
+  share.mockResolvedValueOnce({
+    action: Share.dismissedAction,
+    activityType: undefined,
+  });
   await shareContent('answer', { id: 42 }, 'link');
   share.mockRejectedValueOnce({ name: 'AbortError' });
   await shareContent('answer', { id: 42 }, 'link');

@@ -5,17 +5,17 @@ import {
   getRecentMemberActivities,
   type ZhihuMember,
   type ZhihuMemberActivity,
-} from '../api/zhihu/member';
-import { useUserCreations } from '../hooks/useUserCreations';
+} from '../src/api/zhihu/member';
+import { useUserCreations } from '../src/hooks/useUserCreations';
 import {
   deduplicateUserCreations,
   getNextUserCreationsCursor,
   toUserCreationFeedItem,
   type UserCreationsPage,
-} from '../utils/userCreations';
-import { getNextRecentActivityCursor } from '../utils/userProfile';
+} from '../src/utils/userCreations';
+import { getNextRecentActivityCursor } from '../src/utils/userProfile';
 
-jest.mock('../api/zhihu/member', () => ({
+jest.mock('../src/api/zhihu/member', () => ({
   getRecentMemberActivities: jest.fn(),
 }));
 
@@ -286,11 +286,14 @@ test.each([
   ['videos', 'lens'],
   ['zvideo', 'zvideo'],
   ['zvideos', 'zvideo'],
-] as const)('recent creations preserve raw video type %s as source %s', (type, videoSource) => {
-  expect(
-    toUserCreationFeedItem(
-      { target: { id: '2088306465639604943', type } },
-      member,
-    ),
-  ).toMatchObject({ id: '2088306465639604943', type: 'videos', videoSource });
-});
+] as const)(
+  'recent creations preserve raw video type %s as source %s',
+  (type, videoSource) => {
+    expect(
+      toUserCreationFeedItem(
+        { target: { id: '2088306465639604943', type } },
+        member,
+      ),
+    ).toMatchObject({ id: '2088306465639604943', type: 'videos', videoSource });
+  },
+);

@@ -5,16 +5,16 @@ import {
 } from '@tanstack/react-query';
 import { act, render, waitFor } from '@testing-library/react-native';
 import type { ComponentProps, ReactNode } from 'react';
-import { type AnswerDetail, getAnswer } from '../api/zhihu';
-import { getAllContentCollectionStatus } from '../api/zhihu/collection';
-import { AnswerDetailView } from '../components/AnswerDetailView';
-import type { CollectionButton } from '../components/CollectionButton';
-import type { RichContentLoadingPhase } from '../features/rich-content';
-import { useAnswerDetailRead } from '../hooks/useAnswerDetailRead';
+import { type AnswerDetail, getAnswer } from '../src/api/zhihu';
+import { getAllContentCollectionStatus } from '../src/api/zhihu/collection';
+import { AnswerDetailView } from '../src/components/AnswerDetailView';
+import type { CollectionButton } from '../src/components/CollectionButton';
+import type { RichContentLoadingPhase } from '../src/features/rich-content';
+import { useAnswerDetailRead } from '../src/hooks/useAnswerDetailRead';
 import {
   getAnswerEndorsementsKey,
   seedAnswerEndorsements,
-} from '../utils/answerEndorsements';
+} from '../src/utils/answerEndorsements';
 
 interface ReadingOptions {
   enabled: boolean;
@@ -81,15 +81,15 @@ let mockSessionVersion = 1;
 let mockLayoutReady: () => void;
 let mockContentLoadingPhase: RichContentLoadingPhase | null = null;
 
-jest.mock('../api/zhihu', () => ({
-  ...jest.requireActual('../api/zhihu/contentCollection'),
+jest.mock('../src/api/zhihu', () => ({
+  ...jest.requireActual('../src/api/zhihu/contentCollection'),
   getAnswer: jest.fn(),
   deleteAnswer: jest.fn(),
 }));
-jest.mock('../api/zhihu/collection', () => ({
+jest.mock('../src/api/zhihu/collection', () => ({
   getAllContentCollectionStatus: jest.fn(),
 }));
-jest.mock('../api/zhihu/member', () => ({
+jest.mock('../src/api/zhihu/member', () => ({
   followMember: jest.fn(),
   unfollowMember: jest.fn(),
 }));
@@ -104,10 +104,10 @@ jest.mock('expo-blur', () => ({
   BlurView:
     jest.requireActual<typeof import('react-native')>('react-native').View,
 }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -122,11 +122,11 @@ jest.mock('../components/Themed', () => {
     }),
   };
 });
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton:
     jest.requireActual<typeof import('react-native')>('react-native').Pressable,
 }));
-jest.mock('../components/AnswerEndorsements', () => {
+jest.mock('../src/components/AnswerEndorsements', () => {
   const react = jest.requireActual<typeof import('react')>('react');
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
@@ -156,7 +156,7 @@ jest.mock('../components/AnswerEndorsements', () => {
     },
   };
 });
-jest.mock('../components/ContentRelationshipNotice', () => {
+jest.mock('../src/components/ContentRelationshipNotice', () => {
   const react = jest.requireActual<typeof import('react')>('react');
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
@@ -171,15 +171,17 @@ jest.mock('../components/ContentRelationshipNotice', () => {
     },
   };
 });
-jest.mock('../components/DetailNavigationHeader', () => ({
+jest.mock('../src/components/DetailNavigationHeader', () => ({
   useDetailNavigationHeight: () => 44,
 }));
-jest.mock('../components/DownvoteButton', () => ({
+jest.mock('../src/components/DownvoteButton', () => ({
   DownvoteButton: () => null,
 }));
-jest.mock('../components/FollowButton', () => ({ FollowButton: () => null }));
-jest.mock('../components/LikeButton', () => ({ LikeButton: () => null }));
-jest.mock('../components/CollectionButton', () => {
+jest.mock('../src/components/FollowButton', () => ({
+  FollowButton: () => null,
+}));
+jest.mock('../src/components/LikeButton', () => ({ LikeButton: () => null }));
+jest.mock('../src/components/CollectionButton', () => {
   const react = jest.requireActual<typeof import('react')>('react');
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
@@ -195,41 +197,43 @@ jest.mock('../components/CollectionButton', () => {
     },
   };
 });
-jest.mock('../components/MoreActionsButton', () => ({
+jest.mock('../src/components/MoreActionsButton', () => ({
   MoreActionsButton: () => null,
 }));
-jest.mock('../components/QueryErrorView', () => ({
+jest.mock('../src/components/QueryErrorView', () => ({
   QueryErrorView: () => null,
 }));
-jest.mock('../components/ReadingProgressNotice', () => ({
+jest.mock('../src/components/ReadingProgressNotice', () => ({
   ReadingProgressNotice: () => null,
 }));
-jest.mock('../components/ReadingScrollIndicator', () => ({
+jest.mock('../src/components/ReadingScrollIndicator', () => ({
   ReadingScrollIndicator: () => null,
 }));
-jest.mock('../components/ShareMenu', () => ({ ShareMenu: () => null }));
-jest.mock('../components/StableAvatar', () => ({ StableAvatar: () => null }));
-jest.mock('../components/VoterListModal', () => ({
+jest.mock('../src/components/ShareMenu', () => ({ ShareMenu: () => null }));
+jest.mock('../src/components/StableAvatar', () => ({
+  StableAvatar: () => null,
+}));
+jest.mock('../src/components/VoterListModal', () => ({
   VoterListModal: () => null,
 }));
-jest.mock('../hooks/useOptimisticToggle', () => ({
+jest.mock('../src/hooks/useOptimisticToggle', () => ({
   useOptimisticToggle: () => ({ mutate: jest.fn(), isPending: false }),
 }));
-jest.mock('../hooks/useAnswerDetailRead', () => ({
+jest.mock('../src/hooks/useAnswerDetailRead', () => ({
   useAnswerDetailRead: jest.fn(),
 }));
-jest.mock('../hooks/useReadingProgress', () => ({
+jest.mock('../src/hooks/useReadingProgress', () => ({
   useReadingProgress: (options: ReadingOptions) => mockReadingProgress(options),
 }));
-jest.mock('../hooks/useReadingContentMeasurement', () => ({
+jest.mock('../src/hooks/useReadingContentMeasurement', () => ({
   useReadingContentMeasurement: (options: MeasurementOptions) =>
     mockReadingMeasurement(options),
 }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
   useAuthStore: (selector: () => unknown) => selector(),
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: Object.assign(
     (selector: (state: Settings) => unknown) =>
       selector({
@@ -247,11 +251,11 @@ jest.mock('../store/useSettingsStore', () => ({
     },
   ),
 }));
-jest.mock('../store/useCollectionStore', () => ({
+jest.mock('../src/store/useCollectionStore', () => ({
   useCollectionStore: (selector: (state: Collections) => unknown) =>
     selector({ setCollectedStatus: jest.fn(), collectedStatusMap: {} }),
 }));
-jest.mock('../features/rich-content', () => {
+jest.mock('../src/features/rich-content', () => {
   const react = jest.requireActual<typeof import('react')>('react');
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
@@ -726,23 +730,26 @@ test.each<readonly [RichContentLoadingPhase, string]>([
   ['container-layout', '正在确认正文宽度…'],
   ['text-layout', '正在排版文字…'],
   ['content-layout', '正在布局正文内容…'],
-])('reports %s for a cached answer without claiming to fetch its body', async (phase, message) => {
-  mockContentLoadingPhase = phase;
-  const host = await renderAnswer({ isFocused: true });
+])(
+  'reports %s for a cached answer without claiming to fetch its body',
+  async (phase, message) => {
+    mockContentLoadingPhase = phase;
+    const host = await renderAnswer({ isFocused: true });
 
-  expect(host.queryByText(message)).toBeNull();
-  await waitFor(() => expect(host.getByText(message)).toBeTruthy());
-  expect(host.queryByText('正在获取回答…')).toBeNull();
-  expect(getAnswer).not.toHaveBeenCalled();
-  expect(host.queryByTestId('answer-body')).toBeNull();
+    expect(host.queryByText(message)).toBeNull();
+    await waitFor(() => expect(host.getByText(message)).toBeTruthy());
+    expect(host.queryByText('正在获取回答…')).toBeNull();
+    expect(getAnswer).not.toHaveBeenCalled();
+    expect(host.queryByTestId('answer-body')).toBeNull();
 
-  mockContentLoadingPhase = null;
-  await host.rerender(host.page(true, true));
+    mockContentLoadingPhase = null;
+    await host.rerender(host.page(true, true));
 
-  expect(host.getByTestId('answer-body')).toHaveTextContent(answer.content);
-  expect(host.queryByText(message)).toBeNull();
-  expect(host.queryByText('正在获取回答…')).toBeNull();
-});
+    expect(host.getByTestId('answer-body')).toHaveTextContent(answer.content);
+    expect(host.queryByText(message)).toBeNull();
+    expect(host.queryByText('正在获取回答…')).toBeNull();
+  },
+);
 
 test('keeps a cached answer in its layout phase during a background refresh', async () => {
   let finishRequest!: (value: AnswerDetail) => void;

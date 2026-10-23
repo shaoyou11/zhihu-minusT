@@ -1,14 +1,14 @@
 import { AxiosHeaders, type AxiosResponse } from 'axios';
-import apiClient from '../api/client';
+import apiClient from '../src/api/client';
 import {
   createAnswerComment,
   createAnswerSegmentComment,
   createCommentV5,
   parseAnswerSegmentCommentContext,
   parseAnswerSegmentCommentTarget,
-} from '../api/zhihu/comment';
+} from '../src/api/zhihu/comment';
 
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { post: jest.fn() },
 }));
@@ -70,14 +70,17 @@ describe('answer segment-comment route context', () => {
     { segmentId: 'prototype-segment' },
     { segmentId: ['200', '300'] },
     { segmentId: '200,' },
-  ])('keeps unsupported or untrusted targets out of answer endpoints (%j)', (changes) => {
-    expect(
-      parseAnswerSegmentCommentTarget({ ...route, ...changes }),
-    ).toBeNull();
-    expect(
-      parseAnswerSegmentCommentContext({ ...route, ...changes }),
-    ).toBeNull();
-  });
+  ])(
+    'keeps unsupported or untrusted targets out of answer endpoints (%j)',
+    (changes) => {
+      expect(
+        parseAnswerSegmentCommentTarget({ ...route, ...changes }),
+      ).toBeNull();
+      expect(
+        parseAnswerSegmentCommentContext({ ...route, ...changes }),
+      ).toBeNull();
+    },
+  );
 
   it.each([
     { text: '乙😀' },
@@ -90,11 +93,14 @@ describe('answer segment-comment route context', () => {
     { startOffset: '2.0' },
     { endOffset: '2' },
     { endOffset: '9007199254740992' },
-  ])('requires complete, consistent source text and coordinates (%j)', (changes) => {
-    expect(
-      parseAnswerSegmentCommentContext({ ...route, ...changes }),
-    ).toBeNull();
-  });
+  ])(
+    'requires complete, consistent source text and coordinates (%j)',
+    (changes) => {
+      expect(
+        parseAnswerSegmentCommentContext({ ...route, ...changes }),
+      ).toBeNull();
+    },
+  );
 });
 
 describe('answer segment-comment posting adapter', () => {

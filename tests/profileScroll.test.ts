@@ -5,7 +5,7 @@ import {
   getProfileResizedOffset,
   getProfileSyncedOffset,
   PROFILE_COVER_SCROLL_DISTANCE,
-} from '../utils/profileScroll';
+} from '../src/utils/profileScroll';
 
 describe('profile cover collapse', () => {
   test('keeps cover movement within its reserved space and ignores invalid offsets', () => {

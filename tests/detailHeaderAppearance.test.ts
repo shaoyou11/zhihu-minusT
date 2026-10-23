@@ -1,4 +1,4 @@
-import { calculateDetailHeaderAppearance } from '../utils/detailHeaderAppearance';
+import { calculateDetailHeaderAppearance } from '../src/utils/detailHeaderAppearance';
 
 describe('detail header appearance', () => {
   it.each([
@@ -6,9 +6,12 @@ describe('detail header appearance', () => {
     [0, 0],
     [80, 1],
     [160, 1],
-  ])('keeps offset %s within the expanded and collapsed visibility limits', (offset, expected) => {
-    expect(calculateDetailHeaderAppearance(offset, 80)).toBeCloseTo(expected);
-  });
+  ])(
+    'keeps offset %s within the expanded and collapsed visibility limits',
+    (offset, expected) => {
+      expect(calculateDetailHeaderAppearance(offset, 80)).toBeCloseTo(expected);
+    },
+  );
 
   it('uses the measured content boundary for a taller answer introduction', () => {
     expect(calculateDetailHeaderAppearance(0, 140)).toBe(0);

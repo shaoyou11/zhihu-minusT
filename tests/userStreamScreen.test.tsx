@@ -1,8 +1,8 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
-import type { ZhihuMemberActivity } from '../api/zhihu/member';
-import type { RecentMomentItem } from '../api/zhihu/moments';
-import UserStreamScreen from '../app/user/[id]/stream';
+import type { ZhihuMemberActivity } from '../src/api/zhihu/member';
+import type { RecentMomentItem } from '../src/api/zhihu/moments';
+import UserStreamScreen from '../src/app/user/[id]/stream';
 
 const mockParams: { id: string; unreadCount?: string; source?: string } = {
   id: 'member-token',
@@ -76,7 +76,7 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
   useRouter: () => ({ back: jest.fn() }),
 }));
-jest.mock('../hooks/useMarkRecentMomentRead', () => ({
+jest.mock('../src/hooks/useMarkRecentMomentRead', () => ({
   useMarkRecentMomentRead: () => mockMarkRead,
 }));
 jest.mock('react-native-pager-view', () => {
@@ -95,31 +95,33 @@ jest.mock('react-native-pager-view', () => {
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-jest.mock('../api/zhihu', () => ({ getMemberWithFallback: jest.fn() }));
-jest.mock('../hooks/useUserCreations', () => ({
+jest.mock('../src/api/zhihu', () => ({ getMemberWithFallback: jest.fn() }));
+jest.mock('../src/hooks/useUserCreations', () => ({
   useUserCreations: () => mockQuery,
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/StableAvatar', () => ({ StableAvatar: () => null }));
-jest.mock('../components/QueryErrorView', () => ({
+jest.mock('../src/components/StableAvatar', () => ({
+  StableAvatar: () => null,
+}));
+jest.mock('../src/components/QueryErrorView', () => ({
   QueryErrorView: () => null,
 }));
-jest.mock('../components/FeedCard', () => ({
+jest.mock('../src/components/FeedCard', () => ({
   FeedCard: ({ item }: { item: { id: string } }) =>
     jest
       .requireActual('react')
       .createElement(jest.requireActual('react-native').Text, null, item.id),
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native = jest.requireActual('react-native');
   return { Text: native.Text, View: native.View, useThemeColor: () => '#00f' };
 });
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: Object.assign(() => ({}), {
     getState: () => ({
       primaryColor: null,
@@ -295,18 +297,18 @@ test('page buttons ask the pager to navigate; only confirmed selection marks rea
   await host.unmount();
 });
 
-test.each([
-  undefined,
-  'recent-moments',
-])('direct entry or missing cache remains a single usable user page (source=%s)', async (source) => {
-  mockParams.source = source;
-  mockMoments = source ? undefined : [moment('unrelated')];
-  const host = await render(<UserStreamScreen />);
-  expect(host.getByText('合成用户 member-token')).toBeTruthy();
-  expect(host.getByTestId('recent-moment-pager').props.scrollEnabled).toBe(
-    false,
-  );
-  expect(host.queryByRole('button', { name: '下一位用户' })).toBeNull();
-  expect(mockMarkRead).not.toHaveBeenCalled();
-  await host.unmount();
-});
+test.each([undefined, 'recent-moments'])(
+  'direct entry or missing cache remains a single usable user page (source=%s)',
+  async (source) => {
+    mockParams.source = source;
+    mockMoments = source ? undefined : [moment('unrelated')];
+    const host = await render(<UserStreamScreen />);
+    expect(host.getByText('合成用户 member-token')).toBeTruthy();
+    expect(host.getByTestId('recent-moment-pager').props.scrollEnabled).toBe(
+      false,
+    );
+    expect(host.queryByRole('button', { name: '下一位用户' })).toBeNull();
+    expect(mockMarkRead).not.toHaveBeenCalled();
+    await host.unmount();
+  },
+);

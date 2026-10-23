@@ -1,12 +1,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react-native';
 import { createElement, type PropsWithChildren } from 'react';
-import { batchDelReadHistory } from '../api/zhihu/history';
-import { useReadHistoryActions } from '../hooks/useReadHistoryActions';
+import { batchDelReadHistory } from '../src/api/zhihu/history';
+import { useReadHistoryActions } from '../src/hooks/useReadHistoryActions';
 
-jest.mock('../api/zhihu/history', () => ({ batchDelReadHistory: jest.fn() }));
+jest.mock('../src/api/zhihu/history', () => ({
+  batchDelReadHistory: jest.fn(),
+}));
 let mockSession = 0;
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSession,
 }));
 

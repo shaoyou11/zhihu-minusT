@@ -1,22 +1,22 @@
 import { fireEvent, render } from '@testing-library/react-native';
 import type { ForwardedRef, PropsWithChildren } from 'react';
-import { DoubleTapActionSheet } from '../components/DoubleTapActionSheet';
+import { DoubleTapActionSheet } from '../src/components/DoubleTapActionSheet';
 
 let mockVisible = true;
 const mockUpdateSettings = jest.fn();
 const mockHide = jest.fn();
 
-jest.mock('../store/useDoubleTapSetupStore', () => ({
+jest.mock('../src/store/useDoubleTapSetupStore', () => ({
   useDoubleTapSetupStore: (selector: (state: unknown) => unknown) =>
     selector({ visible: mockVisible, hide: mockHide, show: jest.fn() }),
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: (selector: (state: unknown) => unknown) =>
     selector({
       updateSettings: mockUpdateSettings,
     }),
 }));
-jest.mock('../components/overlays/BottomSheet', () => {
+jest.mock('../src/components/overlays/BottomSheet', () => {
   const React = jest.requireActual('react');
   const { View } = jest.requireActual('react-native');
   return {
@@ -32,19 +32,19 @@ jest.mock(
   '@expo/vector-icons/Ionicons',
   () => jest.requireActual('react-native').View,
 );
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   Text: jest.requireActual('react-native').Text,
   View: jest.requireActual('react-native').View,
   useThemeColor: (_props: unknown, token: string) =>
     token === 'onPrimary' ? '#000000' : '#ffffff',
 }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../constants/Colors', () => ({
+jest.mock('../src/constants/Colors', () => ({
   __esModule: true,
   default: {
     light: {

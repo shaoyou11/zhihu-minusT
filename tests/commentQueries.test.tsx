@@ -1,15 +1,21 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
-import { getAnswerCommentsV5, getChildCommentsV5 } from '../api/zhihu';
-import type { CommentItem, ZhihuCommentResponse } from '../api/zhihu/comment';
+import { getAnswerCommentsV5, getChildCommentsV5 } from '../src/api/zhihu';
+import type {
+  CommentItem,
+  ZhihuCommentResponse,
+} from '../src/api/zhihu/comment';
 import {
   useCommentListQuery,
   useCommentRepliesQuery,
-} from '../hooks/useCommentQueries';
-import { parseParentComment } from '../utils/commentRoute';
+} from '../src/hooks/useCommentQueries';
+import {
+  parseParentComment,
+  serializeParentComment,
+} from '../src/utils/commentRoute';
 
-jest.mock('../api/zhihu', () => ({
+jest.mock('../src/api/zhihu', () => ({
   getAnswerCommentsV5: jest.fn(),
   getArticleCommentsV5: jest.fn(),
   getQuestionCommentsV5: jest.fn(),
@@ -152,15 +158,19 @@ test('refresh resets only the current thread to the first page and does not refr
 
 test('reply route preserves already decoded percent signs and rejects malformed or unrelated parent comments', () => {
   expect(
-    parseParentComment(JSON.stringify(comment('root')), 'root')?.content,
+    parseParentComment(serializeParentComment(comment('root'), 1), 'root', 1)
+      ?.content,
   ).toBe('合成评论 100% 与 %20');
   for (const parent of [
     'null',
     '{}',
     '{',
-    JSON.stringify(comment('other')),
-    JSON.stringify({ id: 'root', content: 'text', author: {} }),
+    serializeParentComment(comment('other'), 1),
+    JSON.stringify({
+      sessionVersion: 1,
+      comment: { id: 'root', content: 'text', author: {} },
+    }),
   ]) {
-    expect(parseParentComment(parent, 'root')).toBeNull();
+    expect(parseParentComment(parent, 'root', 1)).toBeNull();
   }
 });

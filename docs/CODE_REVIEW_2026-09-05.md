@@ -30,7 +30,7 @@
 
 ### P2：同城分区匹配会接受任意非空 section_id
 
-位置：[`api/zhihu/feed.ts`](../api/zhihu/feed.ts)，第 227–237 行。
+位置：[`api/zhihu/feed.ts`](../src/api/zhihu/feed.ts)，第 227–237 行。
 
 `sections.find()` 的条件为 `section.section_name?.includes('同城') || section.section_id`。当同城分区之前存在带有非空 ID 的其他分区时，查找会提前命中该分区；随后请求它的信息流，并将它的名称保存为 `localCityName`。因此结果取决于接口返回顺序，不能保证进入同城分区。
 
@@ -38,7 +38,7 @@
 
 ### P2：登录与 URL 解析日志保留完整 URL
 
-位置：[`app/login/index.tsx`](../app/login/index.tsx)，第 145–147 行；[`utils/url.ts`](../utils/url.ts)，第 128–129 行。
+位置：[`app/login/index.tsx`](../src/app/login/index.tsx)，第 145–147 行；[`utils/url.ts`](../src/utils/url.ts)，第 128–129 行。
 
 登录 WebView 的每次导航都会输出完整 URL；URL 解析异常也会输出原始 URL。如果地址的 query 或 fragment 携带临时授权信息或其他敏感参数，这些内容会进入日志。本轮未捕获真实凭据泄露，因此将其记录为日志脱敏缺口，而非已证实的账号泄露事件。
 
@@ -46,7 +46,7 @@
 
 ### P2：认证持久化写入失败没有反馈到调用方
 
-位置：[`store/useAuthStore.ts`](../store/useAuthStore.ts)，第 34–40 行；[`app/login/index.tsx`](../app/login/index.tsx)，第 77–94 行。
+位置：[`store/useAuthStore.ts`](../src/store/useAuthStore.ts)，第 34–40 行；[`app/login/index.tsx`](../src/app/login/index.tsx)，第 77–94 行。
 
 文件适配器捕获写入异常后正常返回，登录流程也没有等待主存储写入成功就报告会话已保存并离开页面。在磁盘写入失败时，内存中的账号状态可能已更新，而文件仍保留旧状态或不存在，重启后可能恢复旧账号或丢失本次登录。
 

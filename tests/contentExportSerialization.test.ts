@@ -7,16 +7,16 @@ import type {
 import {
   getSafeExportImageUrl,
   getSafeExportUrl,
-} from '../features/content-export/safeUrl';
+} from '../src/features/content-export/safeUrl';
 import {
   serializeExportHtml,
   serializeExportMarkdown,
-} from '../features/content-export/serializers';
-import type { ExportSource } from '../features/content-export/types';
+} from '../src/features/content-export/serializers';
+import type { ExportSource } from '../src/features/content-export/types';
 
-jest.mock('../features/rich-content', () => ({
-  ...jest.requireActual('../features/rich-content/presentation'),
-  ...jest.requireActual('../features/rich-content/exportResources'),
+jest.mock('../src/features/rich-content', () => ({
+  ...jest.requireActual('../src/features/rich-content/presentation'),
+  ...jest.requireActual('../src/features/rich-content/exportResources'),
 }));
 
 const options = { includeImages: true, allowRemoteImages: false };
@@ -151,24 +151,27 @@ test.each([
   'https://example.com/article?p=2',
   'https://example.com/read?token=synthetic',
   'https://link.zhihu.com/?target=https%3A%2F%2Fexample.com%2Farticle%3Fp%3D2',
-])('keeps the label without linking to a changed query destination: %s', (url) => {
-  expect(getSafeExportUrl(url)).toBeUndefined();
-  const input = source([
-    {
-      id: 'link-paragraph',
-      type: 'paragraph',
-      children: [
-        { id: 'query-link', type: 'link', url, children: [text('目标页面')] },
-      ],
-    },
-  ]);
-  const html = main(serializeExportHtml(input, options));
-  const markdown = serializeExportMarkdown(input, options);
-  expect(html).toContain('目标页面');
-  expect(markdown).toContain('目标页面');
-  expect(html).not.toMatch(/<a[^>]*>目标页面<\/a>/);
-  expect(markdown).not.toContain('[目标页面](');
-});
+])(
+  'keeps the label without linking to a changed query destination: %s',
+  (url) => {
+    expect(getSafeExportUrl(url)).toBeUndefined();
+    const input = source([
+      {
+        id: 'link-paragraph',
+        type: 'paragraph',
+        children: [
+          { id: 'query-link', type: 'link', url, children: [text('目标页面')] },
+        ],
+      },
+    ]);
+    const html = main(serializeExportHtml(input, options));
+    const markdown = serializeExportMarkdown(input, options);
+    expect(html).toContain('目标页面');
+    expect(markdown).toContain('目标页面');
+    expect(html).not.toMatch(/<a[^>]*>目标页面<\/a>/);
+    expect(markdown).not.toContain('[目标页面](');
+  },
+);
 
 test('keeps known public API documentation without permitting API or auth resources', () => {
   const url = 'https://developer.mozilla.org/en-US/docs/Web/API/fetch';

@@ -9,11 +9,11 @@ import {
   markRecentMomentsRead,
   type RecentMomentItem,
   type RecentMomentsResponse,
-} from '../api/zhihu';
-import { RecentMoments } from '../components/RecentMoments';
-import { StableAvatar } from '../components/StableAvatar';
-import { useNestedHorizontalGesture } from '../hooks/useNestedHorizontalGesture';
-import { getDiagnosticContext } from '../utils/diagnosticContext';
+} from '../src/api/zhihu';
+import { RecentMoments } from '../src/components/RecentMoments';
+import { StableAvatar } from '../src/components/StableAvatar';
+import { useNestedHorizontalGesture } from '../src/hooks/useNestedHorizontalGesture';
+import { getDiagnosticContext } from '../src/utils/diagnosticContext';
 
 const mockPush = jest.fn();
 
@@ -21,7 +21,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 jest.mock('expo-router/build/views/Splash', () => ({ hideAsync: jest.fn() }));
-jest.mock('../api/zhihu', () => ({
+jest.mock('../src/api/zhihu', () => ({
   fetchRecentMoments: jest.fn(),
   markRecentMomentsRead: jest.fn(),
 }));
@@ -29,16 +29,16 @@ jest.mock('react-native-gesture-handler', () => ({
   ...jest.requireActual('react-native-gesture-handler'),
   GestureDetector: ({ children }: { children: ReactNode }) => children,
 }));
-jest.mock('../hooks/useNestedHorizontalGesture', () => ({
+jest.mock('../src/hooks/useNestedHorizontalGesture', () => ({
   useNestedHorizontalGesture: jest.fn(
-    jest.requireActual('../hooks/useNestedHorizontalGesture')
+    jest.requireActual('../src/hooks/useNestedHorizontalGesture')
       .useNestedHorizontalGesture,
   ),
 }));
-jest.mock('../components/StableAvatar', () => ({
+jest.mock('../src/components/StableAvatar', () => ({
   StableAvatar: jest.fn(() => null),
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native = jest.requireActual('react-native');
   return { Text: native.Text, View: native.View, useThemeColor: () => '#00f' };
 });
@@ -96,25 +96,28 @@ afterEach(() => queryClient.clear());
 test.each([
   ['synthetic-token', 'synthetic-token'],
   ['', 'synthetic-actor-id'],
-])('opens the selected actor using token %j without marking unseen content read', async (urlToken, expectedId) => {
-  const item = moment(urlToken);
-  const before = seed([item]);
-  const host = await render(<RecentMoments />, { wrapper });
+])(
+  'opens the selected actor using token %j without marking unseen content read',
+  async (urlToken, expectedId) => {
+    const item = moment(urlToken);
+    const before = seed([item]);
+    const host = await render(<RecentMoments />, { wrapper });
 
-  await fireEvent.press(host.getByText(item.actor.name));
+    await fireEvent.press(host.getByText(item.actor.name));
 
-  expect(mockPush).toHaveBeenCalledWith({
-    pathname: '/user/[id]/stream',
-    params: {
-      id: expectedId,
-      unreadCount: '137',
-      source: 'recent-moments',
-    },
-  });
-  expect(markRecentMomentsRead).not.toHaveBeenCalled();
-  expect(queryClient.getQueryData(['recent-moments'])).toEqual(before);
-  await host.unmount();
-});
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/user/[id]/stream',
+      params: {
+        id: expectedId,
+        unreadCount: '137',
+        source: 'recent-moments',
+      },
+    });
+    expect(markRecentMomentsRead).not.toHaveBeenCalled();
+    expect(queryClient.getQueryData(['recent-moments'])).toEqual(before);
+    await host.unmount();
+  },
+);
 
 test('annotates a child render failure before forwarding the same error to the root boundary', async () => {
   seed([moment()]);
@@ -299,26 +302,24 @@ test('keeps hooks mounted across loading, empty results, restoration and focus c
   await host.unmount();
 });
 
-test.each([
-  {},
-  { data: null },
-  { data: { length: 1 } },
-  { data: 'invalid' },
-])('handles an invalid moments array on first load and after populated results: %j', async (response) => {
-  queryClient.setQueryData<unknown>(['recent-moments'], response);
-  const host = await render(<RecentMoments />, { wrapper });
-  const item = moment();
-  expect(host.toJSON()).toBeNull();
+test.each([{}, { data: null }, { data: { length: 1 } }, { data: 'invalid' }])(
+  'handles an invalid moments array on first load and after populated results: %j',
+  async (response) => {
+    queryClient.setQueryData<unknown>(['recent-moments'], response);
+    const host = await render(<RecentMoments />, { wrapper });
+    const item = moment();
+    expect(host.toJSON()).toBeNull();
 
-  await act(() => seed([item]));
-  await waitFor(() => expect(host.getByText(item.actor.name)).toBeTruthy());
+    await act(() => seed([item]));
+    await waitFor(() => expect(host.getByText(item.actor.name)).toBeTruthy());
 
-  await act(() =>
-    queryClient.setQueryData<unknown>(['recent-moments'], response),
-  );
-  await waitFor(() => expect(host.toJSON()).toBeNull());
+    await act(() =>
+      queryClient.setQueryData<unknown>(['recent-moments'], response),
+    );
+    await waitFor(() => expect(host.toJSON()).toBeNull());
 
-  await act(() => seed([item]));
-  await waitFor(() => expect(host.getByText(item.actor.name)).toBeTruthy());
-  await host.unmount();
-});
+    await act(() => seed([item]));
+    await waitFor(() => expect(host.getByText(item.actor.name)).toBeTruthy());
+    await host.unmount();
+  },
+);

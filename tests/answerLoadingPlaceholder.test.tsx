@@ -1,9 +1,9 @@
 import { act, render } from '@testing-library/react-native';
 import { Text } from 'react-native';
-import { AnswerLoadingPlaceholder } from '../components/AnswerLoadingPlaceholder';
-import type { RichContentLoadingPhase } from '../features/rich-content';
+import { AnswerLoadingPlaceholder } from '../src/components/AnswerLoadingPlaceholder';
+import type { RichContentLoadingPhase } from '../src/features/rich-content';
 
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -23,21 +23,24 @@ test.each<readonly [RichContentLoadingPhase, string]>([
   ['container-layout', '正在确认正文宽度…'],
   ['text-layout', '正在排版文字…'],
   ['content-layout', '正在布局正文内容…'],
-])('delays the %s indicator and accessibility announcement until 120 ms', async (phase, message) => {
-  const host = await render(<AnswerLoadingPlaceholder phase={phase} />);
+])(
+  'delays the %s indicator and accessibility announcement until 120 ms',
+  async (phase, message) => {
+    const host = await render(<AnswerLoadingPlaceholder phase={phase} />);
 
-  expect(host.toJSON()).toMatchObject({ children: [] });
-  expect(host.queryByText(message)).toBeNull();
-  expect(host.queryByRole('progressbar')).toBeNull();
-  await act(() => jest.advanceTimersByTimeAsync(119));
-  expect(host.queryByText(message)).toBeNull();
-  expect(host.queryByRole('progressbar')).toBeNull();
-  expect(host.toJSON()).toMatchObject({ children: [] });
+    expect(host.toJSON()).toMatchObject({ children: [] });
+    expect(host.queryByText(message)).toBeNull();
+    expect(host.queryByRole('progressbar')).toBeNull();
+    await act(() => jest.advanceTimersByTimeAsync(119));
+    expect(host.queryByText(message)).toBeNull();
+    expect(host.queryByRole('progressbar')).toBeNull();
+    expect(host.toJSON()).toMatchObject({ children: [] });
 
-  await act(() => jest.advanceTimersByTimeAsync(1));
-  expect(host.getByText(message)).toBeTruthy();
-  expect(host.getByRole('progressbar', { name: message })).toBeTruthy();
-});
+    await act(() => jest.advanceTimersByTimeAsync(1));
+    expect(host.getByText(message)).toBeTruthy();
+    expect(host.getByRole('progressbar', { name: message })).toBeTruthy();
+  },
+);
 
 test('keeps one delay across native layout phases and shows the latest phase', async () => {
   const host = await render(

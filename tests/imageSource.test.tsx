@@ -1,14 +1,14 @@
 import { render } from '@testing-library/react-native';
-import { StableAvatar } from '../components/StableAvatar';
-import { getCachedImageSource } from '../utils/imageSource';
+import { StableAvatar } from '../src/components/StableAvatar';
+import { getCachedImageSource } from '../src/utils/imageSource';
 
-test.each([
-  'https://example.test/avatar.jpg',
-  'http://example.test/cover.png',
-])('remote source %s selects the native cache-first policy', (uri) => {
-  expect(getCachedImageSource(uri)).toEqual({ uri, cache: 'force-cache' });
-  expect(getCachedImageSource(uri)).toBe(getCachedImageSource(uri));
-});
+test.each(['https://example.test/avatar.jpg', 'http://example.test/cover.png'])(
+  'remote source %s selects the native cache-first policy',
+  (uri) => {
+    expect(getCachedImageSource(uri)).toEqual({ uri, cache: 'force-cache' });
+    expect(getCachedImageSource(uri)).toBe(getCachedImageSource(uri));
+  },
+);
 
 test('image versions, transforms and hosts retain separate cache identities', () => {
   const urls = [

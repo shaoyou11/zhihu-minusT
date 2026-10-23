@@ -1,4 +1,4 @@
-import { createAuthPersistenceQueue } from '../storage/authPersistenceQueue';
+import { createAuthPersistenceQueue } from '../src/storage/authPersistenceQueue';
 
 function deferred() {
   let resolve!: () => void;

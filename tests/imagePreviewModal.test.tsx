@@ -2,8 +2,8 @@ import { fireEvent, render } from '@testing-library/react-native';
 import type React from 'react';
 import { Animated, Image } from 'react-native';
 import type ImageViewer from 'react-native-image-zoom-viewer';
-import { ImagePreviewModal } from '../components/ImagePreviewModal';
-import { saveImageToGallery } from '../utils/saveImage';
+import { ImagePreviewModal } from '../src/components/ImagePreviewModal';
+import { saveImageToGallery } from '../src/utils/saveImage';
 
 type ViewerProps = React.ComponentProps<typeof ImageViewer>;
 const mockViewerProps: ViewerProps[] = [];
@@ -25,17 +25,17 @@ jest.mock('react-native-image-pan-zoom', () => ({
   __esModule: true,
   default: jest.requireActual('react-native').View,
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/ImageActionBottomSheet', () => ({
+jest.mock('../src/components/ImageActionBottomSheet', () => ({
   ImageActionBottomSheet: () => null,
 }));
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   Text: jest.requireActual('react-native').Text,
 }));
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
-jest.mock('../utils/saveImage', () => ({ saveImageToGallery: jest.fn() }));
+jest.mock('../src/utils/saveImage', () => ({ saveImageToGallery: jest.fn() }));
 
 beforeEach(() => {
   mockViewerProps.length = 0;

@@ -76,12 +76,12 @@
 | 高 | SecureStore 密钥与账号加密迁移 | AES-256-GCM 外层 v1，密钥独立 SecureStore；兼容旧明文 v0/v1/v2与多账号。密钥不可用保留旧文件，明确重置才清除。测试覆盖篡改、损坏、写入中断、密钥失败与串行重置 |
 | 高 | 双端 Release 正文和系统手势基准 | 两端 Release 构建通过；iOS Debug 合成页系统复制、父滚动和旋转布局通过，拖柄保留未验收。后续 Android 真机完成合成选区拖柄、父滚动与后台恢复；系统复制和横屏正文重排仍未验收。双端 Release 基准的范围见后文 |
 | 高 | 自动 telemetry 异常脱敏 | SDK `beforeSend` 白名单重建事件、固定异常正文、限制帧名/context并丢弃附件。实际 JS SDK 合成 transport 测试通过；暂关闭绕过 JS 边界的 Sentry 原生 crash/缓存，保留 JS 自动异常。见 [telemetry 边界](./TELEMETRY.md) |
-| 中 | 样式边界 sweep line | 保持样式身份/顺序的扫描线，密集合成样本桌面中位数从约 89 ms 到 6.4 ms；这是布局身份计算测量，不能外推真机 FPS。见 [富文本优化](../features/rich-content/docs/optimizations-2026-10-01.md) |
+| 中 | 样式边界 sweep line | 保持样式身份/顺序的扫描线，密集合成样本桌面中位数从约 89 ms 到 6.4 ms；这是布局身份计算测量，不能外推真机 FPS。见 [富文本优化](../src/features/rich-content/docs/optimizations-2026-10-01.md) |
 | 中 | KaTeX 离线资源 | 从锁定版本生成 JS/CSS/20 个 WOFF2，统一 MathView/WebView 资源与许可证；约 649 KiB 原始资源。增加离线公式 fixture 与资源一致性检查 |
 | 中 | 附件 viewport 与严格范围 | 双端一屏预取窗口，离屏/后台取消与释放、revision 拒绝迟到结果；Android UTF-16 整数、surrogate 边界及复制语义对齐，低内存通知清理全局缓存。JVM/Foundation专项通过，实际手势仍单列 |
 | 中 | 持久容量与淘汰 | 阅读进度从 SecureStore迁移到最多100条/128Ki字符的双快照文件；成功两次提交才删旧值。Feed缓存24小时/20上下文/256KiB每上下文/10项；曝光30天保留、每15分钟维护，并在事务内限5000/上下文、20000/全局 |
 | 中 | 复杂正文无损编辑 | 未修改段和复杂锁定块保留原始HTML；仅安全往返的普通块开放编辑，复杂原块只能预览或经确认移除。补修原块边界/尾部换行保留；不宣称提供任意HTML结构编辑 |
-| 中 | 草稿、离开确认、媒体重试 | SQLite v4账号/目标/revision隔离草稿、保存失败留页、读取失败禁止覆盖；媒体持久副本、9张/3并发、单项重试与取消、卸载与账号移除防迟到回写。真实发布未执行。见 [发布说明](../features/publishing/README.md) |
+| 中 | 草稿、离开确认、媒体重试 | SQLite v4账号/目标/revision隔离草稿、保存失败留页、读取失败禁止覆盖；媒体持久副本、9张/3并发、单项重试与取消、卸载与账号移除防迟到回写。真实发布未执行。见 [发布说明](../src/features/publishing/README.md) |
 | 中 | 运行时主题与可读性 | NativeWind根vars、旧Colors兼容入口、Navigation与三个正文后端同palette；生成onPrimary/link、阅读纯色表面至少4.5:1。不覆盖内容自带颜色、图片和任意透明/渐变表面；见 [主题说明](./THEME_CUSTOMIZATION.md) |
 | 中 | SDK patch偏差与SPM评估 | 偏差来自月度patch批次，保留版本并做兼容构建；SPM预编译RN候选安装失败，改源码构建后隔离prebuild/pod install成功。正式配置保留，迁移门槛与未验证范围见 [依赖评估](./DEPENDENCY_REVIEW_2026-10-01.md) |
 | 中 | 列表与聊天资源 | 主题/预取设置精确订阅；回答邻页预取按焦点门禁及短GC；聊天只轮询head、失焦/后台取消，历史查询短GC与小窗口。没有硬截断活动聊天历史，避免消息断层 |

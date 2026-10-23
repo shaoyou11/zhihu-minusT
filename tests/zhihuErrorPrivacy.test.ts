@@ -3,8 +3,11 @@ import {
   MAX_BUSINESS_MESSAGE_LENGTH,
   SafeFeedbackError,
   sanitizeBusinessFeedback,
-} from '../utils/safeFeedback';
-import { getZhihuErrorMessage, getZhihuErrorStatus } from '../utils/zhihuError';
+} from '../src/utils/safeFeedback';
+import {
+  getZhihuErrorMessage,
+  getZhihuErrorStatus,
+} from '../src/utils/zhihuError';
 
 const failedResponse = (message: unknown, status = 400) => ({
   response: { status, data: { error: { message } } },
@@ -41,12 +44,15 @@ test.each([
   '请求失败 abc123',
   '请求失败 合成\u202e正文',
   '请求失败 <原始正文>',
-])('rejects echoed diagnostics or unlabelled identifiers before display: %s', (message) => {
-  expect(sanitizeBusinessFeedback(message)).toBeNull();
-  expect(getZhihuErrorMessage(failedResponse(message))).toBe(
-    '请求参数无效，请检查后重试',
-  );
-});
+])(
+  'rejects echoed diagnostics or unlabelled identifiers before display: %s',
+  (message) => {
+    expect(sanitizeBusinessFeedback(message)).toBeNull();
+    expect(getZhihuErrorMessage(failedResponse(message))).toBe(
+      '请求参数无效，请检查后重试',
+    );
+  },
+);
 
 test('validates the entire server message before truncating it', () => {
   const prose = '请稍后重试。'.repeat(30);
@@ -116,14 +122,9 @@ test('application-owned error codes retain useful feedback without trusting muta
   ).toBeNull();
 });
 
-test.each([
-  NaN,
-  Infinity,
-  -1,
-  0,
-  600,
-  403.5,
-  '403',
-])('ignores malformed HTTP status %s', (status) => {
-  expect(getZhihuErrorStatus({ response: { status } })).toBeUndefined();
-});
+test.each([NaN, Infinity, -1, 0, 600, 403.5, '403'])(
+  'ignores malformed HTTP status %s',
+  (status) => {
+    expect(getZhihuErrorStatus({ response: { status } })).toBeUndefined();
+  },
+);

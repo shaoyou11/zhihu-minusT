@@ -5,17 +5,17 @@ import {
   FeedCacheRepository,
   MAX_FEED_CACHE_BYTES_PER_CONTEXT,
   MAX_FEED_CACHE_CONTEXTS,
-} from '../storage/feedCacheRepository';
+} from '../src/storage/feedCacheRepository';
 import {
   FEED_EXPOSURE_MAINTENANCE_INTERVAL_MS,
   FEED_EXPOSURE_RETENTION_MS,
   FeedExposureRepository,
   MAX_FEED_EXPOSURES,
   MAX_FEED_EXPOSURES_PER_CONTEXT,
-} from '../storage/feedExposureRepository';
-import { localDatabase } from '../storage/localDatabase';
+} from '../src/storage/feedExposureRepository';
+import { localDatabase } from '../src/storage/localDatabase';
 
-jest.mock('../storage/localDatabase', () => ({
+jest.mock('../src/storage/localDatabase', () => ({
   localDatabase: { run: jest.fn() },
 }));
 
@@ -105,6 +105,29 @@ test('returns fresh cached Feed data and removes it exactly at the TTL boundary'
   now += 1;
   expect(await repository.getFeedCache(context)).toBeNull();
   expect(count('feed_cache')).toBe(0);
+});
+
+test('feedback removes only its cached content without extending cache lifetime', async () => {
+  const repository = new FeedCacheRepository();
+  const items = [
+    { id: 'same-token', type: 'answers' },
+    { id: 'same-token', type: 'articles' },
+  ];
+  const otherContext = { ...context, accountKey: 'another-account' };
+  await repository.saveFeedCache(context, items, 'next-page');
+  await repository.saveFeedCache(otherContext, items, 'next-page');
+  now += 1;
+  await repository.removeFeedCacheItem(context, 'answer:same-token');
+  expect(await repository.getFeedCache(context)).toEqual({
+    items: [items[1]],
+    nextUrl: 'next-page',
+  });
+  expect(await repository.getFeedCache(otherContext)).toEqual({
+    items,
+    nextUrl: 'next-page',
+  });
+  now += FEED_CACHE_TTL_MS - 1;
+  expect(await repository.getFeedCache(context)).toBeNull();
 });
 
 test('retains only the newest cache contexts during one long session', async () => {

@@ -7,26 +7,26 @@ import {
 } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
-import type { RawFeedItem } from '../api/zhihu/feed';
-import { touchAnswersRead } from '../api/zhihu/lastRead';
-import { useFeedPageReadTouch } from '../hooks/useFeedPageReadTouch';
-import { getNextUnvisitedFeedPage } from '../utils/feedPagination';
+import type { RawFeedItem } from '../src/api/zhihu/feed';
+import { touchAnswersRead } from '../src/api/zhihu/lastRead';
+import { useFeedPageReadTouch } from '../src/hooks/useFeedPageReadTouch';
+import { getNextUnvisitedFeedPage } from '../src/utils/feedPagination';
 import {
   createFeedReadTouchBatch,
   type FeedReadTouchBatch,
-} from '../utils/feedReadTouch';
+} from '../src/utils/feedReadTouch';
 
-jest.mock('../api/zhihu/lastRead', () => ({ touchAnswersRead: jest.fn() }));
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/zhihu/lastRead', () => ({ touchAnswersRead: jest.fn() }));
+jest.mock('../src/api/client', () => ({
   hasAuthenticationCookie: (cookie: string | null) => Boolean(cookie),
 }));
 let mockActive = true;
 let mockSessionVersion = 1;
 let mockCookies: string | null = 'synthetic-authentication';
-jest.mock('../hooks/useActiveScreen', () => ({
+jest.mock('../src/hooks/useActiveScreen', () => ({
   useActiveScreen: () => mockActive,
 }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
   useAuthStore: Object.assign(
     (selector: (state: { cookies: string | null }) => unknown) =>

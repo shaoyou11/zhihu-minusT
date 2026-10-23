@@ -3,11 +3,12 @@ const expoPreset = require('jest-expo/jest-preset');
 
 module.exports = {
   preset: 'jest-expo',
-  // Material Color Utilities publishes ESM; keep Expo's other exclusions intact.
+  testTimeout: 10_000,
+  // These dependencies publish ESM; keep Expo's other exclusions intact.
   transformIgnorePatterns: expoPreset.transformIgnorePatterns.map((pattern) =>
     pattern.replace(
       '/node_modules/(?!',
-      '/node_modules/(?!@material/material-color-utilities/|',
+      '/node_modules/(?!@sentry/|@material/material-color-utilities/|htmlparser2/|domhandler/|domutils/|dom-serializer/|domelementtype/|entities/|',
     ),
   ),
   watchman: false,
@@ -19,12 +20,12 @@ module.exports = {
       { configFile: require.resolve('./babel.config.js') },
     ],
   },
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  setupFilesAfterEnv: ['<rootDir>/tests/jest.setup.js'],
   testMatch: [
     '<rootDir>/tests/**/*.test.ts',
     '<rootDir>/tests/**/*.test.tsx',
     '<rootDir>/tests/**/*.test.js',
-    '<rootDir>/features/rich-content/tests/**/*.test.ts',
-    '<rootDir>/features/rich-content/tests/**/*.test.tsx',
+    '<rootDir>/src/features/rich-content/tests/**/*.test.ts',
+    '<rootDir>/src/features/rich-content/tests/**/*.test.tsx',
   ],
 };

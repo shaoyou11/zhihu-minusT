@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import type { FeedItem } from '../api/zhihu';
+import type { FeedItem } from '../src/api/zhihu';
 import {
   applyFeedFilter,
   computeFilterStats,
@@ -8,13 +8,13 @@ import {
   type FeedFilterRules,
   isCollapsedGroup,
   supportsLocalFeedFilter,
-} from '../utils/feedFilter';
+} from '../src/utils/feedFilter';
 import {
   FEED_REGEX_LIMITS,
   matchesFeedRegex,
   normalizeFeedRegexPatterns,
   parseFeedRegexInput,
-} from '../utils/feedRegex';
+} from '../src/utils/feedRegex';
 
 const SHORT_BODY_PATTERN = '^.{0,50}$';
 
@@ -94,13 +94,16 @@ describe('feed regex matching', () => {
   test.each([
     [50, true],
     [51, false],
-  ])('matches the requested short-answer boundary at %i characters', (length, matches) => {
-    expect(
-      matchesFeedRegex(item({ content: `<p>${'字'.repeat(length)}</p>` }), [
-        SHORT_BODY_PATTERN,
-      ]),
-    ).toBe(matches);
-  });
+  ])(
+    'matches the requested short-answer boundary at %i characters',
+    (length, matches) => {
+      expect(
+        matchesFeedRegex(item({ content: `<p>${'字'.repeat(length)}</p>` }), [
+          SHORT_BODY_PATTERN,
+        ]),
+      ).toBe(matches);
+    },
+  );
 
   test('matches the complete body without adding the title or short excerpt', () => {
     expect(
@@ -258,18 +261,21 @@ describe('feed filter rule integration', () => {
   test.each<Partial<FeedItem>>([
     { isFollowingAuthor: true },
     { upvotedByFollowee: true },
-  ])('keeps followed content ahead of ad, regex and quality rules: %j', (relationship) => {
-    expect(
-      evaluateFeedItem(
-        item({ answerType: 'PAID', voteCount: 0, ...relationship }),
-        rules({
-          blockPaid: true,
-          regexPatterns: [SHORT_BODY_PATTERN],
-          enableQuality: true,
-        }),
-      ).reason,
-    ).toBeNull();
-  });
+  ])(
+    'keeps followed content ahead of ad, regex and quality rules: %j',
+    (relationship) => {
+      expect(
+        evaluateFeedItem(
+          item({ answerType: 'PAID', voteCount: 0, ...relationship }),
+          rules({
+            blockPaid: true,
+            regexPatterns: [SHORT_BODY_PATTERN],
+            enableQuality: true,
+          }),
+        ).reason,
+      ).toBeNull();
+    },
+  );
 
   test('allows an exemption to be turned off and preserves ad priority', () => {
     expect(
@@ -376,16 +382,19 @@ describe('bounded RE2 feed rules', () => {
     '(?<word>广告)\\k<word>',
     String.raw`\u{1F600}`,
     String.raw`\u4E2D`,
-  ])('rejects unsupported syntax instead of falling back or changing its meaning: %s', (pattern) => {
-    expect(normalizeFeedRegexPatterns([pattern])).toEqual([]);
-    expect(parseFeedRegexInput(pattern)).toEqual({
-      patterns: [],
-      invalidLines: [1],
-    });
-    expect(
-      matchesFeedRegex(item({ content: '广告推广广告😀中' }), [pattern]),
-    ).toBe(false);
-  });
+  ])(
+    'rejects unsupported syntax instead of falling back or changing its meaning: %s',
+    (pattern) => {
+      expect(normalizeFeedRegexPatterns([pattern])).toEqual([]);
+      expect(parseFeedRegexInput(pattern)).toEqual({
+        patterns: [],
+        invalidLines: [1],
+      });
+      expect(
+        matchesFeedRegex(item({ content: '广告推广广告😀中' }), [pattern]),
+      ).toBe(false);
+    },
+  );
 
   test('accepts RE2 Unicode classes and hexadecimal code-point escapes', () => {
     const han = String.raw`^\p{Han}+$`;
@@ -580,7 +589,7 @@ test('finishes pathological and diverse Unicode matches in an isolated process w
     const path = require('node:path');
     const Module = require('node:module');
     const babel = require('@babel/core');
-    const helperPath = path.resolve('utils/feedRegex.ts');
+    const helperPath = path.resolve('src/utils/feedRegex.ts');
     const compiled = babel.transformFileSync(helperPath, {
       configFile: path.resolve('babel.config.js'),
       envName: 'test',

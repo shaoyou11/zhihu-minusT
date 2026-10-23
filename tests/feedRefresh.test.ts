@@ -3,7 +3,7 @@ import {
   onlineManager,
   QueryClient,
 } from '@tanstack/react-query';
-import { refreshFeedQuery } from '../utils/feedRefresh';
+import { refreshFeedQuery } from '../src/utils/feedRefresh';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -120,27 +120,27 @@ test('failed refresh does not apply new exposure keys and can retry once', async
   expect(observer.getCurrentResult().isError).toBe(false);
 });
 
-test.each([
-  false,
-  true,
-])('an offline reset preserves its paused first page with launch cache %s', async (withLaunchCache) => {
-  const { queryKey, requests, observer } = observe(withLaunchCache);
-  onlineManager.setOnline(false);
-  await expect(
-    refreshFeedQuery(client, queryKey, async () => new Set(['answer:seen'])),
-  ).resolves.toBeUndefined();
-  expect(observer.getCurrentResult().isPaused).toBe(true);
-  expect(observer.getCurrentResult().isPending).toBe(!withLaunchCache);
-  expect(observer.getCurrentResult().isError).toBe(false);
-  expect(requests).toHaveLength(0);
+test.each([false, true])(
+  'an offline reset preserves its paused first page with launch cache %s',
+  async (withLaunchCache) => {
+    const { queryKey, requests, observer } = observe(withLaunchCache);
+    onlineManager.setOnline(false);
+    await expect(
+      refreshFeedQuery(client, queryKey, async () => new Set(['answer:seen'])),
+    ).resolves.toBeUndefined();
+    expect(observer.getCurrentResult().isPaused).toBe(true);
+    expect(observer.getCurrentResult().isPending).toBe(!withLaunchCache);
+    expect(observer.getCurrentResult().isError).toBe(false);
+    expect(requests).toHaveLength(0);
 
-  const resumed = client
-    .getQueryCache()
-    .find({ queryKey, exact: true })?.promise;
-  onlineManager.setOnline(true);
-  await new Promise<void>((resolve) => setTimeout(resolve, 0));
-  expect(requests.map(({ pageParam }) => pageParam)).toEqual([0]);
-  requests[0].result.resolve(10);
-  await resumed;
-  expect(observer.getCurrentResult().data?.pages).toEqual([10]);
-});
+    const resumed = client
+      .getQueryCache()
+      .find({ queryKey, exact: true })?.promise;
+    onlineManager.setOnline(true);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(requests.map(({ pageParam }) => pageParam)).toEqual([0]);
+    requests[0].result.resolve(10);
+    await resumed;
+    expect(observer.getCurrentResult().data?.pages).toEqual([10]);
+  },
+);

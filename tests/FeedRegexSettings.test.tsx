@@ -1,18 +1,18 @@
 import { fireEvent, render } from '@testing-library/react-native';
-import { FeedRegexSettings } from '../components/FeedRegexSettings';
-import { FEED_REGEX_LIMITS } from '../utils/feedRegex';
+import { FeedRegexSettings } from '../src/components/FeedRegexSettings';
+import { FEED_REGEX_LIMITS } from '../src/utils/feedRegex';
 
 jest.mock(
   '@expo/vector-icons/Ionicons',
   () => jest.requireActual('react-native').View,
 );
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: jest.requireActual('zustand').create(() => ({
     primaryColor: null,
     readingBackground: 'default',
@@ -50,27 +50,35 @@ test.each([
   ['lookbehind', '(?<=广告)内容'],
   ['backreference', '(广告)\\1'],
   ['oversized pattern', 'a'.repeat(FEED_REGEX_LIMITS.patternLength + 1)],
-])('rejects %s without overwriting saved rules or losing the draft', async (_name, pattern) => {
-  const onChange = jest.fn();
-  const host = await render(
-    <FeedRegexSettings
-      patterns={['广告']}
-      onChange={onChange}
-      colorScheme="light"
-    />,
-  );
-  const draft = `有效\n${pattern}`;
-  await fireEvent.changeText(host.getByLabelText('自定义正则屏蔽规则'), draft);
-  expect(
-    host.getByText(
-      '第 2 行：规则语法无效、不受支持或超出限制，请检查后再保存。',
-    ),
-  ).toBeOnTheScreen();
-  await fireEvent.press(host.getByRole('button', { name: '保存正则屏蔽规则' }));
-  expect(onChange).not.toHaveBeenCalled();
-  expect(host.getByLabelText('自定义正则屏蔽规则').props.value).toBe(draft);
-  expect(host.getByText('已保存 1 条规则')).toBeOnTheScreen();
-});
+])(
+  'rejects %s without overwriting saved rules or losing the draft',
+  async (_name, pattern) => {
+    const onChange = jest.fn();
+    const host = await render(
+      <FeedRegexSettings
+        patterns={['广告']}
+        onChange={onChange}
+        colorScheme="light"
+      />,
+    );
+    const draft = `有效\n${pattern}`;
+    await fireEvent.changeText(
+      host.getByLabelText('自定义正则屏蔽规则'),
+      draft,
+    );
+    expect(
+      host.getByText(
+        '第 2 行：规则语法无效、不受支持或超出限制，请检查后再保存。',
+      ),
+    ).toBeOnTheScreen();
+    await fireEvent.press(
+      host.getByRole('button', { name: '保存正则屏蔽规则' }),
+    );
+    expect(onChange).not.toHaveBeenCalled();
+    expect(host.getByLabelText('自定义正则屏蔽规则').props.value).toBe(draft);
+    expect(host.getByText('已保存 1 条规则')).toBeOnTheScreen();
+  },
+);
 
 test('rejects a rule beyond the count limit and preserves the complete draft', async () => {
   const onChange = jest.fn();

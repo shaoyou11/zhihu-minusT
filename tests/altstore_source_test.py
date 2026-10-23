@@ -85,7 +85,9 @@ class AltStoreSourceTests(unittest.TestCase):
         self.assertEqual(version["minOSVersion"], "16.0")
         self.assertEqual(version["downloadURL"], "https://github.com/example/zhihu-minus-minus/releases/download/v1.2.3/zhihu-minus-minus-v1.2.3-unsigned.ipa")
         self.assertEqual(source["sourceURL"], "https://github.com/example/zhihu-minus-minus/releases/latest/download/altstore-source.json")
-        self.assertIn(COMMIT, app["iconURL"])
+        icon_url = f"https://raw.githubusercontent.com/example/zhihu-minus-minus/{COMMIT}/src/assets/images/icon.png"
+        self.assertEqual(source["iconURL"], icon_url)
+        self.assertEqual(app["iconURL"], icon_url)
         self.assertEqual(app["appPermissions"], {"entitlements": [], "privacy": {
             "NSCameraUsageDescription": "拍摄发布图片", "NSPhotoLibraryUsageDescription": "选择发布图片",
         }})

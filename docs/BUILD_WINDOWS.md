@@ -28,25 +28,21 @@ npm run android
 
 # Windows 本地构建 Android APK 指南
 
-> 适用范围：在 Windows 上从源码本地构建本项目（Expo 55 / React Native 0.83）的 Android APK，无需 EAS 云构建、无需 Android Studio。
-> 本文基于一次完整的从零构建 → 真机运行的实际验证过程整理（2026-08，Windows 10）。
+> 适用范围：在 Windows 上从源码本地构建本项目（Expo 58 / React Native 0.88）的 Android APK，无需 EAS 云构建、无需 Android Studio。
+> 流程源于 2026-08 Windows 10 的构建记录，现已更新 SDK 58 环境要求；旧记录不代表 SDK 58 已完成 Windows 构建或真机验证。
 
 ## 一、环境准备
 
 | 组件 | 要求 | 说明 |
 |---|---|---|
-| Node.js | **22.x（推荐）** | 与 CI 和发布工作流保持一致，运行 Expo / Metro |
-| JDK | **17**（LTS） | RN 0.83 使用 Gradle 9.0.0，要求 JVM 17+ |
+| Node.js | **24.x** | 与 CI 和发布工作流保持一致，运行 Expo / Metro |
+| JDK | **17**（LTS） | 与项目构建基线一致，Gradle 版本以 prebuild 生成的 wrapper 为准 |
 | Android SDK | 命令行工具即可 | 不需要完整 Android Studio |
 
-SDK 组件需与 prebuild 生成的 Gradle 配置逐一匹配，用 `sdkmanager` 安装：
+先完成下一节的 `npm ci` 与 prebuild，再按生成的 Android 工程安装 SDK 组件。检查 `android/build.gradle`、`android/gradle.properties` 及 React Native Gradle 配置中的 `compileSdkVersion`、`buildToolsVersion`、`ndkVersion` 和 CMake 版本，不沿用 SDK 55 的 API 36 / NDK 27.1 固定清单。安装命令形式如下（把尖括号替换为生成配置的实际值）：
 
-```
-platforms;android-36
-build-tools;36.0.0
-ndk;27.1.12297006
-cmake;3.22.1
-platform-tools
+```powershell
+sdkmanager "platforms;android-<compileSdkVersion>" "build-tools;<buildToolsVersion>" "ndk;<ndkVersion>" "cmake;<cmakeVersion>" "platform-tools"
 ```
 
 安装后执行 `sdkmanager --licenses` 接受全部许可。
@@ -64,6 +60,8 @@ npm ci               # 按 package-lock.json 安装；postinstall 会自动执�
 npx expo prebuild --platform android    # 生成 android/ 目录（已被 .gitignore 忽略）
 ```
 
+从 SDK 55 更新时，先保留本机必要的生成目录配置，再运行 `npx expo prebuild --platform android --clean`，重新构建并安装开发包；旧包不包含新原生模块。
+
 **重要**：`android/` 是 `expo prebuild` 的生成物，不入库。这意味着：
 1. 下文对 `android/` 内文件的所有手工修改（镜像 URL 等）在**每次重新 prebuild 后都会被重置**，需要重做；
 2. 反过来，拉取上游代码后 `android/` **不会自动更新**——若 `app.json` 的 `version` 或其他原生字段变了，必须重新 prebuild，否则打出的包版本号或原生配置可能仍是旧的。
@@ -74,15 +72,15 @@ npx expo prebuild --platform android    # 生成 android/ 目录（已被 .gitig
 
 ### 3.1 Gradle 发行包（services.gradle.org 超时）
 
-wrapper 默认从 `services.gradle.org` 下载 Gradle 9.0.0，国内经常超时（默认 networkTimeout 仅 10 秒）。
+wrapper 的下载地址与版本由 prebuild 模板决定。若 `services.gradle.org` 超时，可为同一版本换源；不要为了匹配旧文档降级 Gradle。
 
 改 `android/gradle/wrapper/gradle-wrapper.properties` 的 `distributionUrl` 为国内镜像：
 
 ```properties
-distributionUrl=https\://mirrors.cloud.tencent.com/gradle/gradle-9.0.0-bin.zip
+distributionUrl=https\://mirrors.cloud.tencent.com/gradle/gradle-<当前版本>-bin.zip
 ```
 
-（或先手动下载 zip，再指向本地文件 `file\:///D:/path/to/gradle-9.0.0-bin.zip`。）
+（或先手动下载 zip，再指向本地文件 `file\:///D:/path/to/gradle-<当前版本>-bin.zip`。）
 
 ### 3.2 Google Maven 仓库（dl.google.com TLS 阻断）
 

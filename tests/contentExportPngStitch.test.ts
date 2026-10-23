@@ -3,8 +3,8 @@ import {
   PngStitchError,
   type StitchedPngImage,
   stitchPngImages,
-} from '../features/content-export/pngStitch';
-import type { ExportTaskContext } from '../features/content-export/types';
+} from '../src/features/content-export/pngStitch';
+import type { ExportTaskContext } from '../src/features/content-export/types';
 
 const signature = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 function u32(value: number): Uint8Array {
@@ -193,17 +193,18 @@ async function collect(
   return output;
 }
 
-test.each([
-  0, 1, 2, 3, 4,
-])('decodes PNG filter %i and joins scanlines without duplicated or missing rows', async (filter) => {
-  const first = makePng({ filter, seed: 11, parts: true });
-  const second = makePng({ filter, seed: 29, parts: true });
-  const output = await collect([first.png, second.png]);
-  expect(output).toHaveLength(1);
-  expect(output[0].width).toBe(3);
-  expect(output[0].height).toBe(10);
-  expect(pixels(output[0].bytes)).toEqual(join([first.rgba, second.rgba]));
-});
+test.each([0, 1, 2, 3, 4])(
+  'decodes PNG filter %i and joins scanlines without duplicated or missing rows',
+  async (filter) => {
+    const first = makePng({ filter, seed: 11, parts: true });
+    const second = makePng({ filter, seed: 29, parts: true });
+    const output = await collect([first.png, second.png]);
+    expect(output).toHaveLength(1);
+    expect(output[0].width).toBe(3);
+    expect(output[0].height).toBe(10);
+    expect(pixels(output[0].bytes)).toEqual(join([first.rgba, second.rgba]));
+  },
+);
 
 test('supports mixed RGB/RGBA slices, mixed row filters, alpha and short last slices', async () => {
   const first = makePng({ channels: 3, filter: [4, 0, 2, 1, 3], seed: 15 });

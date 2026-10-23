@@ -9,22 +9,20 @@
 > - <https://github.com/zhihulite/Hydrogen>  
 > - <https://github.com/zly2006/zhihu-plus-plus>
 
-![zhihu--](./assets/images/favicon.svg)
+![zhihu--](./src/assets/images/favicon.svg)
 
 一款轻量、无广告的第三方知乎客户端，支持 **Android 与 iOS**。
 
 ## ✨ 特性
 
 - **纯净浏览**：推荐、热榜、关注、同城和知乎日报，支持全站与用户内容搜索。
-- **舒适阅读**：支持回答详情与预览卡片列表，可选原生或网页排版；详情默认左右切换同题回答，明确用户来源时切换该用户的回答。
-- **自由定制**：调整主题色、深浅色模式、阅读背景与按压反馈，支持 RE2 正则屏蔽内容、去重推荐；推荐流广告与营销过滤默认开启，包含带平台投放标记的推广文章和回答。
-- **创作互动**：写回答、文章，发想法、提问题；支持本地草稿、图片评论和想法投票。
-- **个人内容**：创作汇总、多收藏夹、浏览历史同步；回答和文章可在卡片底部或悬浮栏的评论左侧收藏，并展示接口提供的收藏状态和数量；用户主页可查看创建的专栏和你赞同过的该用户回答。
-- **视频播放**：正文和独立视频直接获取播放资源，在应用内使用原生播放器，支持暂停、拖动进度和全屏。
-- **图片复用**：头像、封面和普通配图优先使用已有缓存，减少重新进入页面时的重复加载；缓存由系统管理和淘汰。
+- **舒适阅读**：支持折叠回答卡片与左右切换回答两种浏览模式。
+- **自由定制**：自定义主题色、深浅色模式和阅读背景。
+- **内容筛选**：过滤广告与营销内容，支持关键词、正则屏蔽和推荐去重。
+- **创作互动**：写回答、文章，发想法、提问题，支持评论、赞同、收藏和草稿保存。
+- **个人内容**：管理创作、收藏夹与浏览历史，查看用户主页和专栏。
 - **账号切换**：支持多账号，也可用游客模式免登录浏览。
 - **更新与隐私**：应用内检测新版，Android 支持下载安装；崩溃报告和匿名统计可随时关闭。
-- **报错日志**：在「设置 → 报错日志」查看、复制或清空最近的本机记录；保留可定位问题的错误摘要、业务位置、版本构建和代码位置，敏感信息脱敏。页面异常时也可直接复制日志并重试。
 
 ## 📸 界面预览
 
@@ -32,27 +30,27 @@
   <table style="border-collapse: separate; border-spacing: 15px;">
     <tr>
       <td align="center" valign="top">
-        <img src="./screenshot/v0.0.4/photo_2026-03-12_23-31-07.jpg" width="160" style="border-radius: 16px; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
+        <img src="./docs/screenshot/v0.0.4/photo_2026-03-12_23-31-07.jpg" width="160" style="border-radius: 16px; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
         <br /><br />
         <b>搜索</b><br />
       </td>
       <td align="center" valign="top">
-        <img src="./screenshot/v0.7.1/photo_2026-10-03 14.37.26.jpeg" width="160" style="border-radius: 16px; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
+        <img src="./docs/screenshot/v0.7.1/photo_2026-10-03 14.37.26.jpeg" width="160" style="border-radius: 16px; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
         <br /><br />
         <b>问题详情</b><br />
       </td>
       <td align="center" valign="top">
-        <img src="./screenshot/v0.7.1/photo_2026-10-03 14.41.21.jpeg" width="160" style="border-radius: 16px; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
+        <img src="./docs/screenshot/v0.7.1/photo_2026-10-03 14.41.21.jpeg" width="160" style="border-radius: 16px; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
         <br /><br />
         <b>夜间模式</b><br />
       </td>
       <td align="center" valign="top">
-        <img src="./screenshot/v0.1.3/Screenshot_20260705_190004.jpg" width="160" style="border-radius: 16px; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
+        <img src="./docs/screenshot/v0.1.3/Screenshot_20260705_190004.jpg" width="160" style="border-radius: 16px; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
         <br /><br />
         <b>关注更新</b><br />
       </td>
       <td align="center" valign="top">
-        <img src="./screenshot/v0.9.0/photo_2026-10-13 15.16.38.jpeg" width="160" style="border-radius: 16px; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
+        <img src="./docs/screenshot/v0.9.0/photo_2026-10-13 15.16.38.jpeg" width="160" style="border-radius: 16px; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
         <br /><br />
         <b>段落交互</b><br />
       </td>
@@ -89,7 +87,7 @@ Windows 无法运行 `eas build --local`，请使用 [Windows 本地构建指南
 本应用不会在 App Store 上架。
 [GitHub Releases](https://github.com/huamurui/zhihu-minus-minus/releases) 会提供未签名 IPA；需要用户自行处理签名和安装环境。
 
-- 当前原生配置的 iOS 最低版本为 **15.1**。Release 中的 IPA 未签名，不能直接当作可安装成品使用。
+- 当前原生配置的 iOS 最低版本为 **16.4**。Release 中的 IPA 未签名，不能直接当作可安装成品使用。
 
 使用 **SideStore 或 AltStore Classic** 时，可以添加以下订阅源，从源中安装并在侧载工具内更新应用：
 
@@ -117,13 +115,13 @@ npx expo run:ios --configuration Release --device
 
 完整的环境、原生重建、调试和测试说明见 [开发指南](./docs/DEVELOPMENT.md)，Windows 构建及其他专题见 [文档目录](./docs/README.md)。
 
-本项目涉及到一些原生库，推荐使用 **Development Build** 进行开发。
+本项目使用 Expo SDK 58、React Native 0.88、React 19.3，涉及到一些原生库，推荐使用 **Development Build** 进行开发。
 
 基础环境：
 
-- Node.js **22.x（推荐）**、npm；
+- Node.js **24.x**、npm（与 `.nvmrc`、CI 一致）；
 - Android：JDK 17、Android SDK、ADB 或模拟器；
-- iOS：macOS、Xcode、CocoaPods；
+- iOS：macOS、Xcode **26.4 或更高版本**、CocoaPods；
 - EAS CLI 仅在使用 EAS 构建时需要。
 
 1. **安装依赖**
@@ -138,7 +136,7 @@ npm ci
 npm run prebuild
 ```
 
-`android/` 与 `ios/` 是生成物且不会提交到仓库。修改原生依赖、config plugin、原生配置或 `app.json` 后需要重新运行 prebuild；只修改 TypeScript/样式时通常不需要。
+`android/` 与 `ios/` 是生成物且不会提交到仓库。修改原生依赖、config plugin、原生配置或 `app.json` 后需要重新运行 prebuild；只修改 TypeScript/样式时通常不需要。从 SDK 55 更新的本地工程需先保留必要的本机签名或环境配置，再执行 `npm run prebuild -- --clean`，重新编译并安装 Development Build；完整升级步骤见 [开发指南](./docs/DEVELOPMENT.md#sdk-58-升级与依赖边界)。
 
 3. **运行 Android**（需要 ADB 或模拟器环境）
 
@@ -160,7 +158,7 @@ npm run check
 
 `npm run check` 会依次执行 TypeScript、Biome、全部测试和富文本 fixture 分析。全仓只读检查也可单独运行 `npm run lint`；需要应用 Biome 修复时使用 `npm run lint:fix`，并逐项复核改动。
 
-富文本模块的目录约定、fixture 与专项命令见 [features/rich-content/README.md](./features/rich-content/README.md)。更多开发约定见 [DEVELOPMENT.md](./docs/DEVELOPMENT.md)；面向自动化开发者的维护规则见 [AGENTS.md](./AGENTS.md)。
+富文本模块的目录约定、fixture 与专项命令见 [src/features/rich-content/README.md](./src/features/rich-content/README.md)。更多开发约定见 [DEVELOPMENT.md](./docs/DEVELOPMENT.md)；面向自动化开发者的维护规则见 [AGENTS.md](./AGENTS.md)。
 
 ## 🔐 登录说明
 
@@ -182,4 +180,4 @@ npm run check
 </a>
 
 ---
-**Version**: v0.9.2 | **Last Updated**: 2026-10-19
+**Version**: v0.9.4 | **Last Updated**: 2026-10-23

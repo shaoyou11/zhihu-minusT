@@ -1,13 +1,16 @@
-import { resolveLocalAccountKey } from '../utils/localAccount';
+import { resolveLocalAccountKey } from '../src/utils/localAccount';
 
 test.each([
   null,
   undefined,
   { id: 'expired-account', url_token: 'expired-token' },
   { url_token: 'expired-token' },
-])('uses the guest scope without authentication despite retained profile %j', (profile) => {
-  expect(resolveLocalAccountKey(profile, false)).toBe('guest');
-});
+])(
+  'uses the guest scope without authentication despite retained profile %j',
+  (profile) => {
+    expect(resolveLocalAccountKey(profile, false)).toBe('guest');
+  },
+);
 
 test.each([
   [{ id: ' account ', url_token: 'token' }, 'id:account'],
@@ -17,6 +20,9 @@ test.each([
   [{ id: ' ', url_token: ' ' }, null],
   [null, null],
   [undefined, null],
-] as const)('preserves authenticated identity resolution for %j', (profile, expected) => {
-  expect(resolveLocalAccountKey(profile, true)).toBe(expected);
-});
+] as const)(
+  'preserves authenticated identity resolution for %j',
+  (profile, expected) => {
+    expect(resolveLocalAccountKey(profile, true)).toBe(expected);
+  },
+);

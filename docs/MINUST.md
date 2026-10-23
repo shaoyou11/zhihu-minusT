@@ -1,6 +1,6 @@
 # 知乎 minusT
 
-基于上游 0.9.3，个人仓库主分支为 `main`，另保留 `custom/minusT` 开发分支。
+基于上游 0.9.4，个人仓库主分支为 `main`，另保留 `custom/minusT` 开发分支。
 
 - 应用显示名为“知乎 minusT”，沿用原版安装标识 `com.huamu013.ZhihuMinusMinus` 和原签名记录，作为覆盖更新保留原应用数据。
 - 回答、问题、文章与想法详情的顶部导航采用模糊透明背景，覆盖状态栏区域；系统开启“降低透明度”时使用实色背景。
@@ -9,7 +9,7 @@
 
 ## 开发与验证
 
-依赖使用 `npm ci`，质量检查使用 `npm run check`。显示名称和安装标识修改后，运行 `npx expo prebuild --platform ios --no-install` 验证原生配置。生成的原生目录不提交。
+依赖使用 `npm ci`，质量检查使用 `npm run check`。显示名称和安装标识修改后，运行 `npx expo prebuild --platform ios --no-install` 验证原生配置。生成的原生目录不提交。当前使用 Expo SDK 58、Node.js 24，iOS 最低版本为 16.4；源码位于 src/。
 
 后续同步上游时保留本分支的定制，逐项处理冲突。构建缓存与安装包应放本机缓存目录，避免 iCloud 扩展属性影响签名。GitHub Actions 在推送 main 或手动触发后执行质量检查、iPhone Release 编译、包校验和发布；构建号从 101 起自动递增。云端发布不运行模拟器编译；本地按需使用模拟器验收。
 

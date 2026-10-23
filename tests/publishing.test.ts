@@ -3,7 +3,7 @@ import {
   deserializePublishingHtml,
   serializePinText,
   serializePublishingMarkdown,
-} from '../features/publishing/serializer';
+} from '../src/features/publishing/serializer';
 
 test('serializes the supported publishing Markdown blocks', () => {
   assert.equal(
@@ -107,10 +107,13 @@ test.each([
   '[`code`](https://example.com)',
   '> `code`',
   '> ```ts\n> const text = "<b>&";\n> ```',
-])('restores nested code tokens without publishing placeholders (%s)', (markdown) => {
-  const html = serializePublishingMarkdown(markdown);
-  const restored = deserializePublishingHtml(html);
-  assert.equal(html.includes('ZHIHU_PUBLISH_TOKEN'), false);
-  assert.equal(restored.includes('ZHIHU_PUBLISH_TOKEN'), false);
-  assert.equal(serializePublishingMarkdown(restored), html);
-});
+])(
+  'restores nested code tokens without publishing placeholders (%s)',
+  (markdown) => {
+    const html = serializePublishingMarkdown(markdown);
+    const restored = deserializePublishingHtml(html);
+    assert.equal(html.includes('ZHIHU_PUBLISH_TOKEN'), false);
+    assert.equal(restored.includes('ZHIHU_PUBLISH_TOKEN'), false);
+    assert.equal(serializePublishingMarkdown(restored), html);
+  },
+);

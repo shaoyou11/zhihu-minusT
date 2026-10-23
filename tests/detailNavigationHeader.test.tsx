@@ -1,10 +1,10 @@
 import { fireEvent, render } from '@testing-library/react-native';
 import { type ImageProps, StyleSheet } from 'react-native';
-import { DetailNavigationHeader } from '../components/DetailNavigationHeader';
+import { DetailNavigationHeader } from '../src/components/DetailNavigationHeader';
 
 let mockReadingSettings = { fontSizeScale: 1, lineHeightScale: 1.5 };
 
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: (
     selector: (state: {
       fontSizeScale: number;
@@ -26,7 +26,7 @@ jest.mock('react-native-reanimated', () => ({
   useSharedValue: (value: number) => ({ value }),
   useAnimatedReaction: () => {},
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -35,11 +35,11 @@ jest.mock('../components/Themed', () => {
     useThemeColor: () => '#1364cc',
   };
 });
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton:
     jest.requireActual<typeof import('react-native')>('react-native').Pressable,
 }));
-jest.mock('../components/StableAvatar', () => {
+jest.mock('../src/components/StableAvatar', () => {
   const react = jest.requireActual<typeof import('react')>('react');
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');

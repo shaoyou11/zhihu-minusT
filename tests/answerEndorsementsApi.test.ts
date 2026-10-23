@@ -1,14 +1,14 @@
 import { AxiosHeaders, type AxiosResponse } from 'axios';
-import apiClient from '../api/client';
-import { getAnswer } from '../api/zhihu/answer';
+import apiClient from '../src/api/client';
+import { getAnswer } from '../src/api/zhihu/answer';
 import {
   type AnswerEndorsement,
   normalizeAnswerEndorsements,
-} from '../api/zhihu/endorsements';
-import pigFixture from '../features/rich-content/fixtures/cases/pig.json';
-import columnFixture from '../features/rich-content/fixtures/cases/question-feed-card-formula-table-001.json';
+} from '../src/api/zhihu/endorsements';
+import pigFixture from '../src/features/rich-content/fixtures/cases/pig.json';
+import columnFixture from '../src/features/rich-content/fixtures/cases/question-feed-card-formula-table-001.json';
 
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { get: jest.fn() },
 }));

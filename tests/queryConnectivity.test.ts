@@ -7,8 +7,8 @@ import {
 import { act, renderHook } from '@testing-library/react-native';
 import * as Network from 'expo-network';
 import { AppState, type AppStateStatus, Platform } from 'react-native';
-import { useQueryConnectivity } from '../hooks/useQueryConnectivity';
-import { restartInterruptedQueries } from '../utils/queryRecovery';
+import { useQueryConnectivity } from '../src/hooks/useQueryConnectivity';
+import { restartInterruptedQueries } from '../src/utils/queryRecovery';
 
 jest.mock('expo-network', () => ({
   NetworkStateType: {
@@ -20,7 +20,7 @@ jest.mock('expo-network', () => ({
   addNetworkStateListener: jest.fn(),
   getNetworkStateAsync: jest.fn(),
 }));
-jest.mock('../utils/queryRecovery', () => ({
+jest.mock('../src/utils/queryRecovery', () => ({
   restartInterruptedQueries: jest.fn(),
 }));
 
@@ -174,8 +174,8 @@ test('foreground replaces a hung read even when missed network events return to 
   jest
     .mocked(restartInterruptedQueries)
     .mockImplementation(
-      jest.requireActual<typeof import('../utils/queryRecovery')>(
-        '../utils/queryRecovery',
+      jest.requireActual<typeof import('../src/utils/queryRecovery')>(
+        '../src/utils/queryRecovery',
       ).restartInterruptedQueries,
     );
   const host = await renderHook(() => useQueryConnectivity(client));
@@ -210,8 +210,8 @@ test('foreground sampling does not cancel a new request started by focus', async
   jest
     .mocked(restartInterruptedQueries)
     .mockImplementation(
-      jest.requireActual<typeof import('../utils/queryRecovery')>(
-        '../utils/queryRecovery',
+      jest.requireActual<typeof import('../src/utils/queryRecovery')>(
+        '../src/utils/queryRecovery',
       ).restartInterruptedQueries,
     );
   const host = await renderHook(() => useQueryConnectivity(client));

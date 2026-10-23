@@ -1,28 +1,29 @@
 import { getAnalytics } from '@react-native-firebase/analytics';
 import * as Sentry from '@sentry/react-native';
 import { AxiosError, AxiosHeaders } from 'axios';
-import { installDiagnosticErrorHandler } from '../utils/diagnosticErrorHandler';
+import { installDiagnosticErrorHandler } from '../src/utils/diagnosticErrorHandler';
 import {
   recordDiagnosticError,
   recordDiagnosticEvent,
-} from '../utils/diagnosticLogs';
+} from '../src/utils/diagnosticLogs';
 import {
   captureTelemetryException,
   logTelemetryEvent,
   setTelemetryEnabled,
-} from '../utils/telemetry';
+} from '../src/utils/telemetry';
 
 jest.mock('expo-constants', () => ({
   __esModule: true,
   default: {
     expoConfig: {
       version: '0.7.0',
+      ios: { bundleIdentifier: 'com.example.zhihu', buildNumber: '1' },
       extra: {
         firebaseAnalyticsEnabled: true,
         sentryDsn: 'https://test@example.invalid/1',
       },
     },
-    platform: { ios: {} },
+    platform: { ios: { buildNumber: '1' } },
   },
 }));
 jest.mock('expo-device', () => ({ osVersion: '18.0' }));
@@ -34,11 +35,11 @@ jest.mock('@sentry/react-native', () => ({
   captureException: jest.fn(),
   captureEvent: jest.fn(),
 }));
-jest.mock('../utils/diagnosticLogs', () => ({
+jest.mock('../src/utils/diagnosticLogs', () => ({
   recordDiagnosticError: jest.fn(),
   recordDiagnosticEvent: jest.fn(),
 }));
-jest.mock('../utils/diagnosticErrorHandler', () => ({
+jest.mock('../src/utils/diagnosticErrorHandler', () => ({
   installDiagnosticErrorHandler: jest.fn(() => true),
 }));
 jest.mock('@react-native-firebase/analytics', () => {
@@ -48,7 +49,7 @@ jest.mock('@react-native-firebase/analytics', () => {
   };
   return { getAnalytics: jest.fn(() => analytics) };
 });
-jest.mock('../utils/firebaseAnalytics', () => ({
+jest.mock('../src/utils/firebaseAnalytics', () => ({
   loadFirebaseAnalytics: jest.fn(async () =>
     require('@react-native-firebase/analytics').getAnalytics(),
   ),
@@ -78,9 +79,9 @@ function stampAutomaticCapture(
 }
 
 function createIsolatedTelemetry() {
-  let telemetry: typeof import('../utils/telemetry') | undefined;
+  let telemetry: typeof import('../src/utils/telemetry') | undefined;
   jest.isolateModules(() => {
-    telemetry = require('../utils/telemetry');
+    telemetry = require('../src/utils/telemetry');
   });
   const options = jest.mocked(Sentry.init).mock.calls.at(-1)?.[0];
   if (!telemetry || !options?.beforeSend) throw new Error('Missing telemetry');
@@ -272,9 +273,9 @@ test('does not send an automatic event captured while consent was disabled', asy
 });
 
 test('startup render errors wait for hydration and use a bounded sanitized queue', async () => {
-  let isolated: typeof import('../utils/telemetry') | undefined;
+  let isolated: typeof import('../src/utils/telemetry') | undefined;
   jest.isolateModules(() => {
-    isolated = require('../utils/telemetry');
+    isolated = require('../src/utils/telemetry');
   });
   if (!isolated) throw new Error('Missing isolated telemetry');
   for (let index = 0; index < 12; index += 1) {
@@ -379,9 +380,9 @@ test('persisted opt-out permanently discards automatic startup reports too', asy
 });
 
 test('persisted opt-out discards pending startup errors permanently', async () => {
-  let isolated: typeof import('../utils/telemetry') | undefined;
+  let isolated: typeof import('../src/utils/telemetry') | undefined;
   jest.isolateModules(() => {
-    isolated = require('../utils/telemetry');
+    isolated = require('../src/utils/telemetry');
   });
   if (!isolated) throw new Error('Missing isolated telemetry');
   isolated.captureTelemetryException(new TypeError('synthetic-private-detail'));
@@ -420,11 +421,12 @@ test('both Sentry event callbacks use the safe contract and honor opt-out', asyn
   });
   const safeBase = {
     platform: 'javascript',
-    release: 'zhihu-minus-minus@0.7.0',
+    release: 'com.example.zhihu@0.7.0+1',
+    dist: '1',
     environment: 'development',
-    tags: { app_version: '0.7.0', platform: 'ios' },
+    tags: { app_version: '0.7.0', build_number: '1', platform: 'ios' },
     contexts: {
-      app: { app_version: '0.7.0' },
+      app: { app_version: '0.7.0', app_build: '1' },
       os: { name: 'ios', version: '18.0' },
       device: {},
     },
@@ -571,12 +573,18 @@ test('automatic JS errors retain type and code locations while dropping arbitrar
       frames: [
         {
           filename: 'source.js',
+          abs_path: 'source.js',
           lineno: 123,
           colno: 45,
           in_app: true,
           debug_id: debugId,
         },
-        { filename: 'source.js', lineno: 7, colno: 8 },
+        {
+          filename: 'source.js',
+          abs_path: 'source.js',
+          lineno: 7,
+          colno: 8,
+        },
       ],
     },
   });

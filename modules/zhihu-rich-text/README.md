@@ -1,6 +1,6 @@
 # ZhihuRichText 原生文字模块
 
-`tiqian-super-mini`（原称Native V2）的独立 Expo native view。业务入口由 `features/rich-content` 管理；本模块只接收序列化后的 `RichTextFlow`，不解析 HTML、不访问登录状态。内部模块名与 `native-v2` renderer值保持兼容。
+`tiqian-super-mini`（原称Native V2）的独立 Expo native view。业务入口由 `src/features/rich-content` 管理；本模块只接收序列化后的 `RichTextFlow`，不解析 HTML、不访问登录状态。内部模块名与 `native-v2` renderer值保持兼容。
 
 ## Android 实现
 
@@ -34,11 +34,11 @@
 
 HTML语义、媒体分界与业务范围校验仍在共享JS层。iOS附件使用podspec声明的 `SDWebImageSVGCoder`，不依赖已移除的Enriched。
 
-iOS完整Simulator app已在iOS27 SDK、deployment target15.1下构建通过；平台显示和交互验证分别记录，不能将Android真机结果视为iOS已验收。详情见[本轮记录](../../features/rich-content/docs/renderer-v2-experiment-03-native-flow.md#2026-10-01初步-ios-原生文字流)。
+iOS完整Simulator app已在iOS27 SDK、deployment target15.1下构建通过；平台显示和交互验证分别记录，不能将Android真机结果视为iOS已验收。详情见[本轮记录](../../src/features/rich-content/docs/renderer-v2-experiment-03-native-flow.md#2026-10-01初步-ios-原生文字流)。
 
 ## Props 与事件
 
-`flowJson` 使用 `features/rich-content/richText.ts` 的 `RichTextFlow` 布局字段（id、textVersion、text、spans、paragraphs、decorations、attachments）；sourceMap 保留在 JS 中进行业务选区映射，不随每个原生 view 的 JSON 重复传输。双端原生会跳过越界、非整数、字符串/boolean 偏移与拆分 surrogate pair 的 range，以及非单字符或没有 `U+FFFC` 的附件范围。Android 不再使用会强制转换/截断数值的 optInt 解析 range；系统选区与复制使用相同校验。标题优先使用 compiler 输出的 `fontSize`、`lineHeight` 和段落上下边距，与其他后端共享指标；旧 flow 缺少字号/行高时保留基础默认值。
+`flowJson` 使用 `src/features/rich-content/richText.ts` 的 `RichTextFlow` 布局字段（id、textVersion、text、spans、paragraphs、decorations、attachments）；sourceMap 保留在 JS 中进行业务选区映射，不随每个原生 view 的 JSON 重复传输。双端原生会跳过越界、非整数、字符串/boolean 偏移与拆分 surrogate pair 的 range，以及非单字符或没有 `U+FFFC` 的附件范围。Android 不再使用会强制转换/截断数值的 optInt 解析 range；系统选区与复制使用相同校验。标题优先使用 compiler 输出的 `fontSize`、`lineHeight` 和段落上下边距，与其他后端共享指标；旧 flow 缺少字号/行高时保留基础默认值。
 
 `configJson` 支持 `fontSize`、`lineHeight`、`paragraphSpacing`、`textColor`、`secondaryColor`、`linkColor`、`justify` 和 `textAlign`（left/center/right）。尺寸按React Native布局单位传入：Android为dp，iOS为pt。文本、段距和附件应用各自系统字体缩放；`contentWidth`不乘字体缩放。`selectable` 控制系统选择。
 
@@ -67,7 +67,7 @@ JS 通过 `isRichTextNativeAvailable()` 探测原生模块；`RichTextNativeView
 - 附件网络请求不携带应用Cookie、签名或认证配置，不输出请求日志；请求超时为8秒，iOS整个资源另限12秒，单资源上限4MiB。iOS SVG解析拒绝DTD/entity、脚本、foreignObject与外部href/CSS URL，只保留本地引用及image data；这不是完整浏览器CSS或任意SVG兼容承诺。
 - 首载的可见性、骨架和预览动画由正文宿主管理。首测不等待所有附件请求；未知intrinsic尺寸加载后仍可能必要重排，缓存和按帧更新不等于完整布局已经一次完成。
 
-2026-09-30：Android `assembleDebug`及vivo原型功能查看通过。2026-10-01：首载处理与短公式结构修复完成构建和真机确认。公式前景着色的mask边界及65,536组alpha/gray不变量通过纯Kotlin验证，匿名Ax=b图源为currentColor、无rect/image；最终Android prebuild和arm64 Debug构建通过（约10秒），新版APK更新安装后用户明确确认暗色公式修复。普通图片不着色由回归及native kind guard验证，未宣称所有图源已逐项真机检查。全仓检查及完整边界见[本轮记录](../../features/rich-content/docs/renderer-v2-experiment-03-native-flow.md)，未量化首载白闪，未验收Release性能或跨设备一致性；新增iOS实现的编译与平台验证另行记录。
+2026-09-30：Android `assembleDebug`及vivo原型功能查看通过。2026-10-01：首载处理与短公式结构修复完成构建和真机确认。公式前景着色的mask边界及65,536组alpha/gray不变量通过纯Kotlin验证，匿名Ax=b图源为currentColor、无rect/image；最终Android prebuild和arm64 Debug构建通过（约10秒），新版APK更新安装后用户明确确认暗色公式修复。普通图片不着色由回归及native kind guard验证，未宣称所有图源已逐项真机检查。全仓检查及完整边界见[本轮记录](../../src/features/rich-content/docs/renderer-v2-experiment-03-native-flow.md)，未量化首载白闪，未验收Release性能或跨设备一致性；新增iOS实现的编译与平台验证另行记录。
 
 iOS纯Foundation模型可用 `bash modules/zhihu-rich-text/tests/run-model-smoke.sh` 验证，28项实际Swift模型/viewport断言已通过；JS平台可用性回归9项通过。这些检查不代替UIKit编译或模拟器/真机交互。
 

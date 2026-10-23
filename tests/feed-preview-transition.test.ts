@@ -2,11 +2,11 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
 import { Text } from 'react-native';
 import { withSpring, withTiming } from 'react-native-reanimated';
-import type { FeedItem } from '../api/zhihu';
-import type { CollectionStarIcon } from '../components/CollectionStarIcon';
-import { CustomContextMenu } from '../components/CustomContextMenu';
-import { FeedCardPreview } from '../components/FeedCardPreview';
-import type { ZhihuContentProps } from '../features/rich-content/types';
+import type { FeedItem } from '../src/api/zhihu';
+import type { CollectionStarIcon } from '../src/components/CollectionStarIcon';
+import { CustomContextMenu } from '../src/components/CustomContextMenu';
+import { FeedCardPreview } from '../src/components/FeedCardPreview';
+import type { ZhihuContentProps } from '../src/features/rich-content/types';
 
 let mockQueryState: {
   data: { content: string } | null | undefined;
@@ -24,18 +24,20 @@ jest.mock('@tanstack/react-query', () => ({
     return mockQueryState;
   },
 }));
-jest.mock('../api/client', () => ({ hasAuthenticationCookie: () => false }));
-jest.mock('../api/zhihu', () => ({
+jest.mock('../src/api/client', () => ({
+  hasAuthenticationCookie: () => false,
+}));
+jest.mock('../src/api/zhihu', () => ({
   getAnswer: jest.fn(),
   getArticle: jest.fn(),
   getPin: jest.fn(),
   getQuestion: jest.fn(),
 }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   useAuthStore: (selector: (state: { cookies: null }) => unknown) =>
     selector({ cookies: null }),
 }));
-jest.mock('../features/rich-content', () => ({
+jest.mock('../src/features/rich-content', () => ({
   getRichContentQueryKey: (type: string, id: string) => [type, id],
   hasInlineRichContent: (value: unknown) =>
     typeof value === 'string' ? value.trim().length > 0 : Array.isArray(value),
@@ -45,11 +47,13 @@ jest.mock('../features/rich-content', () => ({
     return props.renderPlaceholder?.('container-layout') ?? null;
   },
 }));
-jest.mock('../components/StableAvatar', () => ({ StableAvatar: () => null }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/StableAvatar', () => ({
+  StableAvatar: () => null,
+}));
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -58,11 +62,11 @@ jest.mock('../components/Themed', () => {
     useThemeColor: () => '#1364cc',
   };
 });
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton:
     jest.requireActual<typeof import('react-native')>('react-native').Pressable,
 }));
-jest.mock('../components/CollectionStarIcon', () => ({
+jest.mock('../src/components/CollectionStarIcon', () => ({
   CollectionStarIcon: (
     props: React.ComponentProps<typeof CollectionStarIcon>,
   ) => mockCollectionStar(props),
@@ -75,7 +79,7 @@ jest.mock('expo-blur', () => ({
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn() }),
 }));
-jest.mock('../utils/haptics', () => ({
+jest.mock('../src/utils/haptics', () => ({
   impactAsync: jest.fn(),
   ImpactFeedbackStyle: { Light: 'light' },
 }));
@@ -278,39 +282,38 @@ describe('feed context-menu preview transitions', () => {
     await menu.unmount();
   });
 
-  it.each([
-    'identity',
-    'hidden',
-    'unmounted',
-  ] as const)('cancels a queued preview action when the original menu is %s', async (change) => {
-    const action = jest.fn();
-    const onClose = jest.fn();
-    const props = {
-      visible: true,
-      contentIdentity: 'answer:first',
-      onClose,
-      previewContent: React.createElement(Text, null, '预览正文'),
-      options: [
-        { key: 'copy', title: '复制链接', icon: 'copy', onPress: action },
-      ],
-    };
-    const menu = await render(React.createElement(CustomContextMenu, props));
-    await fireEvent.press(screen.getByRole('button', { name: '复制链接' }));
-    const completion = jest.mocked(withTiming).mock.calls.at(-1)?.[2];
-    if (change === 'unmounted') await menu.unmount();
-    else {
-      await menu.rerender(
-        React.createElement(CustomContextMenu, {
-          ...props,
-          ...(change === 'identity'
-            ? { contentIdentity: 'answer:next' }
-            : { visible: false }),
-        }),
-      );
-      await menu.rerender(React.createElement(CustomContextMenu, props));
-    }
-    await act(() => completion?.(true));
-    expect(action).not.toHaveBeenCalled();
-    expect(onClose).not.toHaveBeenCalled();
-  });
+  it.each(['identity', 'hidden', 'unmounted'] as const)(
+    'cancels a queued preview action when the original menu is %s',
+    async (change) => {
+      const action = jest.fn();
+      const onClose = jest.fn();
+      const props = {
+        visible: true,
+        contentIdentity: 'answer:first',
+        onClose,
+        previewContent: React.createElement(Text, null, '预览正文'),
+        options: [
+          { key: 'copy', title: '复制链接', icon: 'copy', onPress: action },
+        ],
+      };
+      const menu = await render(React.createElement(CustomContextMenu, props));
+      await fireEvent.press(screen.getByRole('button', { name: '复制链接' }));
+      const completion = jest.mocked(withTiming).mock.calls.at(-1)?.[2];
+      if (change === 'unmounted') await menu.unmount();
+      else {
+        await menu.rerender(
+          React.createElement(CustomContextMenu, {
+            ...props,
+            ...(change === 'identity'
+              ? { contentIdentity: 'answer:next' }
+              : { visible: false }),
+          }),
+        );
+        await menu.rerender(React.createElement(CustomContextMenu, props));
+      }
+      await act(() => completion?.(true));
+      expect(action).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+    },
+  );
 });

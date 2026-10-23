@@ -6,7 +6,7 @@ import {
   QueryObserver,
 } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
-import { createAppQueryClient } from '../utils/queryClient';
+import { createAppQueryClient } from '../src/utils/queryClient';
 
 describe('automatic read recovery', () => {
   let client: QueryClient;
@@ -40,65 +40,67 @@ describe('automatic read recovery', () => {
     }
   }
 
-  test.each([
-    'focus',
-    'reconnect',
-  ] as const)('%s retains a cached infinite list without refetching its five pages', async (event) => {
-    const queryFn = jest.fn(
-      async ({ pageParam }: { pageParam: number }) => pageParam,
-    );
-    const cached = { pages: [0, 1, 2, 3, 4], pageParams: [0, 1, 2, 3, 4] };
-    const observer = new InfiniteQueryObserver(client, {
-      queryKey: ['cached-pages'],
-      initialPageParam: 0,
-      initialData: cached,
-      queryFn,
-      getNextPageParam: (lastPage) => lastPage + 1,
-      staleTime: 0,
-      refetchOnMount: false,
-    });
-    cleanups.push(observer.subscribe(() => undefined));
+  test.each(['focus', 'reconnect'] as const)(
+    '%s retains a cached infinite list without refetching its five pages',
+    async (event) => {
+      const queryFn = jest.fn(
+        async ({ pageParam }: { pageParam: number }) => pageParam,
+      );
+      const cached = { pages: [0, 1, 2, 3, 4], pageParams: [0, 1, 2, 3, 4] };
+      const observer = new InfiniteQueryObserver(client, {
+        queryKey: ['cached-pages'],
+        initialPageParam: 0,
+        initialData: cached,
+        queryFn,
+        getNextPageParam: (lastPage) => lastPage + 1,
+        staleTime: 0,
+        refetchOnMount: false,
+      });
+      cleanups.push(observer.subscribe(() => undefined));
 
-    resume(event);
-    await jest.advanceTimersByTimeAsync(0);
+      resume(event);
+      await jest.advanceTimersByTimeAsync(0);
 
-    expect(queryFn).not.toHaveBeenCalled();
-    expect(observer.getCurrentResult().data).toEqual(cached);
-    expect(observer.getCurrentResult().isFetching).toBe(false);
-    await observer.fetchNextPage();
-    expect(queryFn).toHaveBeenCalledTimes(1);
-    expect(observer.getCurrentResult().data?.pages).toEqual([0, 1, 2, 3, 4, 5]);
-  });
+      expect(queryFn).not.toHaveBeenCalled();
+      expect(observer.getCurrentResult().data).toEqual(cached);
+      expect(observer.getCurrentResult().isFetching).toBe(false);
+      await observer.fetchNextPage();
+      expect(queryFn).toHaveBeenCalledTimes(1);
+      expect(observer.getCurrentResult().data?.pages).toEqual([
+        0, 1, 2, 3, 4, 5,
+      ]);
+    },
+  );
 
-  test.each([
-    'focus',
-    'reconnect',
-  ] as const)('%s retries an infinite list whose first page failed', async (event) => {
-    const queryFn = jest
-      .fn()
-      .mockRejectedValueOnce(new Error('synthetic first-page failure'))
-      .mockResolvedValue(0);
-    const observer = new InfiniteQueryObserver(client, {
-      queryKey: ['failed-first-page'],
-      initialPageParam: 0,
-      queryFn,
-      getNextPageParam: (lastPage: number) => lastPage + 1,
-      retry: false,
-    });
-    cleanups.push(observer.subscribe(() => undefined));
-    await jest.advanceTimersByTimeAsync(0);
-    expect(observer.getCurrentResult().isError).toBe(true);
-    expect(observer.getCurrentResult().data).toBeUndefined();
+  test.each(['focus', 'reconnect'] as const)(
+    '%s retries an infinite list whose first page failed',
+    async (event) => {
+      const queryFn = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('synthetic first-page failure'))
+        .mockResolvedValue(0);
+      const observer = new InfiniteQueryObserver(client, {
+        queryKey: ['failed-first-page'],
+        initialPageParam: 0,
+        queryFn,
+        getNextPageParam: (lastPage: number) => lastPage + 1,
+        retry: false,
+      });
+      cleanups.push(observer.subscribe(() => undefined));
+      await jest.advanceTimersByTimeAsync(0);
+      expect(observer.getCurrentResult().isError).toBe(true);
+      expect(observer.getCurrentResult().data).toBeUndefined();
 
-    resume(event);
-    await jest.advanceTimersByTimeAsync(0);
+      resume(event);
+      await jest.advanceTimersByTimeAsync(0);
 
-    expect(queryFn).toHaveBeenCalledTimes(2);
-    expect(observer.getCurrentResult().data).toEqual({
-      pages: [0],
-      pageParams: [0],
-    });
-  });
+      expect(queryFn).toHaveBeenCalledTimes(2);
+      expect(observer.getCurrentResult().data).toEqual({
+        pages: [0],
+        pageParams: [0],
+      });
+    },
+  );
 
   test('reconnect starts an infinite list opened offline with no cached data', async () => {
     onlineManager.setOnline(false);
@@ -202,26 +204,26 @@ describe('automatic read recovery', () => {
     expect(observer.getCurrentResult().data?.pages).toEqual([0, 1, 2]);
   });
 
-  test.each([
-    'focus',
-    'reconnect',
-  ] as const)('%s preserves ordinary stale-query refresh', async (event) => {
-    const queryFn = jest.fn(async () => 'fresh content');
-    const observer = new QueryObserver(client, {
-      queryKey: ['ordinary-query'],
-      initialData: 'cached content',
-      queryFn,
-      staleTime: 0,
-      refetchOnMount: false,
-    });
-    cleanups.push(observer.subscribe(() => undefined));
+  test.each(['focus', 'reconnect'] as const)(
+    '%s preserves ordinary stale-query refresh',
+    async (event) => {
+      const queryFn = jest.fn(async () => 'fresh content');
+      const observer = new QueryObserver(client, {
+        queryKey: ['ordinary-query'],
+        initialData: 'cached content',
+        queryFn,
+        staleTime: 0,
+        refetchOnMount: false,
+      });
+      cleanups.push(observer.subscribe(() => undefined));
 
-    resume(event);
-    await jest.advanceTimersByTimeAsync(0);
+      resume(event);
+      await jest.advanceTimersByTimeAsync(0);
 
-    expect(queryFn).toHaveBeenCalledTimes(1);
-    expect(observer.getCurrentResult().data).toBe('fresh content');
-  });
+      expect(queryFn).toHaveBeenCalledTimes(1);
+      expect(observer.getCurrentResult().data).toBe('fresh content');
+    },
+  );
 });
 
 test('an offline write fails without being queued or sent again on reconnect', async () => {

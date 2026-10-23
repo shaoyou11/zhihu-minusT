@@ -1,6 +1,6 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
-import { AuthStorageNotice } from '../components/AuthStorageNotice';
+import { AuthStorageNotice } from '../src/components/AuthStorageNotice';
 
 let mockFailed = true;
 let mockSession = 1;
@@ -12,30 +12,30 @@ const mockToast = jest.fn();
 jest.mock('../modules/zhihu-persistence', () => ({
   isPersistenceNativeAvailable: () => true,
 }));
-jest.mock('../store/useAuthPersistenceStatus', () => ({
+jest.mock('../src/store/useAuthPersistenceStatus', () => ({
   useAuthPersistenceStatus: (
     selector: (state: { failed: boolean }) => unknown,
   ) => selector({ failed: mockFailed }),
 }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSession,
   retryAuthPersistence: () => mockRetry(),
   resetSavedAuthState: () => mockReset(),
   useAuthStore: { getState: () => ({ cookies: 'z_c0=synthetic-restored' }) },
 }));
-jest.mock('../utils/authSession', () => ({
+jest.mock('../src/utils/authSession', () => ({
   syncNativeSessionCookies: (cookie: string | null) => mockSync(cookie),
 }));
-jest.mock('../utils/toast', () => ({
+jest.mock('../src/utils/toast', () => ({
   showToast: (message: string) => mockToast(message),
 }));
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ clear: mockClear }),
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   Text: jest.requireActual('react-native').Text,
   View: jest.requireActual('react-native').View,
 }));

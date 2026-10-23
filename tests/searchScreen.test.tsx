@@ -1,13 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import type React from 'react';
-import { getSearchSuggest, searchContent } from '../api/zhihu';
-import type { FeedItem } from '../api/zhihu/feed';
-import SearchScreen from '../app/search';
+import { getSearchSuggest, searchContent } from '../src/api/zhihu';
+import type { FeedItem } from '../src/api/zhihu/feed';
+import SearchScreen from '../src/app/search';
 
 const mockFeedItems = new Map<string, FeedItem>();
 
-jest.mock('../api/zhihu', () => ({
+jest.mock('../src/api/zhihu', () => ({
   getSearchSuggest: jest.fn(),
   searchContent: jest.fn(),
 }));
@@ -19,10 +19,10 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 58, bottom: 34, left: 0, right: 0 }),
 }));
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native = jest.requireActual('react-native');
   return {
     Text: native.Text,
@@ -30,13 +30,13 @@ jest.mock('../components/Themed', () => {
     useThemeColor: () => '#123456',
   };
 });
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/overlays/BottomSheet', () => ({
+jest.mock('../src/components/overlays/BottomSheet', () => ({
   BottomSheet: () => null,
 }));
-jest.mock('../components/FeedCard', () => ({
+jest.mock('../src/components/FeedCard', () => ({
   FeedCard: ({ item }: { item: FeedItem }) => {
     mockFeedItems.set(item.id, item);
     return jest
@@ -44,8 +44,8 @@ jest.mock('../components/FeedCard', () => ({
       .createElement(jest.requireActual('react-native').Text, null, item.title);
   },
 }));
-jest.mock('../components/UserCard', () => ({ UserCard: () => null }));
-jest.mock('../store/useSearchStore', () => ({
+jest.mock('../src/components/UserCard', () => ({ UserCard: () => null }));
+jest.mock('../src/store/useSearchStore', () => ({
   useSearchStore: () => ({
     history: ['历史关键词'],
     addHistory: jest.fn(),

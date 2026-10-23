@@ -2,19 +2,19 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { AxiosError, AxiosHeaders } from 'axios';
 import type { PropsWithChildren } from 'react';
-import apiClient from '../api/client';
+import apiClient from '../src/api/client';
 import {
   getMemberAnswersVotedByMe,
   MEMBER_ANSWERS_INCLUDE,
   type ZhihuListResponse,
   type ZhihuMember,
-} from '../api/zhihu/member';
-import { useUserAnswersVotedByMe } from '../hooks/useUserAnswersVotedByMe';
-import { useAuthStore } from '../store/useAuthStore';
-import type { ZhihuAnswer } from '../types/zhihu';
-import { shouldRetryQuery } from '../utils/query';
+} from '../src/api/zhihu/member';
+import { useUserAnswersVotedByMe } from '../src/hooks/useUserAnswersVotedByMe';
+import { useAuthStore } from '../src/store/useAuthStore';
+import type { ZhihuAnswer } from '../src/types/zhihu';
+import { shouldRetryQuery } from '../src/utils/query';
 
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { get: jest.fn() },
   hasAuthenticationCookie: (cookies: string | null | undefined) =>
@@ -22,7 +22,7 @@ jest.mock('../api/client', () => ({
 }));
 
 let mockSessionVersion = 1;
-jest.mock('../store/useAuthStore', () => {
+jest.mock('../src/store/useAuthStore', () => {
   const { create } = jest.requireActual('zustand');
   return {
     getAuthSessionVersion: () => mockSessionVersion,

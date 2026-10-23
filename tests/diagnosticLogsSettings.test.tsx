@@ -1,15 +1,15 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { Alert } from 'react-native';
-import DiagnosticLogsScreen from '../app/settings/diagnostics';
-import SettingsScreen from '../app/settings/index';
-import { copyToClipboard } from '../utils/clipboard';
+import DiagnosticLogsScreen from '../src/app/settings/diagnostics';
+import SettingsScreen from '../src/app/settings/index';
+import { copyToClipboard } from '../src/utils/clipboard';
 import {
   clearDiagnosticLogs,
   type DiagnosticLogSnapshot,
   formatDiagnosticLogsForExport,
   readDiagnosticLogs,
-} from '../utils/diagnosticLogs';
-import { showToast } from '../utils/toast';
+} from '../src/utils/diagnosticLogs';
+import { showToast } from '../src/utils/toast';
 
 const mockPush = jest.fn();
 
@@ -27,32 +27,32 @@ jest.mock('expo-router', () => ({
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   Text: jest.requireActual('react-native').Text,
   useThemeColor: () => '#123456',
 }));
-jest.mock('../components/ThemeModeSelector', () => ({
+jest.mock('../src/components/ThemeModeSelector', () => ({
   ThemeModeSelector: () => null,
 }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: (
     selector: (state: { resetSettings: () => void }) => unknown,
   ) => selector({ resetSettings: jest.fn() }),
 }));
-jest.mock('../store/useTelemetryStore', () => ({
+jest.mock('../src/store/useTelemetryStore', () => ({
   useTelemetryStore: (
     selector: (state: { enabled: boolean; setEnabled: () => void }) => unknown,
   ) => selector({ enabled: true, setEnabled: jest.fn() }),
 }));
-jest.mock('../utils/clipboard', () => ({ copyToClipboard: jest.fn() }));
-jest.mock('../utils/toast', () => ({ showToast: jest.fn() }));
-jest.mock('../utils/diagnosticLogs', () => ({
+jest.mock('../src/utils/clipboard', () => ({ copyToClipboard: jest.fn() }));
+jest.mock('../src/utils/toast', () => ({ showToast: jest.fn() }));
+jest.mock('../src/utils/diagnosticLogs', () => ({
   readDiagnosticLogs: jest.fn(),
   formatDiagnosticLogsForExport: jest.fn(),
   clearDiagnosticLogs: jest.fn(),

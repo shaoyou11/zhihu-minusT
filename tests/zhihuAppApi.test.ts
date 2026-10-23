@@ -6,8 +6,8 @@ import {
   buildZhihuAppRecommendUrl,
   getZhihuAppEndpointHeaders,
   ZHIHU_APP_QUESTION_FEEDS_INCLUDE,
-} from '../api/zhihu/appApi';
-import { normalizeZhihuAppQuestionFeeds } from '../api/zhihu/questionFeed';
+} from '../src/api/zhihu/appApi';
+import { normalizeZhihuAppQuestionFeeds } from '../src/api/zhihu/questionFeed';
 
 test('builds the initial app recommendation request', () => {
   const url = new URL(buildZhihuAppRecommendUrl());

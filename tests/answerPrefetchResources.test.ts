@@ -5,15 +5,15 @@ import {
 } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react-native';
 import { createElement, type PropsWithChildren } from 'react';
-import { getAnswer } from '../api/zhihu';
-import { useNeighborAnswerPrefetch } from '../hooks/useNeighborAnswerPrefetch';
+import { getAnswer } from '../src/api/zhihu';
+import { useNeighborAnswerPrefetch } from '../src/hooks/useNeighborAnswerPrefetch';
 
-jest.mock('../api/zhihu', () => ({ getAnswer: jest.fn() }));
-jest.mock('../features/rich-content', () =>
-  jest.requireActual('../features/rich-content/queryPolicy'),
+jest.mock('../src/api/zhihu', () => ({ getAnswer: jest.fn() }));
+jest.mock('../src/features/rich-content', () =>
+  jest.requireActual('../src/features/rich-content/queryPolicy'),
 );
 let mockActive = true;
-jest.mock('../hooks/useActiveScreen', () => ({
+jest.mock('../src/hooks/useActiveScreen', () => ({
   useActiveScreen: () => mockActive,
 }));
 const ids = ['a', 'b', 'c', 'd', 'e'];

@@ -5,17 +5,17 @@ import type {
   ZhihuPlainPreviewAnswer,
   ZhihuPreviewAnswer,
   ZhihuReadingPreviewItem,
-} from '../api/zhihu/nextRender';
-import type { AnswerEndorsements } from '../components/AnswerEndorsements';
-import { AnswerPreviewList } from '../components/AnswerPreviewList';
-import type { FeedCardActionRow } from '../components/FeedCardActionRow';
+} from '../src/api/zhihu/nextRender';
+import type { AnswerEndorsements } from '../src/components/AnswerEndorsements';
+import { AnswerPreviewList } from '../src/components/AnswerPreviewList';
+import type { FeedCardActionRow } from '../src/components/FeedCardActionRow';
 import type {
   CollapsibleRichContent,
   ZhihuContentProps,
   ZhihuStructuredContentProps,
-} from '../features/rich-content';
-import type { useAnswerPreviewAutoLoad } from '../hooks/useAnswerPreviewAutoLoad';
-import type { useAnswerPreviewFloatingBar } from '../hooks/useAnswerPreviewFloatingBar';
+} from '../src/features/rich-content';
+import type { useAnswerPreviewAutoLoad } from '../src/hooks/useAnswerPreviewAutoLoad';
+import type { useAnswerPreviewFloatingBar } from '../src/hooks/useAnswerPreviewFloatingBar';
 
 let mockSessionVersion = 1;
 let mockQuerySessionVersion: number | null = null;
@@ -85,16 +85,16 @@ jest.mock('expo-router', () => ({
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 20, left: 0, right: 0 }),
 }));
-jest.mock('../api/zhihu/history', () => ({ recordReadHistory: jest.fn() }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/api/zhihu/history', () => ({ recordReadHistory: jest.fn() }));
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: (
     selector: (state: { enableBrowseHistory: boolean }) => unknown,
   ) => selector({ enableBrowseHistory: false }),
 }));
-jest.mock('../hooks/useAnswerPreviewQuery', () => ({
+jest.mock('../src/hooks/useAnswerPreviewQuery', () => ({
   useAnswerPreviewQuery: ({ answerId }: { answerId: string }) => ({
     items: [mockPlainAnswer(answerId), ...mockFollowingAnswers],
     sessionVersion: mockQuerySessionVersion ?? mockSessionVersion,
@@ -109,21 +109,21 @@ jest.mock('../hooks/useAnswerPreviewQuery', () => ({
     refetchSelected: mockRefetchSelected,
   }),
 }));
-jest.mock('../hooks/useAnswerReadTouch', () => ({
+jest.mock('../src/hooks/useAnswerReadTouch', () => ({
   useAnswerReadTouch: (answerIds: readonly string[], enabled?: boolean) =>
     mockReadTouch(answerIds, enabled),
 }));
-jest.mock('../hooks/useAnswerPreviewFloatingBar', () => ({
+jest.mock('../src/hooks/useAnswerPreviewFloatingBar', () => ({
   useAnswerPreviewFloatingBar: (
     options: Parameters<typeof useAnswerPreviewFloatingBar>[0],
   ) => mockFloatingBar(options),
 }));
-jest.mock('../hooks/useAnswerPreviewAutoLoad', () => ({
+jest.mock('../src/hooks/useAnswerPreviewAutoLoad', () => ({
   useAnswerPreviewAutoLoad: (
     options: Parameters<typeof useAnswerPreviewAutoLoad>[0],
   ) => mockAutoLoad(options),
 }));
-jest.mock('../hooks/useAnswerPreviewBody', () => ({
+jest.mock('../src/hooks/useAnswerPreviewBody', () => ({
   useAnswerPreviewBody: ({
     initialContent,
   }: {
@@ -135,14 +135,14 @@ jest.mock('../hooks/useAnswerPreviewBody', () => ({
     isLoadingMore: false,
   }),
 }));
-jest.mock('../hooks/useDetailHeaderState', () => ({
+jest.mock('../src/hooks/useDetailHeaderState', () => ({
   useDetailHeaderState: () => ({
     collapsed: false,
     onScrollOffset: jest.fn(),
     onHeaderLayout: jest.fn(),
   }),
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -156,41 +156,43 @@ jest.mock('../components/Themed', () => {
     }),
   };
 });
-jest.mock('../components/ContentActionBar', () => ({
+jest.mock('../src/components/ContentActionBar', () => ({
   CONTENT_ACTION_BAR_HEIGHT: 48,
   getContentActionBarBottom: (inset: number) => Math.max(inset, 12) + 20,
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton:
     jest.requireActual<typeof import('react-native')>('react-native').Pressable,
 }));
-jest.mock('../components/DetailNavigationHeader', () => ({
+jest.mock('../src/components/DetailNavigationHeader', () => ({
   DetailNavigationHeader: () => null,
   useDetailNavigationHeight: () => 56,
 }));
-jest.mock('../components/AnswerPreviewFloatingBar', () => ({
+jest.mock('../src/components/AnswerPreviewFloatingBar', () => ({
   AnswerPreviewFloatingBar: (props: {
     canCollapse?: boolean;
     onCollapse: (id: string) => void;
   }) => mockRenderFloatingBar(props),
 }));
-jest.mock('../components/AnswerPreviewQuestionHeader', () => ({
+jest.mock('../src/components/AnswerPreviewQuestionHeader', () => ({
   AnswerPreviewQuestionHeader: () => null,
 }));
-jest.mock('../components/FeedCardActionRow', () => ({
+jest.mock('../src/components/FeedCardActionRow', () => ({
   FeedCardActionRow: (props: ComponentProps<typeof FeedCardActionRow>) =>
     mockRenderCardActions(props),
 }));
-jest.mock('../components/AnswerEndorsements', () => ({
+jest.mock('../src/components/AnswerEndorsements', () => ({
   AnswerEndorsements: (props: ComponentProps<typeof AnswerEndorsements>) =>
     mockRenderEndorsements(props),
 }));
-jest.mock('../components/StableAvatar', () => ({ StableAvatar: () => null }));
-jest.mock('../components/QueryErrorView', () => ({
+jest.mock('../src/components/StableAvatar', () => ({
+  StableAvatar: () => null,
+}));
+jest.mock('../src/components/QueryErrorView', () => ({
   QueryErrorView: () => null,
 }));
-jest.mock('../components/ShareMenu', () => ({ ShareMenu: () => null }));
-jest.mock('../features/rich-content', () => {
+jest.mock('../src/components/ShareMenu', () => ({ ShareMenu: () => null }));
+jest.mock('../src/features/rich-content', () => {
   const react = jest.requireActual<typeof import('react')>('react');
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');

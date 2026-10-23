@@ -1,4 +1,4 @@
-import { createNativeSessionSynchronizer } from '../utils/nativeSessionSync';
+import { createNativeSessionSynchronizer } from '../src/utils/nativeSessionSync';
 
 test('a newer session waits for an in-flight write and leaves only its native cookies', async () => {
   let version = 1;

@@ -163,6 +163,21 @@ internal class FlowTextView(context: Context) : TextView(context) {
     }
   }
 
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    if (isTextSelectable && layout != null) {
+      // A flow can be measured before Pager attaches it to the window. Android's
+      // Editor then caches disabled selection controllers because its root is
+      // not a window yet; attachment alone does not refresh that cached state.
+      // This public setter refreshes the controllers without replacing text,
+      // movement method or an existing selection. Restore the cursor preference
+      // synchronously, before the next draw.
+      val cursorVisible = isCursorVisible
+      setCursorVisible(!cursorVisible)
+      setCursorVisible(cursorVisible)
+    }
+  }
+
   override fun onDetachedFromWindow() {
     cancelReadingGesture()
     hostOwnsTouch = false

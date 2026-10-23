@@ -1,4 +1,4 @@
-import { nextReadingActionBarOffset as next } from '../utils/readingActionBar';
+import { nextReadingActionBarOffset as next } from '../src/utils/readingActionBar';
 
 test('reading forward retracts actions, reversing reveals them immediately', () => {
   expect(next(0, 20, 60, 1000, 100)).toBe(40);

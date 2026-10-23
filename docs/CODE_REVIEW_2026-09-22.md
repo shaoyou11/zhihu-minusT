@@ -35,7 +35,7 @@
 
 ### P2：同城入口会接受任意非空 `section_id`
 
-位置：[`api/zhihu/feed.ts`](../api/zhihu/feed.ts)，第 642–645 行。
+位置：[`api/zhihu/feed.ts`](../src/api/zhihu/feed.ts)，第 642–645 行。
 
 `sections.find()` 的条件是“名称包含同城，或 `section_id` 非空”。只要普通分区排在同城分区前面，就会提前命中普通分区，随后请求错误的 Feed，并把错误名称保存为 `localCityName`。这会让同城入口的结果依赖接口返回顺序。
 
@@ -43,7 +43,7 @@
 
 ### P2：通知正文的旧格式字段被类型收紧后丢失
 
-位置：[`app/notifications/index.tsx`](../app/notifications/index.tsx)，第 216–219 行；[`types/zhihu.ts`](../types/zhihu.ts)，第 516–524 行。
+位置：[`app/notifications/index.tsx`](../src/app/notifications/index.tsx)，第 216–219 行；[`types/zhihu.ts`](../src/types/zhihu.ts)，第 516–524 行。
 
 当前渲染只读取 `extend.text`、`target.text`、`item.target.content` 和字符串 `content`。`ZhihuNotificationContent` 没有旧接口可能返回的 `text`、`title`、`sub_text` 字段；当 `item.content` 是不含这些新字段的对象时，会直接显示“新的动态”，用户看不到实际通知内容。
 
@@ -51,7 +51,7 @@
 
 ### P2：认证持久化写入失败不会反馈给登录流程
 
-位置：[`store/useAuthStore.ts`](../store/useAuthStore.ts)，第 18–49 行；[`app/login/index.tsx`](../app/login/index.tsx)，第 71–92 行。
+位置：[`store/useAuthStore.ts`](../src/store/useAuthStore.ts)，第 18–49 行；[`app/login/index.tsx`](../src/app/login/index.tsx)，第 71–92 行。
 
 文件存储适配器吞掉了 `writeAsStringAsync` 异常，`addAccount` 更新内存状态后，登录流程仍会清缓存、提示“登录会话已保存”并跳转。磁盘写入失败时，内存状态与重启后的状态可能不一致，账号可能在重启后恢复旧值或消失。
 
@@ -59,7 +59,7 @@
 
 ### P2：包含 Cookie 的认证文件仍未静态加密
 
-位置：[`store/useAuthStore.ts`](../store/useAuthStore.ts)，第 8–10 行；[`DEVELOPMENT.md`](./DEVELOPMENT.md)，第 128 行。
+位置：[`store/useAuthStore.ts`](../src/store/useAuthStore.ts)，第 8–10 行；[`DEVELOPMENT.md`](./DEVELOPMENT.md)，第 128 行。
 
 多账号认证状态直接写入应用沙箱中的 `auth-storage.json`。应用沙箱提供隔离，但文件本身没有静态加密；一旦备份、调试导出或其他本地泄露路径暴露该文件，Cookie 可被直接读取。
 
@@ -67,7 +67,7 @@
 
 ### P3：telemetry 的“移除方式”遗漏 Sentry 清理
 
-位置：[`docs/TELEMETRY.md`](../docs/TELEMETRY.md)，第 55–57 行；[`app/_layout.tsx`](../app/_layout.tsx)，第 6、36–38、326 行。
+位置：[`docs/TELEMETRY.md`](../docs/TELEMETRY.md)，第 55–57 行；[`app/_layout.tsx`](../src/app/_layout.tsx)，第 6、36–38、326 行。
 
 文档只要求删除 telemetry 适配层、两个 Firebase 依赖和相关配置，但根布局仍直接导入 `@sentry/react-native` 并调用 `Sentry.wrap`，`app.json` 仍有 Sentry config plugin，`package.json` 仍有 Sentry 依赖，构建工作流也仍需要 Sentry DSN 和 Auth Token。照文档操作会留下未清理的 Sentry 集成；同一文档“产品代码不应直接导入 Sentry”的表述也与根布局现状不完全一致。
 

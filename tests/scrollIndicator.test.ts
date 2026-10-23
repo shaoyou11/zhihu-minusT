@@ -1,13 +1,14 @@
-import { calculateScrollIndicatorGeometry } from '../utils/scrollIndicator';
+import { calculateScrollIndicatorGeometry } from '../src/utils/scrollIndicator';
 
 describe('reading scroll indicator geometry', () => {
-  it.each([
-    0, 300, 500,
-  ])('hides content of height %s that fits in the viewport', (contentHeight) => {
-    expect(
-      calculateScrollIndicatorGeometry(0, contentHeight, 500, 400),
-    ).toEqual({ visible: false, thumbHeight: 0, thumbOffset: 0 });
-  });
+  it.each([0, 300, 500])(
+    'hides content of height %s that fits in the viewport',
+    (contentHeight) => {
+      expect(
+        calculateScrollIndicatorGeometry(0, contentHeight, 500, 400),
+      ).toEqual({ visible: false, thumbHeight: 0, thumbOffset: 0 });
+    },
+  );
 
   it('uses the full viewport for the thumb ratio and the inset track for travel', () => {
     expect(calculateScrollIndicatorGeometry(0, 2000, 500, 400)).toEqual({

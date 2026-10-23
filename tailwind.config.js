@@ -1,4 +1,4 @@
-const tokens = require('./constants/designTokens.json');
+const tokens = require('./src/constants/designTokens.json');
 const { typography, radii, opacity } = tokens;
 const runtimeColor = (token) => `rgb(var(--theme-${token}) / <alpha-value>)`;
 const runtimePair = (token) => ({
@@ -9,9 +9,9 @@ const runtimePair = (token) => ({
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    './app/**/*.{js,jsx,ts,tsx}',
-    './components/**/*.{js,jsx,ts,tsx}',
-    './features/**/*.{js,jsx,ts,tsx}',
+    './src/app/**/*.{js,jsx,ts,tsx}',
+    './src/components/**/*.{js,jsx,ts,tsx}',
+    './src/features/**/*.{js,jsx,ts,tsx}',
   ],
   presets: [require('nativewind/preset')],
   darkMode: 'class',

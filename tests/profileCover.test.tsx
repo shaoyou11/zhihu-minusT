@@ -4,7 +4,7 @@ import type { SharedValue } from 'react-native-reanimated';
 import {
   ProfileCover,
   ProfileToolbarBackground,
-} from '../components/profile/ProfileCover';
+} from '../src/components/profile/ProfileCover';
 
 const mockColors = {
   primary: '#1364cc',
@@ -14,7 +14,7 @@ const mockColors = {
   border: '#dddddd',
 };
 
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   useRuntimeThemeColors: () => mockColors,
 }));
 jest.mock('expo-linear-gradient', () => ({

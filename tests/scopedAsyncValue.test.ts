@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react-native';
-import { useScopedAsyncValue } from '../hooks/useScopedAsyncValue';
+import { useScopedAsyncValue } from '../src/hooks/useScopedAsyncValue';
 
 test('hides the previous account cache while the new account loads and rejects stale refreshes', async () => {
   const first = { accountKey: 'synthetic-a' };

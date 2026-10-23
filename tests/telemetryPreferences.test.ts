@@ -7,12 +7,12 @@ interface TestPreferences {
 
 let mockStore: StoreApi<TestPreferences>;
 const mockSetTelemetryEnabled = jest.fn<Promise<void>, [boolean]>();
-let initializeTelemetryPreferences: typeof import('../utils/telemetryPreferences').initializeTelemetryPreferences;
+let initializeTelemetryPreferences: typeof import('../src/utils/telemetryPreferences').initializeTelemetryPreferences;
 
-jest.mock('../store/useTelemetryStore', () => ({
+jest.mock('../src/store/useTelemetryStore', () => ({
   useTelemetryStore: mockStore,
 }));
-jest.mock('../utils/telemetry', () => ({
+jest.mock('../src/utils/telemetry', () => ({
   setTelemetryEnabled: mockSetTelemetryEnabled,
 }));
 
@@ -24,7 +24,7 @@ beforeEach(() => {
   mockSetTelemetryEnabled.mockReset().mockResolvedValue(undefined);
   jest.isolateModules(() => {
     initializeTelemetryPreferences =
-      require('../utils/telemetryPreferences').initializeTelemetryPreferences;
+      require('../src/utils/telemetryPreferences').initializeTelemetryPreferences;
   });
 });
 

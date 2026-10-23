@@ -1,22 +1,22 @@
 import { fireEvent, render } from '@testing-library/react-native';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
-import { ContentActionBar } from '../components/ContentActionBar';
+import { ContentActionBar } from '../src/components/ContentActionBar';
 
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
 jest.mock('expo-blur', () => ({
   BlurView: jest.requireActual('react-native').View,
 }));
-jest.mock('../hooks/useReduceTransparency', () => ({
+jest.mock('../src/hooks/useReduceTransparency', () => ({
   useReduceTransparency: () => false,
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   useRuntimeThemeColors: () => ({
     backgroundSecondary: '#fff',
     contentBorder: '#eee',

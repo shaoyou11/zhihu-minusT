@@ -1,24 +1,24 @@
-import type { FeedItem } from '../api/zhihu/feed';
-import type { ZhihuReadingPreviewItem } from '../api/zhihu/nextRender';
-import { normalizeZhihuAnswerPreviewPage } from '../api/zhihu/nextRender';
+import type { FeedItem } from '../src/api/zhihu/feed';
+import type { ZhihuReadingPreviewItem } from '../src/api/zhihu/nextRender';
+import { normalizeZhihuAnswerPreviewPage } from '../src/api/zhihu/nextRender';
 import {
   formatAnswerPublishInfo,
   getAnswerPublishInfo,
   getNextRenderPublishInfo,
   shouldShowPreviewQuestion,
-} from '../utils/answerPreviewDisplay';
-import { createAnswerPreviewEntry } from '../utils/answerPreviewEntry';
-import { parseRecommendData } from '../utils/recommendFeed';
+} from '../src/utils/answerPreviewDisplay';
+import { createAnswerPreviewEntry } from '../src/utils/answerPreviewEntry';
+import { parseRecommendData } from '../src/utils/recommendFeed';
 
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { get: jest.fn() },
 }));
-jest.mock('../features/rich-content', () => ({
-  ...jest.requireActual('../features/rich-content/structuredContent'),
-  ...jest.requireActual('../features/rich-content/queryPolicy'),
+jest.mock('../src/features/rich-content', () => ({
+  ...jest.requireActual('../src/features/rich-content/structuredContent'),
+  ...jest.requireActual('../src/features/rich-content/queryPolicy'),
 }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => 1,
 }));
 
@@ -146,33 +146,33 @@ test('preview entries from answer details carry publish info', () => {
   ).not.toHaveProperty('publishInfo');
 });
 
-test.each([
-  false,
-  true,
-])('recommendation and local feed entries retain answer dates (restored cache: %s)', (restoredCache) => {
-  const created = new Date(2026, 9, 18, 12).getTime() / 1000;
-  const updated = new Date(2026, 9, 19, 9).getTime() / 1000;
-  const item = parseRecommendData({
-    created_time: created - 86400,
-    updated_time: updated + 86400,
-    target: {
-      id: 'a1',
-      type: 'answer',
-      content: '<p>合成正文</p>',
-      created_time: created,
-      updated_time: updated,
-    },
-  });
-  if (!item) throw new Error('Expected an answer feed item');
-  const source: FeedItem = restoredCache
-    ? JSON.parse(JSON.stringify(item))
-    : item;
+test.each([false, true])(
+  'recommendation and local feed entries retain answer dates (restored cache: %s)',
+  (restoredCache) => {
+    const created = new Date(2026, 9, 18, 12).getTime() / 1000;
+    const updated = new Date(2026, 9, 19, 9).getTime() / 1000;
+    const item = parseRecommendData({
+      created_time: created - 86400,
+      updated_time: updated + 86400,
+      target: {
+        id: 'a1',
+        type: 'answer',
+        content: '<p>合成正文</p>',
+        created_time: created,
+        updated_time: updated,
+      },
+    });
+    if (!item) throw new Error('Expected an answer feed item');
+    const source: FeedItem = restoredCache
+      ? JSON.parse(JSON.stringify(item))
+      : item;
 
-  expect(createAnswerPreviewEntry(source)?.publishInfo).toEqual({
-    published: '发布于 2026-10-18',
-    edited: '编辑于 2026-10-19',
-  });
-});
+    expect(createAnswerPreviewEntry(source)?.publishInfo).toEqual({
+      published: '发布于 2026-10-18',
+      edited: '编辑于 2026-10-19',
+    });
+  },
+);
 
 test('feed entries without answer dates remain usable without publish info', () => {
   const item = parseRecommendData({

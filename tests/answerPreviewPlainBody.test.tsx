@@ -1,17 +1,17 @@
 import { fireEvent, render } from '@testing-library/react-native';
 import type { ComponentProps } from 'react';
-import type { ZhihuPlainPreviewAnswer } from '../api/zhihu/nextRender';
-import { AnswerPreviewPlainBody } from '../components/AnswerPreviewPlainBody';
+import type { ZhihuPlainPreviewAnswer } from '../src/api/zhihu/nextRender';
+import { AnswerPreviewPlainBody } from '../src/components/AnswerPreviewPlainBody';
 import type {
   CollapsibleRichContent,
   ZhihuContentProps,
-} from '../features/rich-content';
+} from '../src/features/rich-content';
 
 let mockBodyProps: ZhihuContentProps;
 type CollapseProps = ComponentProps<typeof CollapsibleRichContent>;
 let mockCollapseProps: CollapseProps;
 
-jest.mock('../features/rich-content', () => {
+jest.mock('../src/features/rich-content', () => {
   const react = jest.requireActual<typeof import('react')>('react');
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
@@ -44,7 +44,7 @@ jest.mock('../features/rich-content', () => {
     },
   };
 });
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   Text: jest.requireActual<typeof import('react-native')>('react-native').Text,
 }));
 

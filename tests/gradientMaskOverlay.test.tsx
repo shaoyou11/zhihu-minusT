@@ -1,10 +1,10 @@
 import { act, render } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { StyleSheet, type ViewProps } from 'react-native';
-import { GradientMaskOverlay } from '../components/GradientMaskOverlay';
-import { resolveThemeColors } from '../constants/theme';
-import { useSettingsStore } from '../store/useSettingsStore';
-import { useThemeStore } from '../store/useThemeStore';
+import { GradientMaskOverlay } from '../src/components/GradientMaskOverlay';
+import { resolveThemeColors } from '../src/constants/theme';
+import { useSettingsStore } from '../src/store/useSettingsStore';
+import { useThemeStore } from '../src/store/useThemeStore';
 
 let mockInsets = { top: 59, bottom: 34, left: 0, right: 0 };
 
@@ -31,12 +31,12 @@ jest.mock('expo-blur', () => ({
     return <View {...props} testID="safe-area-blur" />;
   },
 }));
-jest.mock('../store/useThemeStore', () => ({
+jest.mock('../src/store/useThemeStore', () => ({
   useThemeStore: jest
     .requireActual('zustand')
     .create(() => ({ isDark: false })),
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: jest.requireActual('zustand').create(() => ({
     primaryColor: '#0084ff',
     readingBackground: 'default',

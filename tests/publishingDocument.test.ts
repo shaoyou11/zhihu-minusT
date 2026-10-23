@@ -1,7 +1,7 @@
 import {
   createPublishingDocument,
   serializePublishingDocument,
-} from '../features/publishing/document';
+} from '../src/features/publishing/document';
 
 const COMPLEX =
   '<!--keep--><p>普通 <strong>文字</strong></p>\n<table data-extra="keep"><tr><td rowspan="2">表格</td></tr></table><p><span class="math" data-tex="x^2">公式</span></p><div class="video-box" data-video-id="synthetic"><iframe src="https://example.com/video"></iframe></div><blockquote><ol><li>嵌套<ul><li>列表</li></ul></li></ol></blockquote><p><img src="https://example.com/image" alt="原图" data-original-src="https://example.com/original"></p>';

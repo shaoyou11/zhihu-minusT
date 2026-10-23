@@ -14,7 +14,7 @@
 - [账号保存与恢复](./AUTH_STORAGE.md)、[统计与错误上报](./TELEMETRY.md)
 - [主题定制](./THEME_CUSTOMIZATION.md)、[设计 Token](./DESIGN_TOKENS.md)
 - [知乎 App API](./ZHIHU_APP_API.md)、[结构化正文接口](./ZHIHU_NEXT_RENDER.md)
-- [富文本](../features/rich-content/README.md)、[发布编辑器](../features/publishing/README.md)
+- [富文本](../src/features/rich-content/README.md)、[发布编辑器](../src/features/publishing/README.md)
 
 ## 历史与研究
 

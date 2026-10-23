@@ -1,15 +1,15 @@
 import { act, renderHook } from '@testing-library/react-native';
-import { useUpdateDownload } from '../hooks/useUpdateDownload';
+import { useUpdateDownload } from '../src/hooks/useUpdateDownload';
 import {
   type ApkUpdate,
   cleanupUpdatePartials,
   discardVerifiedApk,
   downloadVerifiedApk,
   installVerifiedApk,
-} from '../utils/updateDownload';
-import { UpdateFailure } from '../utils/updateSecurity';
+} from '../src/utils/updateDownload';
+import { UpdateFailure } from '../src/utils/updateSecurity';
 
-jest.mock('../utils/updateDownload', () => ({
+jest.mock('../src/utils/updateDownload', () => ({
   cleanupUpdatePartials: jest.fn(),
   discardVerifiedApk: jest.fn(),
   downloadVerifiedApk: jest.fn(),
@@ -36,18 +36,18 @@ beforeEach(() => {
   jest.mocked(installVerifiedApk).mockResolvedValue(undefined);
 });
 
-test.each([
-  'dismiss',
-  'unmount',
-] as const)('cleans a verified APK on %s before any installer handoff', async (operation) => {
-  const hook = await renderHook(useUpdateDownload);
-  await act(() => hook.result.current.start(update));
-  expect(hook.result.current.state?.phase).toBe('ready');
-  expect(installVerifiedApk).not.toHaveBeenCalled();
-  if (operation === 'dismiss') await act(() => hook.result.current.dismiss());
-  else await hook.unmount();
-  expect(discardVerifiedApk).toHaveBeenCalledWith(uri);
-});
+test.each(['dismiss', 'unmount'] as const)(
+  'cleans a verified APK on %s before any installer handoff',
+  async (operation) => {
+    const hook = await renderHook(useUpdateDownload);
+    await act(() => hook.result.current.start(update));
+    expect(hook.result.current.state?.phase).toBe('ready');
+    expect(installVerifiedApk).not.toHaveBeenCalled();
+    if (operation === 'dismiss') await act(() => hook.result.current.dismiss());
+    else await hook.unmount();
+    expect(discardVerifiedApk).toHaveBeenCalledWith(uri);
+  },
+);
 
 test('a stale install handler cannot open an APK after dismissal has claimed cleanup', async () => {
   const hook = await renderHook(useUpdateDownload);

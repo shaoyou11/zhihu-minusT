@@ -5,7 +5,7 @@ import {
   PointerType,
   State,
 } from 'react-native-gesture-handler';
-import { useNestedHorizontalGesture } from '../hooks/useNestedHorizontalGesture';
+import { useNestedHorizontalGesture } from '../src/hooks/useNestedHorizontalGesture';
 
 test('makes the native parent wait for the child without claiming touches before scrolling', async () => {
   const parentGesture = Gesture.Native();

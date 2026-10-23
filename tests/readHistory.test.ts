@@ -1,9 +1,9 @@
-import type { ReadHistoryDataItem } from '../api/zhihu/history';
+import type { ReadHistoryDataItem } from '../src/api/zhihu/history';
 import {
   getReadHistoryKey,
   getReadHistoryRoute,
   getSelectedReadHistoryPairs,
-} from '../utils/readHistory';
+} from '../src/utils/readHistory';
 
 function historyItem(type: string, token: string): ReadHistoryDataItem {
   return {

@@ -5,31 +5,31 @@ import {
   fastCollectAnswer,
   getAllContentCollectionStatus,
   removeFromCollection,
-} from '../api/zhihu/collection';
-import { useCollectionAction } from '../hooks/useCollectionAction';
-import { useCollectionStore } from '../store/useCollectionStore';
-import { updateContentInteractionCaches } from '../utils/contentCache';
+} from '../src/api/zhihu/collection';
+import { useCollectionAction } from '../src/hooks/useCollectionAction';
+import { useCollectionStore } from '../src/store/useCollectionStore';
+import { updateContentInteractionCaches } from '../src/utils/contentCache';
 
-jest.mock('../api/zhihu/collection', () => ({
+jest.mock('../src/api/zhihu/collection', () => ({
   fastCollectAnswer: jest.fn(),
   fastCollectArticle: jest.fn(),
   getAllContentCollectionStatus: jest.fn(),
   removeFromCollection: jest.fn(),
   removeArticleFromCollection: jest.fn(),
 }));
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   hasAuthenticationCookie: (cookie: string | null | undefined) =>
     typeof cookie === 'string' && /(?:^|;\s*)z_c0=[^;\s]+/.test(cookie),
 }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
-jest.mock('../utils/contentCache', () => ({
+jest.mock('../src/utils/contentCache', () => ({
   updateContentInteractionCaches: jest.fn(),
 }));
-jest.mock('../utils/toast', () => ({ showToast: jest.fn() }));
+jest.mock('../src/utils/toast', () => ({ showToast: jest.fn() }));
 let mockSessionVersion = 0;
 let mockCookies = 'z_c0=synthetic-session';
 const mockPush = jest.fn();
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
   useAuthStore: Object.assign(() => ({ cookies: mockCookies }), {
     getState: () => ({ cookies: mockCookies }),

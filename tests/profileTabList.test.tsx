@@ -7,7 +7,7 @@ import {
   ProfileTabList,
   type ProfileTabListHandle,
   type ProfileTabListProps,
-} from '../components/profile/ProfileTabList';
+} from '../src/components/profile/ProfileTabList';
 
 interface MockListProps {
   innerViewRef: {
@@ -82,7 +82,7 @@ jest.mock('react-native-reanimated', () => {
   };
 });
 
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -92,7 +92,7 @@ jest.mock('../components/Themed', () => {
   };
 });
 
-jest.mock('../components/QueryErrorView', () => ({
+jest.mock('../src/components/QueryErrorView', () => ({
   QueryErrorView: ({
     message,
     onRetry,

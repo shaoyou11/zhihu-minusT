@@ -4,12 +4,12 @@ import { createElement, type PropsWithChildren } from 'react';
 import {
   type UseOptimisticToggleOptions,
   useOptimisticToggle,
-} from '../hooks/useOptimisticToggle';
-import { getAuthSessionVersion } from '../store/useAuthStore';
-import { showToast } from '../utils/toast';
+} from '../src/hooks/useOptimisticToggle';
+import { getAuthSessionVersion } from '../src/store/useAuthStore';
+import { showToast } from '../src/utils/toast';
 
-jest.mock('../utils/toast', () => ({ showToast: jest.fn() }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/utils/toast', () => ({ showToast: jest.fn() }));
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: jest.fn(() => 0),
 }));
 
@@ -44,84 +44,88 @@ beforeEach(() => {
   jest.mocked(getAuthSessionVersion).mockReturnValue(0);
 });
 
-test.each([
-  'success',
-  'failure',
-] as const)('keeps %s bound to the invocation key, request, messages and callbacks after rerender', async (outcome) => {
-  const client = createClient();
-  const cancellation = deferred<void>();
-  jest.spyOn(client, 'cancelQueries').mockReturnValueOnce(cancellation.promise);
-  const invalidation = jest
-    .spyOn(client, 'invalidateQueries')
-    .mockResolvedValue(undefined);
-  const request = deferred<unknown>();
-  const originalRequest = jest.fn(() => request.promise);
-  const nextRequest = jest.fn(async () => ({}));
-  const originalSuccess = jest.fn();
-  const nextSuccess = jest.fn();
-  const originalOptions: UseOptimisticToggleOptions<ToggleData> = {
-    queryKey: ['toggle', 'a'],
-    mutationFn: originalRequest,
-    onUpdateCache: (data) => ({ active: !data.active }),
-    isActive: false,
-    successMessage: (wasActive) => `A:${wasActive}`,
-    errorMessage: 'A failure',
-    onSuccessCallback: originalSuccess,
-    invalidateQueries: [['extra', 'a']],
-  };
-  const host = await renderHook(
-    (options: UseOptimisticToggleOptions<ToggleData>) =>
-      useOptimisticToggle(options),
-    {
-      initialProps: originalOptions,
-      wrapper: ({ children }: PropsWithChildren) =>
-        createElement(QueryClientProvider, { client }, children),
-    },
-  );
-  let completion: Promise<unknown> = Promise.resolve();
-  await act(() => {
-    completion = host.result.current
-      .mutateAsync()
-      .catch((error: Error) => error);
-  });
-  await host.rerender({
-    ...originalOptions,
-    queryKey: ['toggle', 'b'],
-    mutationFn: nextRequest,
-    isActive: true,
-    successMessage: 'B success',
-    errorMessage: 'B failure',
-    onSuccessCallback: nextSuccess,
-    invalidateQueries: [['extra', 'b']],
-  });
-  await act(async () => {
-    cancellation.resolve(undefined);
-  });
-  expect(originalRequest).toHaveBeenCalledTimes(1);
-  expect(nextRequest).not.toHaveBeenCalled();
-  expect(client.getQueryData(['toggle', 'a'])).toEqual({ active: true });
-  expect(client.getQueryData(['toggle', 'b'])).toEqual({ active: true });
-  await act(async () => {
-    if (outcome === 'success') request.resolve({});
-    else request.reject(new Error('test failure'));
-    await completion;
-  });
-  expect(client.getQueryData(['toggle', 'b'])).toEqual({ active: true });
-  expect(client.getQueryData(['toggle', 'a'])).toEqual({
-    active: outcome === 'success',
-  });
-  expect(showToast).toHaveBeenCalledWith(
-    outcome === 'success' ? 'A:false' : 'A failure',
-  );
-  expect(originalSuccess).toHaveBeenCalledTimes(outcome === 'success' ? 1 : 0);
-  expect(nextSuccess).not.toHaveBeenCalled();
-  expect(invalidation.mock.calls).toEqual([
-    [{ queryKey: ['toggle', 'a'], exact: true }],
-    [{ queryKey: ['extra', 'a'] }],
-  ]);
-  await host.unmount();
-  client.clear();
-});
+test.each(['success', 'failure'] as const)(
+  'keeps %s bound to the invocation key, request, messages and callbacks after rerender',
+  async (outcome) => {
+    const client = createClient();
+    const cancellation = deferred<void>();
+    jest
+      .spyOn(client, 'cancelQueries')
+      .mockReturnValueOnce(cancellation.promise);
+    const invalidation = jest
+      .spyOn(client, 'invalidateQueries')
+      .mockResolvedValue(undefined);
+    const request = deferred<unknown>();
+    const originalRequest = jest.fn(() => request.promise);
+    const nextRequest = jest.fn(async () => ({}));
+    const originalSuccess = jest.fn();
+    const nextSuccess = jest.fn();
+    const originalOptions: UseOptimisticToggleOptions<ToggleData> = {
+      queryKey: ['toggle', 'a'],
+      mutationFn: originalRequest,
+      onUpdateCache: (data) => ({ active: !data.active }),
+      isActive: false,
+      successMessage: (wasActive) => `A:${wasActive}`,
+      errorMessage: 'A failure',
+      onSuccessCallback: originalSuccess,
+      invalidateQueries: [['extra', 'a']],
+    };
+    const host = await renderHook(
+      (options: UseOptimisticToggleOptions<ToggleData>) =>
+        useOptimisticToggle(options),
+      {
+        initialProps: originalOptions,
+        wrapper: ({ children }: PropsWithChildren) =>
+          createElement(QueryClientProvider, { client }, children),
+      },
+    );
+    let completion: Promise<unknown> = Promise.resolve();
+    await act(() => {
+      completion = host.result.current
+        .mutateAsync()
+        .catch((error: Error) => error);
+    });
+    await host.rerender({
+      ...originalOptions,
+      queryKey: ['toggle', 'b'],
+      mutationFn: nextRequest,
+      isActive: true,
+      successMessage: 'B success',
+      errorMessage: 'B failure',
+      onSuccessCallback: nextSuccess,
+      invalidateQueries: [['extra', 'b']],
+    });
+    await act(async () => {
+      cancellation.resolve(undefined);
+    });
+    expect(originalRequest).toHaveBeenCalledTimes(1);
+    expect(nextRequest).not.toHaveBeenCalled();
+    expect(client.getQueryData(['toggle', 'a'])).toEqual({ active: true });
+    expect(client.getQueryData(['toggle', 'b'])).toEqual({ active: true });
+    await act(async () => {
+      if (outcome === 'success') request.resolve({});
+      else request.reject(new Error('test failure'));
+      await completion;
+    });
+    expect(client.getQueryData(['toggle', 'b'])).toEqual({ active: true });
+    expect(client.getQueryData(['toggle', 'a'])).toEqual({
+      active: outcome === 'success',
+    });
+    expect(showToast).toHaveBeenCalledWith(
+      outcome === 'success' ? 'A:false' : 'A failure',
+    );
+    expect(originalSuccess).toHaveBeenCalledTimes(
+      outcome === 'success' ? 1 : 0,
+    );
+    expect(nextSuccess).not.toHaveBeenCalled();
+    expect(invalidation.mock.calls).toEqual([
+      [{ queryKey: ['toggle', 'a'], exact: true }],
+      [{ queryKey: ['extra', 'a'] }],
+    ]);
+    await host.unmount();
+    client.clear();
+  },
+);
 
 test('coalesces repeated invocation of one hook while its action is pending', async () => {
   const client = createClient();

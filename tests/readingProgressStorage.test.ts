@@ -2,7 +2,7 @@ import {
   createReadingProgressStorage,
   MAX_PROGRESS_ENTRIES,
   normalizeReadingProgress,
-} from '../storage/readingProgressStorage';
+} from '../src/storage/readingProgressStorage';
 
 function payload(offset: number, version = 1): string {
   return JSON.stringify({

@@ -1,19 +1,19 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { createElement } from 'react';
-import { followMember, voteContent } from '../api/zhihu';
-import { voteContent as voteContentDirect } from '../api/zhihu/voters';
-import { DownvoteButton } from '../components/DownvoteButton';
-import { LikeButton } from '../components/LikeButton';
-import { UserCard } from '../components/UserCard';
-import { updateContentInteractionCaches } from '../utils/contentCache';
+import { followMember, voteContent } from '../src/api/zhihu';
+import { voteContent as voteContentDirect } from '../src/api/zhihu/voters';
+import { DownvoteButton } from '../src/components/DownvoteButton';
+import { LikeButton } from '../src/components/LikeButton';
+import { UserCard } from '../src/components/UserCard';
+import { updateContentInteractionCaches } from '../src/utils/contentCache';
 
-jest.mock('../api/zhihu', () => ({
+jest.mock('../src/api/zhihu', () => ({
   voteContent: jest.fn(),
   followMember: jest.fn(),
   unfollowMember: jest.fn(),
   getVoteSuccessMessage: () => '合成结果',
 }));
-jest.mock('../api/zhihu/voters', () => ({
+jest.mock('../src/api/zhihu/voters', () => ({
   voteContent: jest.fn(),
   getVoteSuccessMessage: () => '合成结果',
 }));
@@ -24,7 +24,7 @@ jest.mock('@tanstack/react-query', () => ({
   }),
 }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   useAuthStore: (selector: (state: { cookies: string }) => unknown) =>
     selector({ cookies: 'synthetic-session' }),
 }));
@@ -37,16 +37,20 @@ jest.mock('react-native-reanimated', () => ({
   withSpring: (value: number) => value,
   withTiming: (value: number) => value,
 }));
-jest.mock('../components/VoteTriangle', () => ({ VoteTriangle: () => null }));
-jest.mock('../components/StableAvatar', () => ({ StableAvatar: () => null }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/VoteTriangle', () => ({
+  VoteTriangle: () => null,
+}));
+jest.mock('../src/components/StableAvatar', () => ({
+  StableAvatar: () => null,
+}));
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native = jest.requireActual('react-native');
   return { Text: native.Text, View: native.View, useThemeColor: () => '#00f' };
 });
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: (props: import('react-native').PressableProps) =>
     jest
       .requireActual('react')
@@ -57,10 +61,10 @@ jest.mock('../components/BouncyButton', () => ({
         },
       }),
 }));
-jest.mock('../utils/contentCache', () => ({
+jest.mock('../src/utils/contentCache', () => ({
   updateContentInteractionCaches: jest.fn(),
 }));
-jest.mock('../utils/toast', () => ({ showToast: jest.fn() }));
+jest.mock('../src/utils/toast', () => ({ showToast: jest.fn() }));
 
 beforeEach(() => jest.clearAllMocks());
 

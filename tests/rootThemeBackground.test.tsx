@@ -1,16 +1,16 @@
 import { act, render } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { StyleSheet, type ViewProps } from 'react-native';
-import RootLayout from '../app/_layout';
-import { resolveThemeColors } from '../constants/theme';
-import { useSettingsStore } from '../store/useSettingsStore';
-import { useThemeStore } from '../store/useThemeStore';
+import RootLayout from '../src/app/_layout';
+import { resolveThemeColors } from '../src/constants/theme';
+import { useSettingsStore } from '../src/store/useSettingsStore';
+import { useThemeStore } from '../src/store/useThemeStore';
 
 const mockNavigationMount = jest.fn();
 const mockNavigationUnmount = jest.fn();
 let mockPathname = '/';
 
-jest.mock('../global.css', () => ({}));
+jest.mock('../src/global.css', () => ({}));
 jest.mock('@sentry/react-native', () => ({
   wrap: (component: unknown) => component,
 }));
@@ -19,27 +19,6 @@ jest.mock(
   () => jest.requireActual('react-native').View,
 );
 jest.mock('nativewind', () => ({ vars: () => ({}) }));
-jest.mock('@react-navigation/native', () => ({
-  DarkTheme: { dark: true, colors: {} },
-  DefaultTheme: { dark: false, colors: {} },
-  ThemeProvider: ({
-    children,
-    value,
-  }: {
-    children: ReactNode;
-    value: { colors: { background: string } };
-  }) => {
-    const { View } = jest.requireActual('react-native');
-    return (
-      <View
-        testID="navigation-theme"
-        style={{ backgroundColor: value.colors.background }}
-      >
-        {children}
-      </View>
-    );
-  },
-}));
 jest.mock('expo-router', () => {
   const React = jest.requireActual('react');
   const { View } = jest.requireActual('react-native');
@@ -52,9 +31,28 @@ jest.mock('expo-router', () => {
   };
   Stack.Screen = () => null;
   return {
+    DarkTheme: { dark: true, colors: {} },
+    DefaultTheme: { dark: false, colors: {} },
+    ThemeProvider: ({
+      children,
+      value,
+    }: {
+      children: ReactNode;
+      value: { colors: { background: string } };
+    }) => {
+      const { View } = jest.requireActual('react-native');
+      return (
+        <View
+          testID="navigation-theme"
+          style={{ backgroundColor: value.colors.background }}
+        >
+          {children}
+        </View>
+      );
+    },
+    usePathname: () => mockPathname,
     Stack,
     useRouter: () => ({ push: jest.fn() }),
-    usePathname: () => mockPathname,
   };
 });
 jest.mock('react-native-gesture-handler', () => ({
@@ -78,19 +76,19 @@ jest.mock('expo-splash-screen', () => ({
   hideAsync: jest.fn(),
 }));
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
-jest.mock('../components/ClipboardLinkModal', () => ({
+jest.mock('../src/components/ClipboardLinkModal', () => ({
   ClipboardLinkModal: () => null,
 }));
-jest.mock('../components/CollectionSelectorModal', () => ({
+jest.mock('../src/components/CollectionSelectorModal', () => ({
   CollectionSelectorModal: () => null,
 }));
-jest.mock('../components/CollectionToastOverlay', () => ({
+jest.mock('../src/components/CollectionToastOverlay', () => ({
   CollectionToastOverlay: () => null,
 }));
-jest.mock('../components/DoubleTapActionSheet', () => ({
+jest.mock('../src/components/DoubleTapActionSheet', () => ({
   DoubleTapActionSheet: () => null,
 }));
-jest.mock('../components/GradientMaskOverlay', () => ({
+jest.mock('../src/components/GradientMaskOverlay', () => ({
   GradientMaskOverlay: ({
     topEdge,
     bottomEdge,
@@ -108,29 +106,31 @@ jest.mock('../components/GradientMaskOverlay', () => ({
     );
   },
 }));
-jest.mock('../components/UpdateChecker', () => ({ UpdateChecker: () => null }));
-jest.mock('../components/VerificationModal', () => ({
+jest.mock('../src/components/UpdateChecker', () => ({
+  UpdateChecker: () => null,
+}));
+jest.mock('../src/components/VerificationModal', () => ({
   VerificationModal: () => null,
 }));
-jest.mock('../hooks/useQueryConnectivity', () => ({
+jest.mock('../src/hooks/useQueryConnectivity', () => ({
   useQueryConnectivity: () => undefined,
 }));
-jest.mock('../utils/telemetry', () => ({
+jest.mock('../src/utils/telemetry', () => ({
   initializeTelemetry: jest.fn(),
   setTelemetryEnabled: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../store/useTelemetryStore', () => ({
+jest.mock('../src/store/useTelemetryStore', () => ({
   useTelemetryStore: jest
     .requireActual('zustand')
     .create(() => ({ enabled: false, hasHydrated: false })),
 }));
-jest.mock('../store/useThemeStore', () => ({
+jest.mock('../src/store/useThemeStore', () => ({
   useThemeStore: jest
     .requireActual('zustand')
     .create(() => ({ isDark: false, hasHydrated: true })),
   useSyncThemeWithNativeWind: () => undefined,
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: jest.requireActual('zustand').create(() => ({
     primaryColor: '#0084ff',
     readingBackground: 'default',

@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react-native';
 import type { NativeScrollEvent } from 'react-native';
-import { useReadingActionBar } from '../hooks/useReadingActionBar';
+import { useReadingActionBar } from '../src/hooks/useReadingActionBar';
 
-jest.mock('../components/ContentActionBar', () => ({
+jest.mock('../src/components/ContentActionBar', () => ({
   CONTENT_ACTION_BAR_HEIGHT: 48,
 }));
 jest.mock('react-native-reanimated', () => {

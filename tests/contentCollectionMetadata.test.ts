@@ -1,29 +1,31 @@
 import { QueryClient } from '@tanstack/react-query';
 import { AxiosHeaders, type AxiosResponse } from 'axios';
-import apiClient from '../api/client';
-import { getAnswer } from '../api/zhihu/answer';
-import { getArticle } from '../api/zhihu/article';
-import { getContentCollectionMetadata } from '../api/zhihu/contentCollection';
-import type { FeedItem } from '../api/zhihu/feed';
+import apiClient from '../src/api/client';
+import { getAnswer } from '../src/api/zhihu/answer';
+import { getArticle } from '../src/api/zhihu/article';
+import { getContentCollectionMetadata } from '../src/api/zhihu/contentCollection';
+import type { FeedItem } from '../src/api/zhihu/feed';
 import {
   getMemberRelations,
   getRecentMemberActivities,
   MEMBER_ANSWERS_INCLUDE,
-} from '../api/zhihu/member';
-import { getTopicFeed } from '../api/zhihu/topic';
-import { createAnswerPreviewEntry } from '../utils/answerPreviewEntry';
+} from '../src/api/zhihu/member';
+import { getTopicFeed } from '../src/api/zhihu/topic';
+import { createAnswerPreviewEntry } from '../src/utils/answerPreviewEntry';
 import {
   seedRichContentFromFeedItem,
   updateContentInteractionCaches,
-} from '../utils/contentCache';
+} from '../src/utils/contentCache';
 
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { get: jest.fn() },
 }));
-jest.mock('../store/useAuthStore', () => ({ getAuthSessionVersion: () => 1 }));
-jest.mock('../features/rich-content', () =>
-  jest.requireActual('../features/rich-content/queryPolicy'),
+jest.mock('../src/store/useAuthStore', () => ({
+  getAuthSessionVersion: () => 1,
+}));
+jest.mock('../src/features/rich-content', () =>
+  jest.requireActual('../src/features/rich-content/queryPolicy'),
 );
 
 const get = jest.mocked(apiClient.get);
@@ -87,9 +89,12 @@ test.each([
   ],
   [{}, {}],
   [null, {}],
-])('normalizes collection metadata without guessing unknown values: %j', (input, expected) => {
-  expect(getContentCollectionMetadata(input)).toEqual(expected);
-});
+])(
+  'normalizes collection metadata without guessing unknown values: %j',
+  (input, expected) => {
+    expect(getContentCollectionMetadata(input)).toEqual(expected);
+  },
+);
 
 test('clicked normalized feed entries retain known and unknown collection metadata', () => {
   expect(

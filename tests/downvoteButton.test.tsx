@@ -4,19 +4,21 @@ import {
   useQuery,
 } from '@tanstack/react-query';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import { voteContent } from '../api/zhihu/voters';
-import { DownvoteButton } from '../components/DownvoteButton';
-import { LikeButton } from '../components/LikeButton';
+import { voteContent } from '../src/api/zhihu/voters';
+import { DownvoteButton } from '../src/components/DownvoteButton';
+import { LikeButton } from '../src/components/LikeButton';
 
-jest.mock('../api/zhihu', () => ({
+jest.mock('../src/api/zhihu', () => ({
   voteContent: jest.fn(),
   getVoteSuccessMessage: () => '合成结果',
 }));
-jest.mock('../api/zhihu/voters', () => jest.requireMock('../api/zhihu'));
-jest.mock('../features/rich-content', () =>
-  jest.requireActual('../features/rich-content/queryPolicy'),
+jest.mock('../src/api/zhihu/voters', () =>
+  jest.requireMock('../src/api/zhihu'),
 );
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/features/rich-content', () =>
+  jest.requireActual('../src/features/rich-content/queryPolicy'),
+);
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => 1,
 }));
 jest.mock('react-native-reanimated', () => ({
@@ -28,7 +30,7 @@ jest.mock('react-native-reanimated', () => ({
   withSpring: (value: number) => value,
   withTiming: (value: number) => value,
 }));
-jest.mock('../components/VoteTriangle', () => {
+jest.mock('../src/components/VoteTriangle', () => {
   const react = jest.requireActual<typeof import('react')>('react');
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
@@ -48,19 +50,19 @@ jest.mock('../components/VoteTriangle', () => {
       }),
   };
 });
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native =
     jest.requireActual<typeof import('react-native')>('react-native');
   return { Text: native.Text, useThemeColor: () => '#1364cc' };
 });
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton:
     jest.requireActual<typeof import('react-native')>('react-native').Pressable,
 }));
-jest.mock('../utils/toast', () => ({ showToast: jest.fn() }));
+jest.mock('../src/utils/toast', () => ({ showToast: jest.fn() }));
 
 const previewKey = ['answer-preview-list', 'synthetic-answer', 1] as const;
 const clients: QueryClient[] = [];

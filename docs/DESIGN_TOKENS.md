@@ -1,6 +1,6 @@
 # 设计 Token
 
-应用颜色由 [`constants/designTokens.json`](../constants/designTokens.json) 的基础值与色阶配置，经 [`resolveThemeColors`](../constants/theme.ts) 统一生成。React Native、NativeWind、React Navigation 与富文本后端读取同一份运行时 palette。
+应用颜色由 [`src/constants/designTokens.json`](../src/constants/designTokens.json) 的基础值与色阶配置，经 [`resolveThemeColors`](../src/constants/theme.ts) 统一生成。React Native、NativeWind、React Navigation 与富文本后端读取同一份运行时 palette。
 
 ## 色阶与解析
 
@@ -44,7 +44,7 @@ const foreground = useThemeColor({}, 'onPrimary');
 
 NativeWind 根级 `vars` 同步同一 palette。不透明颜色以六位 HEX 转 RGB 通道，透明 token 直接传 CSS 颜色字符串；原生 `Text` 的 `bg-primary text-on-primary`、`bg-danger text-on-danger` 等实心填充使用成对语义 class。`Themed.Text` 自带行内文字颜色，按钮前景应显式传入 `style={{ color: onPrimary }}`，避免默认颜色覆盖普通 class。富文本仅从统一公共入口读取运行时主题。
 
-主题模式仍由 `store/useThemeStore.ts` 管理 `system / light / dark`，现有原生 Appearance 与 NativeWind 同步路径不变。本实现从应用内主色生成配色，没有接入 Android 壁纸颜色提取；纯 JS 算法在各平台共用，不新增原生模块。
+主题模式仍由 `src/store/useThemeStore.ts` 管理 `system / light / dark`，现有原生 Appearance 与 NativeWind 同步路径不变。本实现从应用内主色生成配色，没有接入 Android 壁纸颜色提取；纯 JS 算法在各平台共用，不新增原生模块。
 
 ## 验证
 

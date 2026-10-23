@@ -1,4 +1,4 @@
-import { planImageSlices } from '../features/content-export/imagePagination';
+import { planImageSlices } from '../src/features/content-export/imagePagination';
 
 test('splits at measured boundaries without losing or repeating vertical content', () => {
   const slices = planImageSlices(1750, [350, 500, 780, 1020, 1300, 1550], 600);

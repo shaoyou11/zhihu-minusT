@@ -1,7 +1,10 @@
 import { fireEvent, render } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
-import FeatureSettings from '../app/settings/features';
-import { type AppSettings, useSettingsStore } from '../store/useSettingsStore';
+import FeatureSettings from '../src/app/settings/features';
+import {
+  type AppSettings,
+  useSettingsStore,
+} from '../src/store/useSettingsStore';
 
 jest.mock(
   '@expo/vector-icons/Ionicons',
@@ -14,18 +17,18 @@ jest.mock('expo-router', () => ({
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../utils/haptics', () => ({
+jest.mock('../src/utils/haptics', () => ({
   impactAsync: jest.fn(),
   selectionAsync: jest.fn(),
   ImpactFeedbackStyle: { Medium: 'medium' },
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: jest
     .requireActual('zustand')
     .create((set: (settings: Partial<AppSettings>) => void) => ({

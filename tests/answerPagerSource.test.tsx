@@ -2,21 +2,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { CanceledError } from 'axios';
 import type { PropsWithChildren } from 'react';
-import apiClient from '../api/client';
-import { normalizeAnswerPagerPage } from '../api/zhihu/answerPager';
+import apiClient from '../src/api/client';
+import { normalizeAnswerPagerPage } from '../src/api/zhihu/answerPager';
 import {
   type AnswerPagerSourceOptions,
   useAnswerPagerSource,
-} from '../hooks/useAnswerPagerSource';
-import { useAuthStore } from '../store/useAuthStore';
+} from '../src/hooks/useAnswerPagerSource';
+import { useAuthStore } from '../src/store/useAuthStore';
 
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { get: jest.fn() },
 }));
 
 let mockSessionVersion = 1;
-jest.mock('../store/useAuthStore', () => {
+jest.mock('../src/store/useAuthStore', () => {
   const { create } = jest.requireActual('zustand');
   return {
     getAuthSessionVersion: () => mockSessionVersion,

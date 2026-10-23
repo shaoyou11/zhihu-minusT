@@ -1,15 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
-import { votePinPoll } from '../api/zhihu/pin';
-import { PinPollCard } from '../components/PinPollCard';
-import type { ZhihuPinPoll } from '../types/zhihu';
+import { votePinPoll } from '../src/api/zhihu/pin';
+import { PinPollCard } from '../src/components/PinPollCard';
+import type { ZhihuPinPoll } from '../src/types/zhihu';
 
-jest.mock('../api/zhihu/pin', () => ({ votePinPoll: jest.fn() }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/api/zhihu/pin', () => ({ votePinPoll: jest.fn() }));
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').View,
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native = jest.requireActual('react-native');
   return {
     Text: native.Text,
@@ -17,10 +17,10 @@ jest.mock('../components/Themed', () => {
     useThemeColor: () => '#345678',
   };
 });
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../constants/Colors', () => ({
+jest.mock('../src/constants/Colors', () => ({
   __esModule: true,
   default: {
     light: {

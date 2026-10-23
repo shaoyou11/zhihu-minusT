@@ -1,39 +1,39 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
-import { voteContent } from '../api/zhihu';
-import { useDoubleTapAction } from '../hooks/useDoubleTapAction';
-import { updateContentInteractionCaches } from '../utils/contentCache';
-import { impactAsync } from '../utils/haptics';
-import { showToast } from '../utils/toast';
+import { voteContent } from '../src/api/zhihu';
+import { useDoubleTapAction } from '../src/hooks/useDoubleTapAction';
+import { updateContentInteractionCaches } from '../src/utils/contentCache';
+import { impactAsync } from '../src/utils/haptics';
+import { showToast } from '../src/utils/toast';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush }),
 }));
-jest.mock('../api/zhihu', () => ({
+jest.mock('../src/api/zhihu', () => ({
   voteContent: jest.fn(),
   getVoteSuccessMessage: jest.fn(() => '已赞同'),
 }));
-jest.mock('../utils/contentCache', () => ({
+jest.mock('../src/utils/contentCache', () => ({
   updateContentInteractionCaches: jest.fn(),
 }));
-jest.mock('../utils/haptics', () => ({
+jest.mock('../src/utils/haptics', () => ({
   impactAsync: jest.fn(async () => {}),
   ImpactFeedbackStyle: { Light: 'light' },
 }));
-jest.mock('../utils/toast', () => ({ showToast: jest.fn() }));
-jest.mock('../utils/zhihuError', () => ({
+jest.mock('../src/utils/toast', () => ({ showToast: jest.fn() }));
+jest.mock('../src/utils/zhihuError', () => ({
   getZhihuErrorMessage: (error: unknown) =>
     error instanceof Error ? error.message : '失败',
 }));
 let mockDoubleTapAction: string | undefined;
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: (
     selector: (state: { doubleTapAction?: string }) => unknown,
   ) => selector({ doubleTapAction: mockDoubleTapAction }),
 }));
-jest.mock('../store/useDoubleTapSetupStore', () => ({
+jest.mock('../src/store/useDoubleTapSetupStore', () => ({
   useDoubleTapSetupStore: (
     selector: (state: { show: () => void }) => unknown,
   ) => selector({ show: mockShowSetup }),

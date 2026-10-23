@@ -1,13 +1,13 @@
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
-import type { AnswerDetail } from '../api/zhihu/answer';
-import { normalizeZhihuAppQuestionFeeds } from '../api/zhihu/questionFeed';
-import { RICH_CONTENT_STALE_TIME } from '../features/rich-content/queryPolicy';
-import { seedAnswerDetailFromList } from '../utils/contentCache';
+import type { AnswerDetail } from '../src/api/zhihu/answer';
+import { normalizeZhihuAppQuestionFeeds } from '../src/api/zhihu/questionFeed';
+import { RICH_CONTENT_STALE_TIME } from '../src/features/rich-content/queryPolicy';
+import { seedAnswerDetailFromList } from '../src/utils/contentCache';
 
-jest.mock('../features/rich-content', () =>
-  jest.requireActual('../features/rich-content/queryPolicy'),
+jest.mock('../src/features/rich-content', () =>
+  jest.requireActual('../src/features/rich-content/queryPolicy'),
 );
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => 1,
 }));
 

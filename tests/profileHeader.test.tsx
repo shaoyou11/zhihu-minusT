@@ -1,9 +1,9 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
-import type { ZhihuMember } from '../api/zhihu';
-import { ProfileHeader } from '../components/profile/ProfileHeader';
-import { resolveThemeColors } from '../constants/theme';
-import { useSettingsStore } from '../store/useSettingsStore';
-import { contrastRatio } from '../utils/colorContrast';
+import type { ZhihuMember } from '../src/api/zhihu';
+import { ProfileHeader } from '../src/components/profile/ProfileHeader';
+import { resolveThemeColors } from '../src/constants/theme';
+import { useSettingsStore } from '../src/store/useSettingsStore';
+import { contrastRatio } from '../src/utils/colorContrast';
 
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
 jest.mock('expo-linear-gradient', () => ({
@@ -14,10 +14,10 @@ jest.mock('react-native-reanimated', () => ({
   default: { View: jest.requireActual('react-native').View },
   useAnimatedStyle: (factory: () => unknown) => factory(),
 }));
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
-jest.mock('../store/useSettingsStore', () => ({
+jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: jest.requireActual('zustand').create(() => ({
     primaryColor: null,
     readingBackground: 'default',
@@ -27,7 +27,7 @@ jest.mock('../store/useSettingsStore', () => ({
     lineHeightScale: 1.5,
   })),
 }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
 

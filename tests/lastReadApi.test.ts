@@ -1,12 +1,12 @@
 import axios, { CanceledError } from 'axios';
-import apiClient from '../api/client';
+import apiClient from '../src/api/client';
 import {
   readContents,
   touchAnswerRead,
   touchAnswersRead,
-} from '../api/zhihu/lastRead';
+} from '../src/api/zhihu/lastRead';
 
-jest.mock('../api/client', () => ({
+jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { post: jest.fn() },
   hasAuthenticationCookie: (cookie: string | null | undefined) =>
@@ -15,7 +15,7 @@ jest.mock('../api/client', () => ({
 
 let mockSessionVersion = 3;
 let mockCookies = 'z_c0=synthetic-session';
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
   useAuthStore: { getState: () => ({ cookies: mockCookies }) },
 }));
@@ -100,13 +100,13 @@ test('posts a whole batch once, preserving large string IDs and first occurrence
   expect(ids[0]).toBe(` ${ANSWER_ID} `);
 });
 
-test.each([
-  { ids: [] },
-  { ids: ['', ' \n\t '] },
-])('skips batches without answer IDs (%#)', async ({ ids }) => {
-  await touchAnswersRead(ids);
-  expect(post).not.toHaveBeenCalled();
-});
+test.each([{ ids: [] }, { ids: ['', ' \n\t '] }])(
+  'skips batches without answer IDs (%#)',
+  async ({ ids }) => {
+    await touchAnswersRead(ids);
+    expect(post).not.toHaveBeenCalled();
+  },
+);
 
 test('rejects a whole outgoing batch after its originating account changes', async () => {
   await expect(
@@ -175,23 +175,22 @@ test('rejects an outgoing account event before creating a request for the curren
   expect(post).not.toHaveBeenCalled();
 });
 
-test.each([
-  '',
-  'd_c0=synthetic-tracking',
-  'z_c0=; d_c0=synthetic-tracking',
-])('skips unauthenticated requests (%#)', async (cookies) => {
-  mockCookies = cookies;
-  await touchAnswerRead('42');
-  expect(post).not.toHaveBeenCalled();
-});
+test.each(['', 'd_c0=synthetic-tracking', 'z_c0=; d_c0=synthetic-tracking'])(
+  'skips unauthenticated requests (%#)',
+  async (cookies) => {
+    mockCookies = cookies;
+    await touchAnswerRead('42');
+    expect(post).not.toHaveBeenCalled();
+  },
+);
 
-test.each([
-  '',
-  ' \n\t ',
-])('does not report an empty answer ID (%#)', async (id) => {
-  await touchAnswerRead(id);
-  expect(post).not.toHaveBeenCalled();
-});
+test.each(['', ' \n\t '])(
+  'does not report an empty answer ID (%#)',
+  async (id) => {
+    await touchAnswerRead(id);
+    expect(post).not.toHaveBeenCalled();
+  },
+);
 
 test('propagates a failed request so the reading hook can handle it without blocking content', async () => {
   const failure = new Error('Synthetic request failure');

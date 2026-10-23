@@ -25,9 +25,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: 22.x
-  EAS_CLI_VERSION: 23.0.0
+  NODE_VERSION: 24.x
+  EAS_CLI_VERSION: 25.3.0
   EAS_PROFILE: preview
+  SENTRY_DISABLE_AUTO_UPLOAD: "false"
+  SENTRY_ALLOW_FAILURE: "false"
 
 jobs:
   quality:
@@ -149,7 +151,9 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Build APKs
-        run: eas build --platform android --profile "$EAS_PROFILE" --local --non-interactive --output="${{ steps.android-artifact.outputs.archive }}"
+        run: |
+          unset SENTRY_NO_UPLOAD SENTRY_RELEASE SENTRY_DIST
+          eas build --platform android --profile "$EAS_PROFILE" --local --non-interactive --output="${{ steps.android-artifact.outputs.archive }}"
 
       - name: Extract, verify and name APKs
         env:
@@ -209,6 +213,8 @@ jobs:
     name: Build unsigned iOS IPA
     needs: quality
     runs-on: macos-26
+    env:
+      SENTRY_CLI_RN_XCODE_EXTRA_ARGS: --force-foreground --wait
 
     steps:
       - name: Checkout repository
@@ -276,6 +282,7 @@ jobs:
 
       - name: Build unsigned iOS app
         run: |
+          unset SENTRY_NO_UPLOAD SENTRY_RELEASE SENTRY_DIST
           cd ios
           echo "export NODE_BINARY=$(which node)" > .xcode.env.local
 
@@ -305,6 +312,13 @@ jobs:
             exit "$EXIT_CODE"
           fi
 
+          # sentry-cli 在上传成功后输出此报告；未生成 source map 或跳过上传不能通过。
+          if ! grep -Fq 'Source Map Upload Report' xcodebuild.log; then
+            echo "Sentry source map upload report missing from the iOS build."
+            exit 1
+          fi
+          echo "Sentry source map upload completed and server processing verified."
+
       - name: Package unsigned IPA
         id: ios-artifact
         run: |
@@ -320,6 +334,7 @@ jobs:
 
           mkdir -p "${ARTIFACT_DIR}/Payload"
           cp -R "$APP_PATH" "${ARTIFACT_DIR}/Payload/"
+          python3 scripts/strip-ios-app.py "${ARTIFACT_DIR}/Payload/$(basename "$APP_PATH")"
           cd "$ARTIFACT_DIR"
           zip -r "$IPA_NAME" Payload
           echo "path=${ARTIFACT_DIR}/${IPA_NAME}" >> "$GITHUB_OUTPUT"

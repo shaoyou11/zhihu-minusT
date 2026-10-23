@@ -1,7 +1,11 @@
 import * as Sentry from '@sentry/react-native';
-import { rememberDiagnosticContext } from '../utils/diagnosticContext';
-import { recordDiagnosticEvent } from '../utils/diagnosticLogs';
-import { sanitizeSentryEvent } from '../utils/telemetrySanitizer';
+import { rememberDiagnosticContext } from '../src/utils/diagnosticContext';
+import { recordDiagnosticEvent } from '../src/utils/diagnosticLogs';
+import {
+  getSentryBuildIdentity,
+  sanitizeSentryEvent,
+  type TelemetryBuildContext,
+} from '../src/utils/telemetrySanitizer';
 
 jest.mock('@sentry/react-native', () => {
   const sdk = jest.requireActual('@sentry/react-native');
@@ -12,13 +16,14 @@ jest.mock('expo-constants', () => ({
   default: {
     expoConfig: {
       version: '0.9.2',
+      ios: { bundleIdentifier: 'com.example.zhihu', buildNumber: '1' },
       extra: { sentryDsn: 'https://synthetic@example.invalid/1' },
     },
-    platform: { ios: {} },
+    platform: { ios: { buildNumber: '1' } },
   },
 }));
 jest.mock('expo-device', () => ({ osVersion: '18.0' }));
-jest.mock('../utils/diagnosticLogs', () => ({
+jest.mock('../src/utils/diagnosticLogs', () => ({
   recordDiagnosticError: jest.fn(),
   recordDiagnosticEvent: jest.fn(),
 }));
@@ -44,6 +49,22 @@ jest.mock(
 test('the actual Sentry JS client captures a sanitized error with native collection disabled', async () => {
   const sent: Sentry.Event[] = [];
   const envelopes: unknown[] = [];
+  const build: TelemetryBuildContext = {
+    applicationId: 'com.example.zhihu',
+    appVersion: '0.7.0',
+    buildNumber: '37',
+    osVersion: '18.0',
+    platform: 'ios',
+    environment: 'production',
+  };
+  const runtime = globalThis as typeof globalThis & {
+    _sentryDebugIds?: Record<string, string>;
+  };
+  const originalDebugIds = runtime._sentryDebugIds;
+  const debugId = '12345678-1234-1234-1234-123456789abc';
+  runtime._sentryDebugIds = {
+    'Error\n    at bundle (app:///index.android.bundle:1:1)': debugId,
+  };
   Sentry.init({
     dsn: 'https://synthetic@example.invalid/1',
     debug: false,
@@ -61,16 +82,11 @@ test('the actual Sentry JS client captures a sanitized error with native collect
     enableLogs: false,
     attachScreenshot: false,
     attachViewHierarchy: false,
-    release: 'zhihu-minus-minus@0.7.0',
+    ...getSentryBuildIdentity(build),
     environment: 'production',
     beforeSend: (event, hint) => {
       hint.attachments = [];
-      return sanitizeSentryEvent(event, {
-        appVersion: '0.7.0',
-        osVersion: '18.0',
-        platform: 'ios',
-        environment: 'production',
-      });
+      return sanitizeSentryEvent(event, build);
     },
     // A local transport exercises SDK serialization without sending data.
     transport: () => ({
@@ -99,6 +115,10 @@ test('the actual Sentry JS client captures a sanitized error with native collect
     });
     await Sentry.getClient()?.flush(2000);
     expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      release: 'com.example.zhihu@0.7.0+37',
+      dist: '37',
+    });
     expect(JSON.stringify(sent)).not.toContain(privateValue);
     expect(JSON.stringify(envelopes)).not.toContain(privateValue);
     expect(sent[0].exception?.values?.[0]).toMatchObject({
@@ -108,8 +128,18 @@ test('the actual Sentry JS client captures a sanitized error with native collect
         frames: [{ filename: 'app:///main.jsbundle', lineno: 12, colno: 7 }],
       },
     });
+    const frame = sent[0].exception?.values?.[0].stacktrace?.frames?.[0];
+    expect(sent[0].debug_meta?.images).toEqual([
+      {
+        type: 'sourcemap',
+        debug_id: debugId,
+        code_file: frame?.abs_path,
+      },
+    ]);
+    expect(frame?.abs_path).toBe('app:///main.jsbundle');
   } finally {
     await Sentry.close();
+    runtime._sentryDebugIds = originalDebugIds;
   }
 });
 
@@ -143,7 +173,7 @@ test('the actual SDK honors consent and retains sanitized diagnostics through ca
       }),
     });
   });
-  const telemetry: typeof import('../utils/telemetry') = require('../utils/telemetry');
+  const telemetry: typeof import('../src/utils/telemetry') = require('../src/utils/telemetry');
   jest.mocked(recordDiagnosticEvent).mockClear();
   try {
     // Identical before/after sanitization deliberately exercises the SDK's
@@ -160,6 +190,10 @@ test('the actual SDK honors consent and retains sanitized diagnostics through ca
     await telemetry.setTelemetryEnabled(true);
     await Sentry.getClient()?.flush(2000);
     expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      release: 'com.example.zhihu@0.9.2+1',
+      dist: '1',
+    });
     expect(recordDiagnosticEvent).toHaveBeenCalledTimes(1);
 
     let resume: (() => void) | undefined;

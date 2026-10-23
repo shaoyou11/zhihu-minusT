@@ -1,8 +1,8 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
-import { fetchUpdateText } from '../api/githubReleases';
 import { inspectApk } from '../modules/zhihu-persistence';
+import { fetchUpdateText } from '../src/api/githubReleases';
 import {
   type ApkUpdate,
   cleanupUpdatePartials,
@@ -12,7 +12,7 @@ import {
   installVerifiedApk,
   UPDATE_CANCEL_TIMEOUT_MS,
   UPDATE_DOWNLOAD_TIMEOUT_MS,
-} from '../utils/updateDownload';
+} from '../src/utils/updateDownload';
 
 jest.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///test/cache/',
@@ -32,7 +32,7 @@ jest.mock('expo-sharing', () => ({
   shareAsync: jest.fn(async () => undefined),
 }));
 jest.mock('../modules/zhihu-persistence', () => ({ inspectApk: jest.fn() }));
-jest.mock('../api/githubReleases', () => ({ fetchUpdateText: jest.fn() }));
+jest.mock('../src/api/githubReleases', () => ({ fetchUpdateText: jest.fn() }));
 
 const name = 'zhihu-minus-minus-v0.8.0-arm64-v8a.apk';
 const sha = 'a'.repeat(64);
@@ -79,55 +79,58 @@ beforeEach(() => {
 });
 afterEach(() => jest.useRealTimers());
 
-test.each([
-  name,
-  name.replace('-arm64-', '-preview-arm64-'),
-])('verifies %s before moving the private partial file and launching installation', async (assetName) => {
-  await downloadAndInstallVerifiedApk({
-    ...update,
-    asset: {
-      ...update.asset,
-      name: assetName,
-      browser_download_url: update.asset.browser_download_url.replace(
-        name,
-        assetName,
-      ),
-    },
-  });
-  expect(inspectApk).toHaveBeenCalledWith(expect.stringMatching(/\.part$/));
-  expect(FileSystem.moveAsync).toHaveBeenCalledWith({
-    from: targetUri,
-    to: expect.stringMatching(/\.apk$/),
-  });
-  expect(IntentLauncher.startActivityAsync).toHaveBeenCalledWith(
-    'android.intent.action.VIEW',
-    {
-      data: 'content://synthetic-verified-apk',
-      flags: 1 | 0x10000000,
-      type: 'application/vnd.android.package-archive',
-    },
-  );
-  expect(FileSystem.deleteAsync).toHaveBeenCalledWith(targetUri, {
-    idempotent: true,
-  });
-});
+test.each([name, name.replace('-arm64-', '-preview-arm64-')])(
+  'verifies %s before moving the private partial file and launching installation',
+  async (assetName) => {
+    await downloadAndInstallVerifiedApk({
+      ...update,
+      asset: {
+        ...update.asset,
+        name: assetName,
+        browser_download_url: update.asset.browser_download_url.replace(
+          name,
+          assetName,
+        ),
+      },
+    });
+    expect(inspectApk).toHaveBeenCalledWith(expect.stringMatching(/\.part$/));
+    expect(FileSystem.moveAsync).toHaveBeenCalledWith({
+      from: targetUri,
+      to: expect.stringMatching(/\.apk$/),
+    });
+    expect(IntentLauncher.startActivityAsync).toHaveBeenCalledWith(
+      'android.intent.action.VIEW',
+      {
+        data: 'content://synthetic-verified-apk',
+        flags: 1 | 0x10000000,
+        type: 'application/vnd.android.package-archive',
+      },
+    );
+    expect(FileSystem.deleteAsync).toHaveBeenCalledWith(targetUri, {
+      idempotent: true,
+    });
+  },
+);
 
 test.each([
   { size: 63, sha256: sha, isZip: true },
   { size: 64, sha256: 'b'.repeat(64), isZip: true },
   { size: 64, sha256: sha, isZip: false },
-])('rejects incomplete, altered or non-ZIP packages without opening an installer', async (inspection) => {
-  jest.mocked(inspectApk).mockResolvedValue(inspection);
-  await expect(downloadAndInstallVerifiedApk(update)).rejects.toMatchObject({
-    code: 'integrity',
-  });
-  expect(FileSystem.moveAsync).not.toHaveBeenCalled();
-  expect(IntentLauncher.startActivityAsync).not.toHaveBeenCalled();
-  expect(Sharing.shareAsync).not.toHaveBeenCalled();
-  expect(FileSystem.deleteAsync).toHaveBeenCalledWith(targetUri, {
-    idempotent: true,
-  });
-});
+])(
+  'rejects incomplete, altered or non-ZIP packages without opening an installer',
+  async (inspection) => {
+    jest.mocked(inspectApk).mockResolvedValue(inspection);
+    await expect(downloadAndInstallVerifiedApk(update)).rejects.toMatchObject({
+      code: 'integrity',
+    });
+    expect(FileSystem.moveAsync).not.toHaveBeenCalled();
+    expect(IntentLauncher.startActivityAsync).not.toHaveBeenCalled();
+    expect(Sharing.shareAsync).not.toHaveBeenCalled();
+    expect(FileSystem.deleteAsync).toHaveBeenCalledWith(targetUri, {
+      idempotent: true,
+    });
+  },
+);
 
 test('uses SHA256SUMS for older assets whose API digest is absent', async () => {
   jest.mocked(fetchUpdateText).mockResolvedValue(`${sha}  ./${name}\n`);
@@ -212,46 +215,46 @@ test('ignores an inspection that completes after cancellation', async () => {
   expect(IntentLauncher.startActivityAsync).not.toHaveBeenCalled();
 });
 
-test.each([
-  'resolve',
-  'reject',
-] as const)('removes a cancelled partial again if the native transfer finishes late with %s', async (outcome) => {
-  let finish: (() => void) | undefined;
-  let started: (() => void) | undefined;
-  const began = new Promise<void>((resolve) => {
-    started = resolve;
-  });
-  download.mockImplementation(
-    () =>
-      new Promise((resolve, reject) => {
-        started?.();
-        finish = () => {
-          if (outcome === 'resolve')
-            resolve({
-              uri: targetUri,
-              status: 200,
-              headers: {},
-              mimeType: 'application/vnd.android.package-archive',
-            });
-          else reject(new Error('synthetic late network error'));
-        };
-      }),
-  );
-  const controller = new AbortController();
-  const pending = downloadVerifiedApk(update, { signal: controller.signal });
-  const failed = expect(pending).rejects.toMatchObject({ code: 'cancelled' });
-  await began;
-  controller.abort();
-  await failed;
-  jest.mocked(FileSystem.deleteAsync).mockClear();
-  finish?.();
-  await Promise.resolve();
-  await Promise.resolve();
-  expect(FileSystem.deleteAsync).toHaveBeenCalledWith(targetUri, {
-    idempotent: true,
-  });
-  expect(inspectApk).not.toHaveBeenCalled();
-});
+test.each(['resolve', 'reject'] as const)(
+  'removes a cancelled partial again if the native transfer finishes late with %s',
+  async (outcome) => {
+    let finish: (() => void) | undefined;
+    let started: (() => void) | undefined;
+    const began = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    download.mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          started?.();
+          finish = () => {
+            if (outcome === 'resolve')
+              resolve({
+                uri: targetUri,
+                status: 200,
+                headers: {},
+                mimeType: 'application/vnd.android.package-archive',
+              });
+            else reject(new Error('synthetic late network error'));
+          };
+        }),
+    );
+    const controller = new AbortController();
+    const pending = downloadVerifiedApk(update, { signal: controller.signal });
+    const failed = expect(pending).rejects.toMatchObject({ code: 'cancelled' });
+    await began;
+    controller.abort();
+    await failed;
+    jest.mocked(FileSystem.deleteAsync).mockClear();
+    finish?.();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(FileSystem.deleteAsync).toHaveBeenCalledWith(targetUri, {
+      idempotent: true,
+    });
+    expect(inspectApk).not.toHaveBeenCalled();
+  },
+);
 
 test('cancels a stalled content URI operation without ever opening the installer', async () => {
   let started: (() => void) | undefined;
@@ -493,37 +496,39 @@ test('can retain a failed installation for retry without removing the verified f
   expect(IntentLauncher.startActivityAsync).toHaveBeenCalledTimes(2);
 });
 
-test.each([
-  false,
-  true,
-])('cancellation before installer handoff respects a previous handoff (%s)', async (alreadyHandedOff) => {
-  const verified = await downloadVerifiedApk(update);
-  jest.mocked(FileSystem.deleteAsync).mockClear();
-  let started: (() => void) | undefined;
-  const began = new Promise<void>((resolve) => {
-    started = resolve;
-  });
-  jest.mocked(FileSystem.getContentUriAsync).mockImplementationOnce(() => {
-    started?.();
-    return new Promise(() => undefined);
-  });
-  const controller = new AbortController();
-  const operation = installVerifiedApk(verified, {
-    signal: controller.signal,
-    retainOnFailure: true,
-    alreadyHandedOff,
-  });
-  const failed = expect(operation).rejects.toMatchObject({ code: 'cancelled' });
-  await began;
-  controller.abort();
-  await failed;
-  if (alreadyHandedOff) expect(FileSystem.deleteAsync).not.toHaveBeenCalled();
-  else
-    expect(FileSystem.deleteAsync).toHaveBeenCalledWith(verified, {
-      idempotent: true,
+test.each([false, true])(
+  'cancellation before installer handoff respects a previous handoff (%s)',
+  async (alreadyHandedOff) => {
+    const verified = await downloadVerifiedApk(update);
+    jest.mocked(FileSystem.deleteAsync).mockClear();
+    let started: (() => void) | undefined;
+    const began = new Promise<void>((resolve) => {
+      started = resolve;
     });
-  expect(IntentLauncher.startActivityAsync).not.toHaveBeenCalled();
-});
+    jest.mocked(FileSystem.getContentUriAsync).mockImplementationOnce(() => {
+      started?.();
+      return new Promise(() => undefined);
+    });
+    const controller = new AbortController();
+    const operation = installVerifiedApk(verified, {
+      signal: controller.signal,
+      retainOnFailure: true,
+      alreadyHandedOff,
+    });
+    const failed = expect(operation).rejects.toMatchObject({
+      code: 'cancelled',
+    });
+    await began;
+    controller.abort();
+    await failed;
+    if (alreadyHandedOff) expect(FileSystem.deleteAsync).not.toHaveBeenCalled();
+    else
+      expect(FileSystem.deleteAsync).toHaveBeenCalledWith(verified, {
+        idempotent: true,
+      });
+    expect(IntentLauncher.startActivityAsync).not.toHaveBeenCalled();
+  },
+);
 
 test('discard only accepts updater-owned verified file paths', async () => {
   const verified = await downloadVerifiedApk(update);

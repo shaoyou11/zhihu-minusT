@@ -2,12 +2,14 @@ import { act, fireEvent, render } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { createElement } from 'react';
 import { Alert } from 'react-native';
-import { type UploadedImage, uploadImage } from '../api/zhihu/image';
-import { PublishingEditor } from '../features/publishing/PublishingEditor';
+import { type UploadedImage, uploadImage } from '../src/api/zhihu/image';
+import { PublishingEditor } from '../src/features/publishing/PublishingEditor';
 
-jest.mock('../api/zhihu/image', () => ({ uploadImage: jest.fn() }));
-jest.mock('../store/useAuthStore', () => ({ getAuthSessionVersion: () => 0 }));
-jest.mock('../storage/publishingDraftRepository', () => ({
+jest.mock('../src/api/zhihu/image', () => ({ uploadImage: jest.fn() }));
+jest.mock('../src/store/useAuthStore', () => ({
+  getAuthSessionVersion: () => 0,
+}));
+jest.mock('../src/storage/publishingDraftRepository', () => ({
   publishingDraftRepository: {
     retainAsset: jest.fn(async (_scope, id, asset) => ({
       ...asset,
@@ -21,15 +23,15 @@ jest.mock('expo-image-picker', () => ({
   launchImageLibraryAsync: jest.fn(),
 }));
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
-jest.mock('../features/rich-content', () => ({ ZhihuContent: () => null }));
-jest.mock('../components/useColorScheme', () => ({
+jest.mock('../src/features/rich-content', () => ({ ZhihuContent: () => null }));
+jest.mock('../src/components/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
-jest.mock('../components/Themed', () => {
+jest.mock('../src/components/Themed', () => {
   const native = jest.requireActual('react-native');
   return { Text: native.Text, View: native.View };
 });
-jest.mock('../components/BouncyButton', () => ({
+jest.mock('../src/components/BouncyButton', () => ({
   BouncyButton: jest.requireActual('react-native').Pressable,
 }));
 

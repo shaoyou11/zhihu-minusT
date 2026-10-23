@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react-native';
 import type { SharedValue } from 'react-native-reanimated';
-import { useDetailHeaderState } from '../hooks/useDetailHeaderState';
+import { useDetailHeaderState } from '../src/hooks/useDetailHeaderState';
 
 jest.mock('react-native-reanimated', () => {
   const react = jest.requireActual<typeof import('react')>('react');

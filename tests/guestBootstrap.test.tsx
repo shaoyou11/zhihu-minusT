@@ -15,12 +15,12 @@ import {
 import {
   GUEST_BOOTSTRAP_READY_MESSAGE,
   GuestBootstrap,
-} from '../components/GuestBootstrap';
+} from '../src/components/GuestBootstrap';
 import {
   GUEST_BOOTSTRAP_TIMEOUT_MS,
   useGuestBootstrap,
-} from '../hooks/useGuestBootstrap';
-import { resolveLocalAccountKey } from '../utils/localAccount';
+} from '../src/hooks/useGuestBootstrap';
+import { resolveLocalAccountKey } from '../src/utils/localAccount';
 
 let mockQueryClient: QueryClient;
 let mockSessionVersion = 1;
@@ -36,11 +36,11 @@ jest.mock('@preeternal/react-native-cookie-manager', () => ({
   __esModule: true,
   default: { get: jest.fn() },
 }));
-jest.mock('../store/useAuthStore', () => ({
+jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
   useAuthStore: { getState: () => ({ cookies: mockAuthCookie }) },
 }));
-jest.mock('../components/Themed', () => ({
+jest.mock('../src/components/Themed', () => ({
   View: jest.requireActual<typeof import('react-native')>('react-native').View,
 }));
 jest.mock('react-native-webview', () => ({
@@ -286,58 +286,63 @@ test('later cookie success retries only active failed guest feeds', async () => 
 test.each([
   { id: 'expired-account', url_token: 'expired-token' },
   { url_token: 'expired-token' },
-])('recovers a guest feed after authentication expires with retained profile %j', async (retainedProfile) => {
-  mockAuthCookie = 'synthetic-authenticated-cookie';
-  const accountKey = [
-    'zhihu-feed',
-    resolveLocalAccountKey(retainedProfile, true),
-    'recommend',
-  ];
-  mockQueryClient.setQueryData(accountKey, 'private-account-feed');
-  const host = await renderHook(() => useGuestBootstrap(!mockAuthCookie));
-  await act(() => {
-    // A rejected session refresh clears authentication but retains profile data.
-    mockAuthCookie = null;
-    mockSessionVersion += 1;
-  });
-  await host.rerender(undefined);
-  await act(() => host.result.current.attempt?.complete(false));
-
-  const guestKey = [
-    'zhihu-feed',
-    resolveLocalAccountKey(retainedProfile, Boolean(mockAuthCookie)),
-    'recommend',
-  ];
-  const queryFn = jest
-    .fn()
-    .mockRejectedValueOnce(new Error('Missing anonymous cookie'))
-    .mockResolvedValue('recovered-guest-feed');
-  await expect(
-    mockQueryClient.fetchQuery({ queryKey: guestKey, queryFn }),
-  ).rejects.toThrow('Missing anonymous cookie');
-  const observer = new QueryObserver(mockQueryClient, {
-    queryKey: guestKey,
-    queryFn,
-    retryOnMount: false,
-    staleTime: Infinity,
-  });
-  const unsubscribe = observer.subscribe(() => {});
-  try {
-    getCookies.mockResolvedValueOnce(guestCookies);
+])(
+  'recovers a guest feed after authentication expires with retained profile %j',
+  async (retainedProfile) => {
+    mockAuthCookie = 'synthetic-authenticated-cookie';
+    const accountKey = [
+      'zhihu-feed',
+      resolveLocalAccountKey(retainedProfile, true),
+      'recommend',
+    ];
+    mockQueryClient.setQueryData(accountKey, 'private-account-feed');
+    const host = await renderHook(() => useGuestBootstrap(!mockAuthCookie));
     await act(() => {
-      onlineManager.setOnline(false);
-      onlineManager.setOnline(true);
+      // A rejected session refresh clears authentication but retains profile data.
+      mockAuthCookie = null;
+      mockSessionVersion += 1;
     });
-    expect(queryFn).toHaveBeenCalledTimes(2);
-    expect(guestKey[1]).toBe('guest');
-    expect(mockQueryClient.getQueryData(guestKey)).toBe('recovered-guest-feed');
-    expect(mockQueryClient.getQueryData(accountKey)).toBe(
-      'private-account-feed',
-    );
-  } finally {
-    unsubscribe();
-  }
-});
+    await host.rerender(undefined);
+    await act(() => host.result.current.attempt?.complete(false));
+
+    const guestKey = [
+      'zhihu-feed',
+      resolveLocalAccountKey(retainedProfile, Boolean(mockAuthCookie)),
+      'recommend',
+    ];
+    const queryFn = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Missing anonymous cookie'))
+      .mockResolvedValue('recovered-guest-feed');
+    await expect(
+      mockQueryClient.fetchQuery({ queryKey: guestKey, queryFn }),
+    ).rejects.toThrow('Missing anonymous cookie');
+    const observer = new QueryObserver(mockQueryClient, {
+      queryKey: guestKey,
+      queryFn,
+      retryOnMount: false,
+      staleTime: Infinity,
+    });
+    const unsubscribe = observer.subscribe(() => {});
+    try {
+      getCookies.mockResolvedValueOnce(guestCookies);
+      await act(() => {
+        onlineManager.setOnline(false);
+        onlineManager.setOnline(true);
+      });
+      expect(queryFn).toHaveBeenCalledTimes(2);
+      expect(guestKey[1]).toBe('guest');
+      expect(mockQueryClient.getQueryData(guestKey)).toBe(
+        'recovered-guest-feed',
+      );
+      expect(mockQueryClient.getQueryData(accountKey)).toBe(
+        'private-account-feed',
+      );
+    } finally {
+      unsubscribe();
+    }
+  },
+);
 
 test('later native cookie success replaces a hanging guest read with no data', async () => {
   let firstSignal: AbortSignal | undefined;
@@ -389,33 +394,36 @@ test.each([
   ['evil_d_c0=synthetic', false],
   ['d_c0=', false],
   ['other=value; d_c0=', false],
-] as const)('the generated WebView script recognizes %s correctly', async (cookie, ready) => {
-  const host = await render(
-    <GuestBootstrap attempt={{ id: 1, complete: jest.fn() }} />,
-  );
-  const script: unknown =
-    host.getByTestId('guest-webview').props.injectedJavaScript;
-  if (typeof script !== 'string') throw new Error('Missing bootstrap script');
-  const document = { cookie };
-  const postMessage = jest.fn();
-  const setInterval = jest.fn((_callback: () => void, _delay: number) => 1);
-  const clearInterval = jest.fn();
-  runInNewContext(script, {
-    document,
-    window: { ReactNativeWebView: { postMessage } },
-    setInterval,
-    clearInterval,
-  });
-  if (ready) {
-    expect(postMessage).toHaveBeenCalledTimes(1);
-    expect(postMessage).toHaveBeenCalledWith(GUEST_BOOTSTRAP_READY_MESSAGE);
-    expect(setInterval).not.toHaveBeenCalled();
-  } else {
-    expect(postMessage).not.toHaveBeenCalled();
-    expect(setInterval).toHaveBeenCalledTimes(1);
-    document.cookie = 'other=value; d_c0=synthetic';
-    setInterval.mock.calls[0]?.[0]();
-    expect(postMessage).toHaveBeenCalledWith(GUEST_BOOTSTRAP_READY_MESSAGE);
-    expect(clearInterval).toHaveBeenCalledWith(1);
-  }
-});
+] as const)(
+  'the generated WebView script recognizes %s correctly',
+  async (cookie, ready) => {
+    const host = await render(
+      <GuestBootstrap attempt={{ id: 1, complete: jest.fn() }} />,
+    );
+    const script: unknown =
+      host.getByTestId('guest-webview').props.injectedJavaScript;
+    if (typeof script !== 'string') throw new Error('Missing bootstrap script');
+    const document = { cookie };
+    const postMessage = jest.fn();
+    const setInterval = jest.fn((_callback: () => void, _delay: number) => 1);
+    const clearInterval = jest.fn();
+    runInNewContext(script, {
+      document,
+      window: { ReactNativeWebView: { postMessage } },
+      setInterval,
+      clearInterval,
+    });
+    if (ready) {
+      expect(postMessage).toHaveBeenCalledTimes(1);
+      expect(postMessage).toHaveBeenCalledWith(GUEST_BOOTSTRAP_READY_MESSAGE);
+      expect(setInterval).not.toHaveBeenCalled();
+    } else {
+      expect(postMessage).not.toHaveBeenCalled();
+      expect(setInterval).toHaveBeenCalledTimes(1);
+      document.cookie = 'other=value; d_c0=synthetic';
+      setInterval.mock.calls[0]?.[0]();
+      expect(postMessage).toHaveBeenCalledWith(GUEST_BOOTSTRAP_READY_MESSAGE);
+      expect(clearInterval).toHaveBeenCalledWith(1);
+    }
+  },
+);

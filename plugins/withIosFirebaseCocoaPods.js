@@ -11,8 +11,8 @@ const POST_INSTALL_ANCHOR = /post_install do \|installer\|/;
 const MINIMUM_DEPLOYMENT_TARGET = `installer.pods_project.targets.each do |pod_target|
       pod_target.build_configurations.each do |build_config|
         deployment_target = build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
-        if deployment_target && Gem::Version.new(deployment_target) < Gem::Version.new('15.1')
-          build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+        if deployment_target && Gem::Version.new(deployment_target) < Gem::Version.new('16.4')
+          build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.4'
         end
       end
     end`;

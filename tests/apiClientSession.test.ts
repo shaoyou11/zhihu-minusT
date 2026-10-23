@@ -4,24 +4,24 @@ import axios, {
   CanceledError,
   type InternalAxiosRequestConfig,
 } from 'axios';
+import { readAtomically } from '../modules/zhihu-persistence';
 import apiClient, {
   hasAuthenticationCookie,
   mergeCookieHeader,
-} from '../api/client';
+} from '../src/api/client';
 import {
   readContents,
   touchAnswerRead,
   touchAnswersRead,
-} from '../api/zhihu/lastRead';
-import type { ZhihuMeInfo } from '../api/zhihu/me';
-import { readAtomically } from '../modules/zhihu-persistence';
+} from '../src/api/zhihu/lastRead';
+import type { ZhihuMeInfo } from '../src/api/zhihu/me';
 import {
   getAuthSessionVersion,
   saveAuthState,
   useAuthStore,
-} from '../store/useAuthStore';
-import { useCollectionStore } from '../store/useCollectionStore';
-import { useVerificationStore } from '../store/useVerificationStore';
+} from '../src/store/useAuthStore';
+import { useCollectionStore } from '../src/store/useCollectionStore';
+import { useVerificationStore } from '../src/store/useVerificationStore';
 
 jest.mock('@preeternal/react-native-cookie-manager', () => ({
   __esModule: true,
@@ -42,7 +42,7 @@ jest.mock('expo-file-system/legacy', () => ({
 // Persistence cryptography/native filesystem have dedicated tests; these
 // session tests use an in-memory bridge rather than an unavailable device.
 const mockAuthFiles = new Map<string, string>();
-jest.mock('../storage/authEncryption', () => ({
+jest.mock('../src/storage/authEncryption', () => ({
   encryptAuthState: async (value: string) =>
     Buffer.from(value).toString('base64'),
   decryptAuthState: async (value: string) =>
@@ -61,10 +61,10 @@ jest.mock('../modules/zhihu-persistence', () => ({
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
 }));
-jest.mock('../storage/localAccountData', () => ({
+jest.mock('../src/storage/localAccountData', () => ({
   clearLocalAccountData: jest.fn(async () => undefined),
 }));
-jest.mock('../api/zse96/index', () => ({
+jest.mock('../src/api/zse96/index', () => ({
   ZSE_VERSION: 'test',
   signRequest96: jest.fn(async () => 'test-signature'),
   hmacSha1Hex: jest.fn(() => 'test-hmac'),
@@ -292,11 +292,11 @@ test('startup blocks new login until the existing accounts have been restored', 
       releaseRead = resolve;
     });
   });
-  const modules: { auth?: typeof import('../store/useAuthStore') } = {};
+  const modules: { auth?: typeof import('../src/store/useAuthStore') } = {};
   jest.isolateModules(() => {
-    modules.auth = jest.requireActual<typeof import('../store/useAuthStore')>(
-      '../store/useAuthStore',
-    );
+    modules.auth = jest.requireActual<
+      typeof import('../src/store/useAuthStore')
+    >('../src/store/useAuthStore');
   });
   // The native bridge mock is shared across module instances.
   await reading;
@@ -384,41 +384,41 @@ test('limits a request to one refresh even though Axios clones retry config', as
   expect(refreshAdapter).toHaveBeenCalledTimes(2);
 });
 
-test.each([
-  'guest',
-  'logout',
-] as const)('ignores an old response after switching to %s', async (change) => {
-  let finish: (() => void) | undefined;
-  let started: (() => void) | undefined;
-  const adapterStarted = new Promise<void>((resolve) => {
-    started = resolve;
-  });
-  apiClient.defaults.adapter = (config) => {
-    started?.();
-    return new Promise((resolve) => {
-      finish = () =>
-        resolve(
-          response(
-            config,
-            {},
-            {
-              'set-cookie': 'z_c0=test-old-response; Path=/',
-            },
-          ),
-        );
+test.each(['guest', 'logout'] as const)(
+  'ignores an old response after switching to %s',
+  async (change) => {
+    let finish: (() => void) | undefined;
+    let started: (() => void) | undefined;
+    const adapterStarted = new Promise<void>((resolve) => {
+      started = resolve;
     });
-  };
-  const pending = apiClient.get('/test-session');
-  const rejected = expect(pending).rejects.toMatchObject({
-    code: 'ERR_CANCELED',
-  });
-  await adapterStarted;
-  if (change === 'guest') useAuthStore.getState().switchAccount(-1);
-  else useAuthStore.getState().logout();
-  finish?.();
-  await rejected;
-  expect(useAuthStore.getState().cookies).toBeNull();
-});
+    apiClient.defaults.adapter = (config) => {
+      started?.();
+      return new Promise((resolve) => {
+        finish = () =>
+          resolve(
+            response(
+              config,
+              {},
+              {
+                'set-cookie': 'z_c0=test-old-response; Path=/',
+              },
+            ),
+          );
+      });
+    };
+    const pending = apiClient.get('/test-session');
+    const rejected = expect(pending).rejects.toMatchObject({
+      code: 'ERR_CANCELED',
+    });
+    await adapterStarted;
+    if (change === 'guest') useAuthStore.getState().switchAccount(-1);
+    else useAuthStore.getState().logout();
+    finish?.();
+    await rejected;
+    expect(useAuthStore.getState().cookies).toBeNull();
+  },
+);
 
 test('a new login cannot write its response cookies into a saved account', () => {
   useAuthStore.getState().setCookies(COOKIE_B);
@@ -502,27 +502,26 @@ test('honors cookie deletion attributes and rejects empty auth tokens', () => {
   ).toBe('z_c0=test-live');
 });
 
-test.each([
-  'guest',
-  'logout',
-  'new-login',
-] as const)('clears transient collection state on %s session changes', (change) => {
-  const collections = useCollectionStore.getState();
-  collections.setCollectedStatus('synthetic-content', true);
-  collections.updateCollectedCountOffset('synthetic-content', 1);
-  collections.showToast('synthetic-content', 'answer', 'test');
-  collections.openSelector('synthetic-content', 'answer');
-  if (change === 'guest') useAuthStore.getState().switchAccount(-1);
-  else if (change === 'logout') useAuthStore.getState().logout();
-  else useAuthStore.getState().setCookies(COOKIE_B);
-  expect(useCollectionStore.getState()).toMatchObject({
-    collectedStatusMap: {},
-    collectedCountOffsetMap: {},
-    toastVisible: false,
-    selectorVisible: false,
-    selectorContentId: null,
-  });
-});
+test.each(['guest', 'logout', 'new-login'] as const)(
+  'clears transient collection state on %s session changes',
+  (change) => {
+    const collections = useCollectionStore.getState();
+    collections.setCollectedStatus('synthetic-content', true);
+    collections.updateCollectedCountOffset('synthetic-content', 1);
+    collections.showToast('synthetic-content', 'answer', 'test');
+    collections.openSelector('synthetic-content', 'answer');
+    if (change === 'guest') useAuthStore.getState().switchAccount(-1);
+    else if (change === 'logout') useAuthStore.getState().logout();
+    else useAuthStore.getState().setCookies(COOKIE_B);
+    expect(useCollectionStore.getState()).toMatchObject({
+      collectedStatusMap: {},
+      collectedCountOffsetMap: {},
+      toastVisible: false,
+      selectorVisible: false,
+      selectorContentId: null,
+    });
+  },
+);
 
 test('anonymous response cookies do not convert a guest into an authenticated store session', async () => {
   useAuthStore.getState().switchAccount(-1);
