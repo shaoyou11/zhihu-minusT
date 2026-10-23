@@ -1,0 +1,64 @@
+{
+  "identity": {
+    "name": "知乎 minusT",
+    "slug": "ZhihuMinusT",
+    "scheme": "zhihu--",
+    "ios.bundleIdentifier": "com.huamu013.ZhihuMinusMinus"
+  },
+  "features": {
+    "src/components/DetailGlassSurface.tsx": [
+      "BlurView",
+      "MaskedView",
+      "useReduceTransparency"
+    ],
+    "src/components/DetailNavigationHeader.tsx": [
+      "DetailGlassSurface",
+      "scrollY"
+    ],
+    "src/components/ContentActionBar.tsx": [
+      "collapseProgress",
+      "onExpand",
+      "展开阅读操作栏"
+    ],
+    "src/hooks/useReadingActionBar.ts": [
+      "nextReadingActionBarOffset",
+      "collapseProgress"
+    ],
+    "src/app/(tabs)/index.tsx": [
+      "DetailGlassSurface",
+      "tabStripRef",
+      "tabStripWidth"
+    ],
+    "src/app/_layout.tsx": ["formSheet", "comments/replies/[id]"],
+    "src/app/comments/[id].tsx": [
+      "KeyboardAnchorNativeView",
+      "contentInsetAdjustmentBehavior=\"automatic\""
+    ],
+    "src/app/comments/replies/[id].tsx": [
+      "KeyboardAnchorNativeView",
+      "contentInsetAdjustmentBehavior=\"automatic\""
+    ],
+    "src/store/useSettingsStore.ts": ["filterHideAdPlaceholders: true"],
+    "modules/zhihu-keyboard-anchor/ios/KeyboardAnchorModule.swift": [
+      "keyboardLayoutGuide",
+      "onOverlapChange"
+    ],
+    "modules/zhihu-rich-text/ios/RichTextView.swift": [
+      "UILongPressGestureRecognizer"
+    ],
+    "src/components/AnswerDetailView.tsx": [
+      "useReadingActionBar",
+      "useDetailNavigationHeight"
+    ],
+    "src/app/question/[id]/index.tsx": ["DetailNavigationHeader"],
+    "src/app/article/[id].tsx": [
+      "DetailNavigationHeader",
+      "useReadingActionBar"
+    ],
+    "src/app/pin/[id].tsx": ["DetailNavigationHeader", "useReadingActionBar"],
+    "src/utils/updateSecurity.ts": [
+      "UPDATE_REPOSITORY",
+      "shaoyou11/zhihu-minusT"
+    ]
+  }
+}

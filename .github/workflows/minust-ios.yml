@@ -11,14 +11,32 @@ on:
         default: false
         type: boolean
   schedule:
-    - cron: "37 20 */2 * *"
+    - cron: "17 * * * *"
 permissions:
   contents: read
 concurrency:
   group: minust-ios
   cancel-in-progress: false
 jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      needed: ${{ steps.probe.outputs.needed }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: 检查上游更新与缺失构建
+        id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE_MINUST_BUILD: ${{ inputs.force_build }}
+        run: python3 scripts/minust-probe.py
   quality:
+    needs: probe
+    if: needs.probe.outputs.needed == 'true'
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -32,12 +50,14 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.x
+          node-version-file: .nvmrc
           cache: npm
       - name: 同步正式版并保留定制
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/sync-minust.py
+      - name: 验证自动合并与定制保护
+        run: python3 -m unittest discover -s scripts/tests -p '*_test.py'
       - run: npm ci
       - run: npm run check
       - name: 保存已验证源码并判断是否需要编译
@@ -54,6 +74,17 @@ jobs:
           else
             python3 scripts/minust-build-needed.py
           fi
+      - name: 保存同步失败线索
+        if: failure()
+        run: |
+          git diff --name-only --diff-filter=U > "$RUNNER_TEMP/minust-sync-conflicts.txt"
+          echo "同步或质量检查未通过，保留现有正式安装包；定时维护将检查并尝试修复。" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: minust-sync-diagnostics
+          path: ${{ runner.temp }}/minust-sync-conflicts.txt
+          if-no-files-found: ignore
   ios:
     needs: quality
     if: needs.quality.outputs.build == 'true'
@@ -71,7 +102,7 @@ jobs:
           ref: ${{ needs.quality.outputs.commit }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.x
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - name: 设置独立构建号
@@ -106,12 +137,7 @@ jobs:
       - name: 发布正式安装包
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION=$(node -p "require('./app.json').expo.version")
-          TAG="v${VERSION}-build.${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" dist/*.ipa dist/*.json dist/*.txt --target "${{ needs.quality.outputs.commit }}" \
-            --title "知乎 minusT ${VERSION} · ${GITHUB_RUN_NUMBER}" \
-            --notes-file docs/MINUST-RELEASE.txt
+        run: python3 scripts/minust-publish.py
       - name: 保存编译日志
         if: failure()
         uses: actions/upload-artifact@v4
