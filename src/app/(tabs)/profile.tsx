@@ -152,12 +152,13 @@ export default function ProfileScreen({ isActive = true }: ProfileScreenProps) {
 
     logout();
     const session = getAuthSessionVersion();
+    const nativeSession = syncSessionWithFeedback(nextCookies);
     queryClient.clear();
     setAccountModalVisible(false);
     try {
       await persistAuthStateWithFeedback();
       if (session !== getAuthSessionVersion()) return;
-      await syncSessionWithFeedback(nextCookies);
+      await nativeSession;
       if (remainingAccounts.length === 0 && session === getAuthSessionVersion())
         router.replace('/login');
     } finally {
@@ -229,12 +230,15 @@ export default function ProfileScreen({ isActive = true }: ProfileScreenProps) {
     }
     switchAccount(index, verifiedSession);
     const session = getAuthSessionVersion();
+    const nativeSession = syncSessionWithFeedback(
+      verifiedSession?.cookies ?? targetCookies,
+    );
     queryClient.clear();
     setAccountModalVisible(false);
     try {
       await persistAuthStateWithFeedback();
       if (session !== getAuthSessionVersion()) return;
-      await syncSessionWithFeedback(verifiedSession?.cookies ?? targetCookies);
+      await nativeSession;
     } finally {
       sessionChangeInFlight.current = false;
       setSessionChanging(false);

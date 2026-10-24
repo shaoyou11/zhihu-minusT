@@ -4,15 +4,19 @@ import { CanceledError } from 'axios';
 import type { PropsWithChildren } from 'react';
 import apiClient from '../src/api/client';
 import { normalizeAnswerPagerPage } from '../src/api/zhihu/answerPager';
+import { getQuestionAnswers } from '../src/api/zhihu/question';
 import {
   type AnswerPagerSourceOptions,
   useAnswerPagerSource,
 } from '../src/hooks/useAnswerPagerSource';
 import { useAuthStore } from '../src/store/useAuthStore';
+import { getGuestAnswerKey } from '../src/utils/guestAnswer';
 
 jest.mock('../src/api/client', () => ({
   __esModule: true,
   default: { get: jest.fn() },
+  hasAuthenticationCookie: (cookie: string | null) =>
+    Boolean(cookie?.includes('z_c0=')),
 }));
 
 let mockSessionVersion = 1;
@@ -76,7 +80,7 @@ test('pages all non-profile origins within their question and isolates profile a
   const get = jest.mocked(apiClient.get);
   get.mockReset();
   mockSessionVersion = 1;
-  useAuthStore.setState({ cookies: null });
+  useAuthStore.setState({ cookies: 'z_c0=synthetic-account' });
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
@@ -324,7 +328,7 @@ test('pages all non-profile origins within their question and isolates profile a
   expect(oldRequestSignal?.aborted).toBe(false);
   await act(async () => {
     mockSessionVersion = 2;
-    useAuthStore.setState({ cookies: 'synthetic-new-session' });
+    useAuthStore.setState({ cookies: 'z_c0=synthetic-new-session' });
   });
   await waitFor(() =>
     expect(host.result.current.data?.pages[0].data[0].id).toBe(
@@ -374,7 +378,7 @@ test('waits for an unknown origin answer to resolve its question, then pages and
   const get = jest.mocked(apiClient.get);
   get.mockReset();
   mockSessionVersion = 1;
-  useAuthStore.setState({ cookies: null });
+  useAuthStore.setState({ cookies: 'z_c0=synthetic-account' });
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
@@ -487,6 +491,199 @@ test('waits for an unknown origin answer to resolve its question, then pages and
   );
   expect(host.result.current.data?.pages[0]?.data[0]?.id).toBe(
     'default-order-answer',
+  );
+  await host.unmount();
+  client.clear();
+});
+
+function guestPage(ids: string[], next = '') {
+  return {
+    data: ids.map((id) => ({
+      type: 'question_feed_card',
+      target_type: 'answer',
+      target: {
+        id,
+        author: {
+          id: `author-${id}`,
+          name: '合成游客作者',
+          avatar_url: '',
+          type: 'people',
+        },
+        big_card_summary: `合成摘要 ${id}`,
+        endorsements: [{ elements: [{ type: 'TEXT', content: '合成标签' }] }],
+      },
+    })),
+    paging: { is_end: !next, next },
+  };
+}
+
+test.each([
+  'https://example.invalid/questions/guest-question/feeds?cursor=synthetic',
+  'http://api.zhihu.com/questions/guest-question/feeds?cursor=synthetic',
+  'https://api.zhihu.com:8443/questions/guest-question/feeds?cursor=synthetic',
+  'https://synthetic@api.zhihu.com/questions/guest-question/feeds',
+  'https://api.zhihu.com/questions/other-question/feeds',
+  'https://api.zhihu.com/questions/guest-question/answers',
+  'https://api.zhihu.com/answers/guest-answer',
+  'https://[invalid',
+])(
+  'rejects guest question pagination outside its public feed: %s',
+  async (next) => {
+    const get = jest.mocked(apiClient.get);
+    get.mockReset();
+    useAuthStore.setState({ cookies: null });
+    await expect(
+      getQuestionAnswers('guest-question', next, 'default', ''),
+    ).rejects.toThrow('回答列表分页地址无效');
+    expect(get).not.toHaveBeenCalled();
+  },
+);
+
+test('pages guest question cards with the complete next URL and caches readable summaries separately', async () => {
+  const get = jest.mocked(apiClient.get);
+  get.mockReset();
+  mockSessionVersion = 10;
+  useAuthStore.setState({ cookies: null });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  const wrapper = ({ children }: PropsWithChildren) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const next =
+    'https://api.zhihu.com/questions/guest-question/feeds?cursor=synthetic-cursor&session_id=synthetic-session&order=updated';
+  get
+    .mockResolvedValueOnce({ data: guestPage(['selected', 'next'], next) })
+    .mockResolvedValueOnce({ data: guestPage(['last']) });
+  const options: AnswerPagerSourceOptions = {
+    initialId: 'selected',
+    questionId: 'guest-question',
+    sortBy: 'created',
+    context: { scene: 'question_feed' },
+  };
+  const host = await renderHook(useAnswerPagerSource, {
+    initialProps: options,
+    wrapper,
+  });
+  await waitFor(() => expect(host.result.current.isSuccess).toBe(true));
+  const firstUrl = new URL(String(get.mock.calls[0][0]));
+  expect(firstUrl.origin).toBe('https://api.zhihu.com');
+  expect(firstUrl.pathname).toBe('/questions/guest-question/feeds');
+  expect(firstUrl.searchParams.get('order')).toBe('updated');
+  expect(get.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+  expect(host.result.current.data?.pages[0].data).toEqual([
+    {
+      id: 'selected',
+      endorsements: [{ elements: [{ type: 'TEXT', content: '合成标签' }] }],
+    },
+    {
+      id: 'next',
+      endorsements: [{ elements: [{ type: 'TEXT', content: '合成标签' }] }],
+    },
+  ]);
+  expect(client.getQueryData(getGuestAnswerKey('next', 10))).toMatchObject({
+    id: 'next',
+    content: '<p>合成摘要 next</p>',
+    content_need_truncated: true,
+    question: { id: 'guest-question' },
+  });
+  expect(
+    client.getQueryCache().findAll({ queryKey: ['answer-detail'] }),
+  ).toHaveLength(0);
+  expect(host.result.current.hasNextPage).toBe(true);
+  await act(async () => {
+    await host.result.current.fetchNextPage();
+  });
+  expect(get.mock.calls[1][0]).toBe(next);
+  expect(get.mock.calls[1][1]?.signal).toBeInstanceOf(AbortSignal);
+  await waitFor(() =>
+    expect(host.result.current.data?.pages[1]?.data[0].id).toBe('last'),
+  );
+  expect(host.result.current.hasNextPage).toBe(false);
+
+  get.mockResolvedValueOnce({ data: page(['account-answer']) });
+  await act(async () => {
+    mockSessionVersion = 11;
+    useAuthStore.setState({ cookies: 'z_c0=synthetic-account' });
+  });
+  await waitFor(() => expect(host.result.current.isSuccess).toBe(true));
+  expect(get.mock.calls[2][0]).toBe('/questions/guest-question/answers');
+  expect(host.result.current.data?.pages[0].data[0].id).toBe('account-answer');
+
+  get.mockResolvedValueOnce({ data: guestPage(['new-guest-answer']) });
+  await act(async () => {
+    mockSessionVersion = 12;
+    useAuthStore.setState({ cookies: null });
+  });
+  await waitFor(() => expect(host.result.current.isSuccess).toBe(true));
+  expect(new URL(String(get.mock.calls[3][0])).pathname).toBe(
+    '/questions/guest-question/feeds',
+  );
+  expect(host.result.current.data?.pages[0].data[0].id).toBe(
+    'new-guest-answer',
+  );
+  expect(
+    client.getQueryData(getGuestAnswerKey('new-guest-answer', 12)),
+  ).toMatchObject({ content: '<p>合成摘要 new-guest-answer</p>' });
+  expect(
+    client.getQueryData(getGuestAnswerKey('account-answer', 12)),
+  ).toBeUndefined();
+  await host.unmount();
+  client.clear();
+});
+
+test('discards a late guest page before it can seed any answer after the session changes', async () => {
+  const get = jest.mocked(apiClient.get);
+  get.mockReset();
+  mockSessionVersion = 20;
+  useAuthStore.setState({ cookies: null });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  const wrapper = ({ children }: PropsWithChildren) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  let resolveOldRequest:
+    | ((value: { data: ReturnType<typeof guestPage> }) => void)
+    | undefined;
+  get
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveOldRequest = resolve;
+        }),
+    )
+    .mockResolvedValueOnce({ data: guestPage(['fresh-guest-answer']) });
+  const host = await renderHook(useAnswerPagerSource, {
+    initialProps: {
+      initialId: 'selected',
+      questionId: 'guest-question',
+      sortBy: 'default',
+      context: { scene: 'question_feed' },
+    } satisfies AnswerPagerSourceOptions,
+    wrapper,
+  });
+  await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+  const oldKey = host.result.current.queryKey;
+  const oldSignal = get.mock.calls[0][1]?.signal;
+  await act(async () => {
+    mockSessionVersion = 21;
+    useAuthStore.setState({ cookies: '' });
+  });
+  await waitFor(() => expect(host.result.current.isSuccess).toBe(true));
+  expect(oldSignal?.aborted).toBe(true);
+  await act(async () => {
+    resolveOldRequest?.({ data: guestPage(['stale-guest-answer']) });
+  });
+  expect(client.getQueryData(oldKey)).toBeUndefined();
+  expect(
+    client.getQueryData(getGuestAnswerKey('stale-guest-answer', 20)),
+  ).toBeUndefined();
+  expect(
+    client.getQueryData(getGuestAnswerKey('stale-guest-answer', 21)),
+  ).toBeUndefined();
+  expect(host.result.current.data?.pages[0].data[0].id).toBe(
+    'fresh-guest-answer',
   );
   await host.unmount();
   client.clear();

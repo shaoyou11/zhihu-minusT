@@ -61,6 +61,7 @@ import { useCollectionStore } from '@/store/useCollectionStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { seedAnswerPreviewEntry } from '@/utils/answerPreviewEntry';
 import { seedAnswerDetailFromList } from '@/utils/contentCache';
+import { seedGuestAnswerFromList } from '@/utils/guestAnswer';
 import { refreshInfiniteQuery } from '@/utils/query';
 import { getZhihuErrorMessage } from '@/utils/zhihuError';
 
@@ -76,6 +77,7 @@ interface QuestionAnswerCardProps {
   questionTitle: string;
   sortBy: AnswerSort;
   isAuthenticated: boolean;
+  sessionVersion: number;
   onMore: (item: AnswerDetail) => void;
 }
 
@@ -86,6 +88,7 @@ const QuestionAnswerCard = React.memo(function QuestionAnswerCard({
   questionTitle,
   sortBy,
   isAuthenticated,
+  sessionVersion,
   onMore,
 }: QuestionAnswerCardProps) {
   const router = useRouter();
@@ -94,7 +97,13 @@ const QuestionAnswerCard = React.memo(function QuestionAnswerCard({
   const followMutation = useOptimisticToggle<
     InfiniteData<QuestionAnswersResponse, number | string>
   >({
-    queryKey: ['question-answers', questionId, sortBy, isAuthenticated],
+    queryKey: [
+      'question-answers',
+      questionId,
+      sortBy,
+      isAuthenticated,
+      sessionVersion,
+    ],
     mutationFn: async () => {
       const authorId = item.author.url_token || item.author.id;
       if (!authorId) return;
@@ -123,6 +132,7 @@ const QuestionAnswerCard = React.memo(function QuestionAnswerCard({
     successMessage: (isActive) => (isActive ? '已取消关注' : '已关注'),
   });
   const openAnswer = () => {
+    if (sessionVersion !== getAuthSessionVersion()) return;
     const initialAnswer: AnswerDetail = {
       ...item,
       type: 'answer',
@@ -133,7 +143,8 @@ const QuestionAnswerCard = React.memo(function QuestionAnswerCard({
         type: 'question',
       },
     };
-    seedAnswerDetailFromList(queryClient, initialAnswer);
+    if (isAuthenticated) seedAnswerDetailFromList(queryClient, initialAnswer);
+    else seedGuestAnswerFromList(queryClient, initialAnswer, sessionVersion);
     seedAnswerPreviewEntry(queryClient, initialAnswer);
     router.push({
       pathname: '/answer/[id]',
@@ -334,14 +345,21 @@ export default function QuestionDetail() {
     QuestionAnswersResponse,
     Error,
     InfiniteData<QuestionAnswersResponse, number | string>,
-    ['question-answers', string, AnswerSort, boolean],
+    ['question-answers', string, AnswerSort, boolean, number],
     number | string
   >({
-    queryKey: ['question-answers', id, sortBy, isAuthenticated],
-    queryFn: async ({ pageParam = 0 }) => {
+    queryKey: ['question-answers', id, sortBy, isAuthenticated, sessionVersion],
+    queryFn: async ({ pageParam = 0, signal }) => {
+      if (sessionVersion !== getAuthSessionVersion())
+        throw new CanceledError('登录会话已切换');
       const include =
         'data[*].content,excerpt,endorsements,answer_type,paid_info,content_need_truncated,voteup_count,comment_count,favlists_count,author.name,author.avatar_url,author.headline,author.is_following,relationship.voting,relationship.is_author,relationship.is_favorited,created_time,updated_time,ip_info,segment_infos,link_card_info';
-      return getQuestionAnswers(id as string, pageParam, sortBy, include);
+      const result = await getQuestionAnswers(id, pageParam, sortBy, include, {
+        signal,
+      });
+      if (sessionVersion !== getAuthSessionVersion())
+        throw new CanceledError('登录会话已切换');
+      return result;
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage) => {
@@ -353,10 +371,10 @@ export default function QuestionDetail() {
   const handleRefresh = useCallback(() => {
     return refreshInfiniteQuery(
       queryClient,
-      ['question-answers', id, sortBy, isAuthenticated],
+      ['question-answers', id, sortBy, isAuthenticated, sessionVersion],
       refetch,
     );
-  }, [queryClient, id, sortBy, isAuthenticated, refetch]);
+  }, [queryClient, id, sortBy, isAuthenticated, sessionVersion, refetch]);
 
   const answers = useMemo(() => {
     const all = answersData?.pages.flatMap((page) => page.data) || [];
@@ -801,6 +819,7 @@ export default function QuestionDetail() {
               questionTitle={question?.title || initialTitle || '问题'}
               sortBy={sortBy}
               isAuthenticated={isAuthenticated}
+              sessionVersion={sessionVersion}
               onMore={(answer) => setMenuSelection({ questionId: id, answer })}
             />
           )}

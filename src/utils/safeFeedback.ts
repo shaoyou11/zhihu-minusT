@@ -1,4 +1,6 @@
 const MESSAGES = {
+  'guest-answer-unavailable': '游客暂时无法获取该回答，请登录后重试',
+  'guest-answer-source-missing': '游客暂时无法获取该回答，请登录后重试',
   'image-read': '无法读取图片文件，请重新选择',
   'image-metadata': '知乎图片上传信息无效，请稍后重试',
   'image-credentials': '图片上传凭证无效，请重新登录后重试',

@@ -80,7 +80,7 @@ export async function retryAuthPersistence(): Promise<boolean> {
     await useAuthStore.persist.rehydrate();
     if (!authHydratedOnce || !encryptedStorage.hasReadableSnapshot())
       return false;
-    // A successful restore advances the version via the hydration callback.
+    // A changed session advances the version before publishing restored state.
   }
   if (
     restoringSession !== getAuthSessionVersion() &&
@@ -393,19 +393,18 @@ export const useAuthStore = create<AuthState>()(
           )
             throw new Error('会话已变化，未应用旧账号快照');
         }
-        return {
+        const nextState = {
           ...currentState,
           ...normalizePersistedAuthState(persistedState),
         };
+        // Zustand publishes the merged state before its async hydration callback.
+        // Advance now so subscribers cannot start requests with restored cookies
+        // and an old session version, then discard those responses at startup.
+        if (nextState.cookies !== currentState.cookies) advanceAuthSession();
+        return nextState;
       },
-      onRehydrateStorage: (previous) => {
-        const previousCookies = previous.cookies;
-        return (state) => {
-          if (state) {
-            authHydratedOnce = true;
-            if (state.cookies !== previousCookies) advanceAuthSession();
-          }
-        };
+      onRehydrateStorage: () => (state) => {
+        if (state) authHydratedOnce = true;
       },
       migrate: (persistedState: unknown, version: number) => {
         const state = normalizePersistedAuthState(persistedState);

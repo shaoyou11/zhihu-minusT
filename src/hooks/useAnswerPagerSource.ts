@@ -1,4 +1,10 @@
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { hasAuthenticationCookie } from '@/api/client';
 import type { AnswerDetail } from '@/api/zhihu/answer';
 import {
   type AnswerPagerPage,
@@ -6,9 +12,11 @@ import {
   normalizeAnswerPagerPage,
 } from '@/api/zhihu/answerPager';
 import { getMemberRelations } from '@/api/zhihu/member';
+import { getQuestionAnswers } from '@/api/zhihu/question';
 import { getAuthSessionVersion, useAuthStore } from '@/store/useAuthStore';
 import type { AnswerReadingContext } from '@/utils/answerReadingContext';
-import { useZhihuInfiniteQuery } from './useZhihuInfiniteQuery';
+import { seedGuestAnswerFromList } from '@/utils/guestAnswer';
+import { getZhihuNextOffset } from './useZhihuInfiniteQuery';
 
 const PROFILE_ANSWER_PAGER_INCLUDE = 'data[*].id,question.id,endorsements';
 
@@ -27,7 +35,11 @@ export function useAnswerPagerSource({
   context,
   initialAnswer,
 }: AnswerPagerSourceOptions) {
+  const queryClient = useQueryClient();
   const sessionVersion = useAuthStore(() => getAuthSessionVersion());
+  const isAuthenticated = useAuthStore((state) =>
+    hasAuthenticationCookie(state.cookies),
+  );
   const { scene } = context;
   const isQuestionSource = scene !== 'profile_answer';
   const memberId =
@@ -51,12 +63,48 @@ export function useAnswerPagerSource({
       ] as const,
     [sessionVersion, scene, sourceId, sourceSort],
   );
-  const query = useZhihuInfiniteQuery<AnswerPagerPage>({
+  const query = useInfiniteQuery<
+    AnswerPagerPage,
+    Error,
+    InfiniteData<AnswerPagerPage, number | string>,
+    typeof queryKey,
+    number | string
+  >({
     queryKey,
     queryFn: async ({ pageParam, signal }) => {
       if (sessionVersion !== getAuthSessionVersion())
         throw new Error('登录状态已变化');
       if (!sourceId) throw new Error('回答列表来源尚未加载');
+      if (!isAuthenticated && isQuestionSource) {
+        const guestPage = await getQuestionAnswers(
+          sourceId,
+          pageParam,
+          sourceSort === 'created' ? 'created' : 'default',
+          '',
+          { signal },
+        );
+        if (sessionVersion !== getAuthSessionVersion())
+          throw new Error('登录状态已变化');
+        for (const answer of guestPage.data) {
+          seedGuestAnswerFromList(
+            queryClient,
+            {
+              ...answer,
+              question: answer.question ?? {
+                id: sourceId,
+                title: '',
+                type: 'question',
+              },
+            },
+            sessionVersion,
+          );
+        }
+        return normalizeAnswerPagerPage(guestPage);
+      }
+      const offset =
+        typeof pageParam === 'number'
+          ? pageParam
+          : (getZhihuNextOffset({ paging: { next: pageParam } }) ?? 0);
       const page =
         scene === 'profile_answer'
           ? normalizeAnswerPagerPage(
@@ -66,14 +114,14 @@ export function useAnswerPagerSource({
                 {
                   include: PROFILE_ANSWER_PAGER_INCLUDE,
                   limit: 20,
-                  offset: pageParam,
+                  offset,
                   sort_by: sourceSort,
                   ws_qiangzhisafe: 0,
                 },
                 { signal },
               ),
             )
-          : await getQuestionAnswerPagerPage(sourceId, sourceSort, pageParam, {
+          : await getQuestionAnswerPagerPage(sourceId, sourceSort, offset, {
               signal,
             });
       if (sessionVersion !== getAuthSessionVersion())
@@ -81,6 +129,12 @@ export function useAnswerPagerSource({
       return page;
     },
     initialPageParam: 0,
+    getNextPageParam: (lastPage) =>
+      !isAuthenticated && isQuestionSource
+        ? lastPage.paging?.is_end
+          ? undefined
+          : lastPage.paging?.next || undefined
+        : getZhihuNextOffset(lastPage),
     enabled: Boolean(sourceId),
     staleTime: 5 * 60 * 1000,
   });

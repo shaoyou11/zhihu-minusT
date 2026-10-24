@@ -1,7 +1,11 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
 import type React from 'react';
 import { Alert } from 'react-native';
-import type { AnswerDetail } from '../src/api/zhihu/answer';
+import type {
+  AnswerDetail,
+  QuestionAnswersResponse,
+} from '../src/api/zhihu/answer';
+import { getQuestionAnswers } from '../src/api/zhihu/question';
 import ArticleDetail from '../src/app/article/[id]';
 import PinDetailScreen from '../src/app/pin/[id]';
 import QuestionDetail from '../src/app/question/[id]/index';
@@ -10,12 +14,16 @@ import type { ActionSheetOption } from '../src/components/overlays/ActionSheet';
 import type { ZhihuContentProps } from '../src/features/rich-content';
 import { seedAnswerPreviewEntry } from '../src/utils/answerPreviewEntry';
 import { seedAnswerDetailFromList } from '../src/utils/contentCache';
+import { seedGuestAnswerFromList } from '../src/utils/guestAnswer';
 
 jest.mock('../src/utils/answerPreviewEntry', () => ({
   seedAnswerPreviewEntry: jest.fn(),
 }));
 jest.mock('../src/utils/contentCache', () => ({
   seedAnswerDetailFromList: jest.fn(),
+}));
+jest.mock('../src/utils/guestAnswer', () => ({
+  seedGuestAnswerFromList: jest.fn(),
 }));
 
 interface DoubleTapActionOptions {
@@ -58,6 +66,14 @@ interface MutationOptions {
   ) => void;
 }
 
+interface QuestionAnswersQueryOptions {
+  queryKey: readonly unknown[];
+  queryFn: (context: {
+    pageParam?: number | string;
+    signal: AbortSignal;
+  }) => Promise<QuestionAnswersResponse>;
+}
+
 interface RelationshipNoticeProps {
   contentType: 'answer' | 'pin';
   contentId: string | number;
@@ -70,6 +86,7 @@ let mockQueryData: Record<string, unknown>;
 let mockPausedQueries: Set<string>;
 let mockMenuProps: MenuProps;
 let mockMutationOptions: MutationOptions;
+let mockInfiniteQueryOptions: QuestionAnswersQueryOptions;
 const mockPush = jest.fn();
 const mockMutate = jest.fn();
 const mockInvalidateQueries = jest.fn();
@@ -129,15 +146,18 @@ jest.mock('@tanstack/react-query', () => ({
       refetch: jest.fn(),
     };
   },
-  useInfiniteQuery: () => ({
-    data: { pages: [{ data: [mockAnswer] }] },
-    hasNextPage: false,
-    isFetchingNextPage: false,
-    isRefetching: false,
-    isPending: false,
-    isError: false,
-    refetch: jest.fn(),
-  }),
+  useInfiniteQuery: (options: QuestionAnswersQueryOptions) => {
+    mockInfiniteQueryOptions = options;
+    return {
+      data: { pages: [{ data: [mockAnswer] }] },
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isRefetching: false,
+      isPending: false,
+      isError: false,
+      refetch: jest.fn(),
+    };
+  },
   useMutation: (options: MutationOptions) => {
     mockMutationOptions = options;
     return { mutate: mockMutate, isPending: false };
@@ -518,6 +538,65 @@ test('question reads wait for the requested question and use a session-scoped de
   expect(mockOptimisticQueryKeys).toContainEqual(['question', '7', false, 2]);
 });
 
+test('question answer lists isolate guest sessions and reject requests or clicks captured before a session change', async () => {
+  const getAnswers = jest.mocked(getQuestionAnswers);
+  getAnswers.mockReset();
+  const host = await render(<QuestionDetail />);
+  const previousQuery = mockInfiniteQueryOptions;
+  expect(previousQuery.queryKey).toEqual([
+    'question-answers',
+    '7',
+    'default',
+    false,
+    1,
+  ]);
+  expect(mockOptimisticQueryKeys).toContainEqual(previousQuery.queryKey);
+  const signal = new AbortController().signal;
+  let resolveRequest: ((page: QuestionAnswersResponse) => void) | undefined;
+  getAnswers.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolveRequest = resolve;
+      }),
+  );
+  const pending = previousQuery.queryFn({ pageParam: 20, signal });
+  expect(getAnswers).toHaveBeenCalledWith(
+    '7',
+    20,
+    'default',
+    expect.any(String),
+    { signal },
+  );
+
+  mockSessionVersion = 2;
+  resolveRequest?.({ data: [mockAnswer] });
+  await expect(pending).rejects.toMatchObject({ code: 'ERR_CANCELED' });
+  await expect(previousQuery.queryFn({ signal })).rejects.toMatchObject({
+    code: 'ERR_CANCELED',
+  });
+  expect(getAnswers).toHaveBeenCalledTimes(1);
+  await pressButton(host.getByRole('button', { name: '阅读 合成作者 的回答' }));
+  expect(seedGuestAnswerFromList).not.toHaveBeenCalled();
+  expect(seedAnswerDetailFromList).not.toHaveBeenCalled();
+  expect(mockPush).not.toHaveBeenCalled();
+
+  await host.rerender(<QuestionDetail />);
+  expect(mockInfiniteQueryOptions.queryKey).toEqual([
+    'question-answers',
+    '7',
+    'default',
+    false,
+    2,
+  ]);
+  expect(mockOptimisticQueryKeys).toContainEqual(
+    mockInfiniteQueryOptions.queryKey,
+  );
+  getAnswers.mockResolvedValueOnce({ data: [mockAnswer] });
+  await expect(mockInfiniteQueryOptions.queryFn({ signal })).resolves.toEqual({
+    data: [mockAnswer],
+  });
+});
+
 test.each([
   {
     type: 'article',
@@ -760,7 +839,7 @@ test('question and answer more entries target distinct content and preserve auth
       .filter((label) => label === '收藏' || label === '2 条回答评论'),
   ).toEqual(['收藏', '2 条回答评论']);
   await pressButton(host.getByRole('button', { name: '阅读 合成作者 的回答' }));
-  expect(seedAnswerDetailFromList).toHaveBeenCalledWith(
+  expect(seedGuestAnswerFromList).toHaveBeenCalledWith(
     expect.any(Object),
     expect.objectContaining({
       id: mockAnswer.id,
@@ -768,9 +847,11 @@ test('question and answer more entries target distinct content and preserve auth
       content: mockAnswer.content,
       question: expect.objectContaining({ id: '7', title: '合成问题' }),
     }),
+    1,
   );
+  expect(seedAnswerDetailFromList).not.toHaveBeenCalled();
   expect(
-    jest.mocked(seedAnswerDetailFromList).mock.invocationCallOrder[0],
+    jest.mocked(seedGuestAnswerFromList).mock.invocationCallOrder[0],
   ).toBeLessThan(mockPush.mock.invocationCallOrder[0]);
   expect(seedAnswerPreviewEntry).toHaveBeenCalledWith(
     expect.any(Object),

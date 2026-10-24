@@ -222,7 +222,11 @@ jest.mock('../src/components/ShareMenu', () => ({
     return null;
   },
 }));
-jest.mock('../src/api/client', () => ({ __esModule: true, default: {} }));
+jest.mock('../src/api/client', () => ({
+  __esModule: true,
+  default: {},
+  hasAuthenticationCookie: () => true,
+}));
 jest.mock('../src/api/zhihu', () => ({ getAnswer: jest.fn() }));
 jest.mock('../src/api/zhihu/history', () => ({ recordReadHistory: jest.fn() }));
 jest.mock('../src/components/useColorScheme', () => ({
@@ -265,7 +269,8 @@ jest.mock('../src/store/useSettingsStore', () => ({
 }));
 jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
-  useAuthStore: (selector: () => unknown) => selector(),
+  useAuthStore: (selector: (state: { cookies: string }) => unknown) =>
+    selector({ cookies: 'z_c0=synthetic-session' }),
 }));
 jest.mock('../src/features/rich-content', () => ({
   getNeighborAnswerIds: () => [],
@@ -1378,7 +1383,7 @@ test.each([false, true])(
     mockUnavailableAnswers.add('42');
     if (paused) mockPausedAnswers.add('42');
     const host = await render(React.createElement(AnswerDetailScreen));
-    expect(host.getByText('正在获取回答…')).toBeOnTheScreen();
+    expect(mockAnswerProps.get('42')?.isFocused).toBe(true);
     expect(mockPagerSource).toHaveBeenLastCalledWith(
       expect.objectContaining({
         questionId: undefined,
@@ -1386,7 +1391,7 @@ test.each([false, true])(
         context: { scene: 'unknown' },
       }),
     );
-    expect(mockPagerMounts).toBe(0);
+    expect(mockPagerMounts).toBe(1);
 
     mockUnavailableAnswers.delete('42');
     mockPausedAnswers.delete('42');
@@ -1398,15 +1403,15 @@ test.each([false, true])(
     expect(mockPagerSource).toHaveBeenLastCalledWith(
       expect.objectContaining({ questionId: 'resolved-question' }),
     );
-    expect(mockPagerMounts).toBe(1);
+    expect(mockPagerMounts).toBe(2);
     expect(renderedAnswerIds()).toEqual(['42']);
 
     setList(['11', '99']);
     await host.rerender(React.createElement(AnswerDetailScreen));
     expect(renderedAnswerIds()).toEqual(['42', '11', '99']);
     expect(mockAnswerProps.get('42')?.isFocused).toBe(true);
-    expect(mockAnswerMounts.get('42')).toBe(1);
-    expect(mockPagerMounts).toBe(1);
+    expect(mockAnswerMounts.get('42')).toBe(2);
+    expect(mockPagerMounts).toBe(2);
     expect(mockAnswerProps.get('11')?.questionId).toBe('resolved-question');
     await startDrag();
     await selectPage(1);

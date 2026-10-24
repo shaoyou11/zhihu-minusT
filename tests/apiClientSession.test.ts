@@ -1,3 +1,5 @@
+import CookieManager from '@preeternal/react-native-cookie-manager';
+import { QueryClient } from '@tanstack/react-query';
 import axios, {
   AxiosError,
   type AxiosResponse,
@@ -22,10 +24,18 @@ import {
 } from '../src/store/useAuthStore';
 import { useCollectionStore } from '../src/store/useCollectionStore';
 import { useVerificationStore } from '../src/store/useVerificationStore';
+import {
+  NATIVE_SESSION_SYNC_TIMEOUT_MS,
+  syncNativeSessionCookies,
+} from '../src/utils/authSession';
 
 jest.mock('@preeternal/react-native-cookie-manager', () => ({
   __esModule: true,
-  default: { get: jest.fn(async () => ({})) },
+  default: {
+    get: jest.fn(async () => ({})),
+    clearAllStores: jest.fn(async () => true),
+    set: jest.fn(async () => true),
+  },
 }));
 jest.mock('expo-file-system/legacy', () => ({
   documentDirectory: 'file:///test/',
@@ -60,6 +70,8 @@ jest.mock('../modules/zhihu-persistence', () => ({
 }));
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
+  setItemAsync: jest.fn(async () => undefined),
+  deleteItemAsync: jest.fn(async () => undefined),
 }));
 jest.mock('../src/storage/localAccountData', () => ({
   clearLocalAccountData: jest.fn(async () => undefined),
@@ -276,6 +288,120 @@ test('a delayed rehydrate cannot replace a newer login or discard saved accounts
     cookies: COOKIE_B,
     accounts: [{ me: PROFILE_A }, { me: PROFILE_B }],
   });
+});
+
+test.each([0, 1, 2])(
+  'restored v%s account subscribers start their first feed request in the committed session',
+  async (version) => {
+    expect(await saveAuthState()).toBe(true);
+    const encryptedSnapshot = mockAuthFiles.get(
+      'file:///test/auth-storage.json',
+    );
+    if (!encryptedSnapshot) throw new Error('测试账号未保存');
+    // Legacy versions were plain JSON; v0 predates the saved accounts array.
+    const previousSnapshot =
+      version === 2
+        ? encryptedSnapshot
+        : JSON.stringify({
+            state: {
+              cookies: COOKIE_A,
+              me: PROFILE_A,
+              ...(version === 1
+                ? {
+                    accounts: [{ cookies: COOKIE_A, me: PROFILE_A }],
+                    activeAccountIndex: 0,
+                  }
+                : {}),
+            },
+            version,
+          });
+    useAuthStore.setState({
+      accounts: [],
+      activeAccountIndex: -1,
+      cookies: null,
+      me: null,
+    });
+    expect(await saveAuthState()).toBe(true);
+    // Simulate cold-start memory while keeping the saved account on disk. The
+    // request interceptor may start another hydration before this one finishes.
+    mockAuthFiles.set('file:///test/auth-storage.json', previousSnapshot);
+    mockAuthFiles.set(
+      'file:///test/auth-storage.json.backup',
+      previousSnapshot,
+    );
+
+    let releaseRead: (value: string | null) => void = () => {};
+    let startRead: () => void = () => {};
+    const reading = new Promise<void>((resolve) => {
+      startRead = resolve;
+    });
+    jest.mocked(readAtomically).mockImplementationOnce(() => {
+      startRead();
+      return new Promise((resolve) => {
+        releaseRead = resolve;
+      });
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    const data = { items: ['synthetic-restored-feed'] };
+    apiClient.defaults.adapter = async (config) => response(config, data);
+    const beforeRestore = getAuthSessionVersion();
+    let observedSession: number | undefined;
+    let feed: Promise<unknown> | undefined;
+    const queryKey = ['zhihu-feed', PROFILE_A.id, 'recommend'];
+    const stop = useAuthStore.subscribe((state) => {
+      if (state.cookies !== COOKIE_A || feed) return;
+      observedSession = getAuthSessionVersion();
+      feed = client
+        .fetchQuery({
+          queryKey,
+          queryFn: async () => {
+            const sessionVersion = getAuthSessionVersion();
+            const result = await apiClient.get('/test-restored-feed');
+            // The home feed rejects responses belonging to an older session.
+            if (sessionVersion !== getAuthSessionVersion())
+              throw new Error('登录状态已改变');
+            return result.data;
+          },
+        })
+        .catch((error: unknown) => error);
+    });
+    try {
+      const restoring = useAuthStore.persist.rehydrate();
+      await reading;
+      releaseRead(previousSnapshot);
+      await restoring;
+      expect(await feed).toEqual(data);
+      expect(observedSession).toBeGreaterThan(beforeRestore);
+      expect(getAuthSessionVersion()).toBe(observedSession);
+      expect(client.getQueryState(queryKey)?.status).toBe('success');
+    } finally {
+      stop();
+      client.clear();
+    }
+  },
+);
+
+test('repeated hydration of the same account preserves its session and collection state', async () => {
+  expect(await saveAuthState()).toBe(true);
+  useCollectionStore.getState().setCollectedStatus('synthetic-answer', true);
+  useCollectionStore
+    .getState()
+    .updateCollectedCountOffset('synthetic-answer', 1);
+  useCollectionStore.getState().openSelector('synthetic-answer', 'answer');
+  const sessionVersion = getAuthSessionVersion();
+  const collections = useCollectionStore.getState();
+
+  await Promise.all([
+    useAuthStore.persist.rehydrate(),
+    useAuthStore.persist.rehydrate(),
+  ]);
+  await useAuthStore.persist.rehydrate();
+
+  expect(getAuthSessionVersion()).toBe(sessionVersion);
+  expect(useAuthStore.getState().cookies).toBe(COOKIE_A);
+  expect(useCollectionStore.getState()).toBe(collections);
 });
 
 test('startup blocks new login until the existing accounts have been restored', async () => {
@@ -536,6 +662,175 @@ test('anonymous response cookies do not convert a guest into an authenticated st
   await apiClient.get('/test-guest');
   expect(useAuthStore.getState().cookies).toBeNull();
 });
+
+test('a guest request waits for old native credentials to be cleared before reaching the adapter', async () => {
+  let finishClear: () => void = () => {};
+  let readNativeCookies = 0;
+  jest.mocked(CookieManager.clearAllStores).mockImplementationOnce(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finishClear = () => resolve(true);
+      }),
+  );
+  jest.mocked(CookieManager.get).mockImplementationOnce(async () => {
+    readNativeCookies += 1;
+    return {};
+  });
+  const adapter = jest.fn(async (config: InternalAxiosRequestConfig) => {
+    expect(config.headers.get('Cookie')).toBeUndefined();
+    return response(config);
+  });
+  apiClient.defaults.adapter = adapter;
+  useAuthStore.getState().switchAccount(-1);
+  // A subscriber may start the request in the same setState call stack,
+  // before the account action has registered the native synchronization.
+  const pendingRequest = apiClient.get('/test-guest-after-login');
+  const synchronization = syncNativeSessionCookies(null);
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(readNativeCookies).toBe(0);
+  expect(adapter).not.toHaveBeenCalled();
+  finishClear();
+  await synchronization;
+  await pendingRequest;
+  expect(readNativeCookies).toBe(1);
+  expect(adapter).toHaveBeenCalledTimes(1);
+  expect(useAuthStore.getState().cookies).toBeNull();
+});
+
+test('a stalled native cleanup cannot keep a guest API request waiting beyond the synchronization deadline', async () => {
+  jest.useFakeTimers();
+  let finishClear: () => void = () => {};
+  jest.mocked(CookieManager.clearAllStores).mockImplementationOnce(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finishClear = () => resolve(true);
+      }),
+  );
+  const previousReads = jest.mocked(CookieManager.get).mock.calls.length;
+  const adapter = jest.fn(async (config: InternalAxiosRequestConfig) => {
+    expect(config.headers.get('Cookie')).toBeUndefined();
+    return response(config);
+  });
+  apiClient.defaults.adapter = adapter;
+  useAuthStore.getState().switchAccount(-1);
+  const synchronization = syncNativeSessionCookies(null);
+  try {
+    const pendingRequest = apiClient.get('/test-guest-native-timeout');
+    await jest.advanceTimersByTimeAsync(NATIVE_SESSION_SYNC_TIMEOUT_MS - 1);
+    expect(adapter).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(1);
+    await pendingRequest;
+    expect(adapter).toHaveBeenCalledTimes(1);
+    expect(CookieManager.get).toHaveBeenCalledTimes(previousReads);
+    // Feed/API reads released by bootstrap's five-second deadline share that
+    // same synchronization budget instead of waiting another five seconds.
+    const subsequentRequest = apiClient.get('/test-guest-after-timeout');
+    await jest.advanceTimersByTimeAsync(0);
+    expect(adapter).toHaveBeenCalledTimes(2);
+    await subsequentRequest;
+    expect(CookieManager.get).toHaveBeenCalledTimes(previousReads);
+  } finally {
+    finishClear();
+    await synchronization;
+    jest.useRealTimers();
+  }
+});
+
+test.each(['not-started', 'already-failed', 'fails-during-request'] as const)(
+  'first-install native cookie migration respects cleanup state: %s',
+  async (cleanupState) => {
+    const read = jest.mocked(readAtomically);
+    const previousRead = read.getMockImplementation();
+    read.mockResolvedValue(null);
+    const getCookies = jest.mocked(CookieManager.get);
+    getCookies.mockReset().mockResolvedValue({
+      z_c0: { name: 'z_c0', value: 'synthetic-legacy-account' },
+    });
+    let fresh:
+      | {
+          auth: typeof import('../src/store/useAuthStore');
+          session: typeof import('../src/utils/authSession');
+          api: typeof import('../src/api/client');
+        }
+      | undefined;
+    jest.isolateModules(() => {
+      fresh = {
+        auth: jest.requireActual('../src/store/useAuthStore'),
+        session: jest.requireActual('../src/utils/authSession'),
+        api: jest.requireActual('../src/api/client'),
+      };
+    });
+    try {
+      if (!fresh) throw new Error('隔离会话模块未加载');
+      const { auth, session, api } = fresh;
+      await auth.useAuthStore.persist.rehydrate();
+      expect(auth.shouldImportLegacySession()).toBe(true);
+      expect(auth.useAuthStore.getState().cookies).toBeNull();
+      const adapter = jest.fn(async (config: InternalAxiosRequestConfig) =>
+        response(config),
+      );
+      api.default.defaults.adapter = adapter;
+      let failCleanup = () => {};
+      let rejection: Promise<void> | undefined;
+      if (cleanupState !== 'not-started') {
+        jest.mocked(CookieManager.clearAllStores).mockImplementationOnce(
+          () =>
+            new Promise<boolean>((_resolve, reject) => {
+              failCleanup = () =>
+                reject(new Error('synthetic cleanup failure'));
+            }),
+        );
+        rejection = expect(
+          session.syncNativeSessionCookies(null),
+        ).rejects.toThrow('synthetic cleanup failure');
+        await Promise.resolve();
+        if (cleanupState === 'already-failed') {
+          failCleanup();
+          await rejection;
+        }
+      }
+      const request = api.default.get('/test-first-install-native-session');
+      if (cleanupState === 'fails-during-request') {
+        await Promise.resolve();
+        expect(adapter).not.toHaveBeenCalled();
+        failCleanup();
+        await rejection;
+      }
+      await request;
+      const sentCookie = adapter.mock.calls[0]?.[0].headers.get('Cookie');
+      if (cleanupState === 'not-started') {
+        expect(getCookies).toHaveBeenCalledTimes(1);
+        expect(sentCookie).toBe('z_c0=synthetic-legacy-account');
+        expect(auth.useAuthStore.getState().cookies).toBe(sentCookie);
+      } else {
+        expect(getCookies).not.toHaveBeenCalled();
+        expect(sentCookie).toBeUndefined();
+        expect(auth.useAuthStore.getState().cookies).toBeNull();
+        await expect(session.waitForNativeSessionCookies()).resolves.toBe(
+          false,
+        );
+
+        // The failed readiness result persists for later readers, but a new
+        // successful synchronization permits anonymous native cookies again.
+        getCookies.mockResolvedValue({
+          d_c0: { name: 'd_c0', value: 'synthetic-anonymous-device' },
+        });
+        await session.syncNativeSessionCookies(null);
+        await expect(session.waitForNativeSessionCookies()).resolves.toBe(true);
+        await api.default.get('/test-first-install-native-recovered');
+        expect(getCookies).toHaveBeenCalledTimes(1);
+        expect(adapter.mock.calls[1]?.[0].headers.get('Cookie')).toBe(
+          'd_c0=synthetic-anonymous-device',
+        );
+        expect(auth.useAuthStore.getState().cookies).toBeNull();
+      }
+    } finally {
+      if (previousRead) read.mockImplementation(previousRead);
+      getCookies.mockReset().mockResolvedValue({});
+    }
+  },
+);
 
 test('clears the active auth session when z_c0 is deleted but anonymous cookies remain', async () => {
   apiClient.defaults.adapter = async (config) =>

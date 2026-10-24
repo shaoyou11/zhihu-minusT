@@ -20,6 +20,42 @@ const synchronize = createNativeSessionSynchronizer({
       ? SecureStore.setItemAsync(LEGACY_COOKIE_STORAGE_KEY, cookies)
       : SecureStore.deleteItemAsync(LEGACY_COOKIE_STORAGE_KEY),
 });
+let pendingSynchronization: Promise<boolean> = Promise.resolve(true);
+let synchronizationStartedAt = 0;
+export const NATIVE_SESSION_SYNC_TIMEOUT_MS = 5000;
+
+/** Readers must not use the old native jar while a selected session is mirrored. */
+export async function waitForNativeSessionCookies(): Promise<boolean> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const settled = async () => {
+    let pending: Promise<boolean>;
+    let ready: boolean;
+    do {
+      pending = pendingSynchronization;
+      ready = await pending;
+    } while (pending !== pendingSynchronization);
+    return ready;
+  };
+  try {
+    // Axios has not reached its transport timeout while this interceptor waits.
+    // On timeout callers can browse without reading the possibly stale jar.
+    return await Promise.race([
+      settled(),
+      new Promise<false>((resolve) => {
+        timeout = setTimeout(
+          () => resolve(false),
+          Math.max(
+            0,
+            NATIVE_SESSION_SYNC_TIMEOUT_MS -
+              (Date.now() - synchronizationStartedAt),
+          ),
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 /** Zustand is authoritative; obsolete native writes stop at each async boundary. */
 export function syncNativeSessionCookies(
@@ -27,5 +63,13 @@ export function syncNativeSessionCookies(
 ): Promise<void> {
   // The caller's snapshot may rotate while it awaits account persistence.
   // Always mirror the selected session, including its latest response cookies.
-  return synchronize(getAuthSessionVersion());
+  const pending = synchronize(getAuthSessionVersion());
+  // The initiating UI receives the rejection. Readers retain a failure result
+  // and skip the stale native jar until a later synchronization succeeds.
+  synchronizationStartedAt = Date.now();
+  pendingSynchronization = pending.then(
+    () => true,
+    () => false,
+  );
+  return pending;
 }

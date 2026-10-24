@@ -1,31 +1,12 @@
 {
   "expo": {
-    "name": "知乎 minusT",
-    "slug": "ZhihuMinusT",
-    "version": "0.9.4",
-    "orientation": "default",
-    "icon": "./src/assets/images/icon.png",
-    "scheme": "zhihu--",
-    "userInterfaceStyle": "automatic",
-    "ios": {
-      "icon": "./src/assets/images/app-icons/default.png",
-      "supportsTablet": true,
-      "bundleIdentifier": "com.huamu013.ZhihuMinusMinus",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
-    },
     "android": {
-      "versionCode": 904,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./src/assets/images/android-icon-foreground.png",
         "backgroundImage": "./src/assets/images/android-icon-background.png",
+        "foregroundImage": "./src/assets/images/android-icon-foreground.png",
         "monochromeImage": "./src/assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false,
-      "package": "com.huamu013.ZhihuMinusMinus",
-      "permissions": ["REQUEST_INSTALL_PACKAGES"],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -131,7 +112,10 @@
               "pathPrefix": "/collection/"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         },
         {
           "action": "VIEW",
@@ -142,7 +126,10 @@
               "pathPrefix": "/p/"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         },
         {
           "action": "VIEW",
@@ -208,7 +195,10 @@
               "pathPrefix": "/videos/"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         },
         {
           "action": "VIEW",
@@ -217,15 +207,97 @@
               "scheme": "zhihu"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
-      ]
+      ],
+      "package": "com.huamu013.ZhihuMinusMinus",
+      "permissions": [
+        "REQUEST_INSTALL_PACKAGES"
+      ],
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 905
     },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./src/assets/images/favicon.png"
+    "experiments": {
+      "typedRoutes": true
     },
+    "extra": {
+      "eas": {
+        "projectId": "faa0f061-50e6-4ec4-bb6f-accda0dbd24f"
+      },
+      "lastUpdated": "2026-10-24",
+      "releaseNotes": {
+        "v0.0.12": [
+          "基础稳定性优化: 修复了若干 UI 细节与已知的小概率崩溃问题。"
+        ],
+        "v0.0.13": [
+          "ZSE 签名算法重构: 引入 zhi-purity 纯 JS 实现，全面替换旧版 JS/Rust 混合逻辑，彻底解决签名失败导致的 403 问题，提升 API 调用成功率。",
+          "环境兼容性增强: 针对 React Native 环境优化加密核心，移除对 Node.js 原生模块的依赖。"
+        ],
+        "v0.1.1": [
+          "全新主题自由定制配色系统: 新增以计算及主题钩子形式渲染的主题配色方案，允许在暗黑模式与明亮模式下跟随用户选择进行实时自适应变色。",
+          "修复多处硬编码样式: 重构并统一了包括回答详情页、作者卡片、文章详情页、动态 Moments 页、搜索页面、我的关注页、收藏夹列表和 CollectionSelectorModal 中的知乎官方蓝色与静态收藏金色图标，全数收纳进动态主题色拦截引擎中。",
+          "修复 CollectionSelectorModal 页面中 React 规则 Hooks 顺序调用报错导致崩溃的严重问题。"
+        ],
+        "v0.2.0": [
+          "导航栏自适应与发布页定制: 允许自由隐藏/展示“发布”栏目；重构顶部胶囊导航栏渐隐与平滑指示动画，解决多栏目切换时的错位与抖动问题。",
+          "多款精选调和主题色: 重构主题配色面板，新增樱花粉、蜜桃粉、极客靛、薄荷青、翡翠绿等多款高颜值为阅读优化的主题预设。"
+        ],
+        "v0.3.0": [
+          "推荐流本地去重（实验性）: 为「推荐」与「同城」Tab 增加可选的本地已看去重，支持基于曝光判定（面积≥50% 且停留≥800ms）快照式过滤已看内容，支持 SQLite 自动淘汰清理与账号隔离管理；可在「外观与定制 → 实验性功能」中开启。",
+          "优雅 404 无知识荒原展示: 详情页与内容加载针对 404 错误禁止无效重试，第一时间呈现“荒原”占位及返回导航；静默拦截控制台日志堆栈与无效链接弹窗。"
+        ],
+        "v0.4.0": [
+          "图片保存与长按交互优化: 增加长按图片保存到本地相册。",
+          "本地内容过滤系统: 新增「过滤与推荐」设置页面，支持针对关键词、作者及内容的屏蔽规则配置与实时效果预览。"
+        ],
+        "v0.4.2": [
+          "回答加载优化: 复用推荐流已包含的完整回答正文，减少进入详情和长按预览时的重复请求。",
+          "回答横向浏览优化: 在空闲时预取相邻回答，并避免未聚焦页面提前挂载完整富文本内容。",
+          "富文本维护与性能基线: 集中渲染实现、真实内容案例、分析工具、回归测试与 Android 真机记录。"
+        ],
+        "v0.6.0": [
+          "创作发布中心: 支持写回答、写文章、发想法和提问题，正文编辑器支持标题、粗体、引用、列表、链接及图片上传预览。",
+          "评论互动增强: 支持评论与回复中上传图片、复制评论和删除自己的评论，并统一处理评论投票错误。",
+          "搜索与动态升级: 扩展综合/用户搜索及回答、文章、最新发布筛选，新增关注用户最近更新和用户发布流。",
+          "信息流体验优化: 统一 Feed 卡片与详情页的互动状态，减少无效刷新并提升内容缓存复用。"
+        ],
+        "v0.6.1": [
+          "原生导航升级: 默认启用 iOS 原生底部标签栏，让主要页面切换更贴合系统体验。",
+          "下拉刷新优化: 接入原生刷新交互并稳定跨平台触觉反馈，移除 Android 拖动过程中的连续震动。",
+          "阅读体验修复: 避免滚动回答时误触文本选择，并修正富文本列表标记的对齐表现。"
+        ],
+        "v0.6.2": [
+          "Android 架构兼容: Release 同时提供 arm64-v8a、armeabi-v7a、x86 与 x86_64 单 ABI 安装包。",
+          "一键更新更稳定: 根据设备支持的 CPU 架构精确选择 APK，无法确认兼容包时不再盲目下载。"
+        ],
+        "v0.6.3": [
+          "iOS 页面布局修复: 修复首页等页面顶部留白，以及回答详情页底部操作栏被遮挡的问题。"
+        ],
+        "v0.7.0": [
+          "新增 tiqian-super-mini 正文排版: Android 与 iOS 支持原生跨段选择、装饰线、行内公式与图片，可在「外观与阅读 → 正文排版」中开启。",
+          "知乎正文适配: 补齐知识点、选区菜单、链接卡、图注、脚注与想法分段，修复公式换行和暗色公式显示。",
+          "阅读加载更稳定: 减轻缓存正文被详情响应替换时的闪白，修复同高度正文更新后的阅读位置恢复，减少 Android 附件重复加载。",
+          "iOS 启动兼容: 修复使用 iOS 27 SDK 构建时的 Scene 生命周期启动崩溃。"
+        ]
+      },
+      "router": {},
+      "status": "🚀 v0.9.5 - 功能完善中"
+    },
+    "icon": "./src/assets/images/icon.png",
+    "ios": {
+      "bundleIdentifier": "com.huamu013.ZhihuMinusMinus",
+      "icon": "./src/assets/images/app-icons/default.png",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "scheme": "zhihu",
+      "supportsTablet": true
+    },
+    "name": "知乎 minusT",
+    "orientation": "default",
     "plugins": [
       "expo-router",
       [
@@ -257,7 +329,10 @@
           "ios": {
             "deploymentTarget": "16.4",
             "useFrameworks": "static",
-            "forceStaticLinking": ["RNFBApp", "RNFBAnalytics"]
+            "forceStaticLinking": [
+              "RNFBApp",
+              "RNFBAnalytics"
+            ]
           }
         }
       ],
@@ -296,71 +371,14 @@
         }
       ]
     ],
-    "experiments": {
-      "typedRoutes": true
-    },
-    "extra": {
-      "router": {},
-      "releaseNotes": {
-        "v0.7.0": [
-          "新增 tiqian-super-mini 正文排版: Android 与 iOS 支持原生跨段选择、装饰线、行内公式与图片，可在「外观与阅读 → 正文排版」中开启。",
-          "知乎正文适配: 补齐知识点、选区菜单、链接卡、图注、脚注与想法分段，修复公式换行和暗色公式显示。",
-          "阅读加载更稳定: 减轻缓存正文被详情响应替换时的闪白，修复同高度正文更新后的阅读位置恢复，减少 Android 附件重复加载。",
-          "iOS 启动兼容: 修复使用 iOS 27 SDK 构建时的 Scene 生命周期启动崩溃。"
-        ],
-        "v0.6.3": [
-          "iOS 页面布局修复: 修复首页等页面顶部留白，以及回答详情页底部操作栏被遮挡的问题。"
-        ],
-        "v0.6.2": [
-          "Android 架构兼容: Release 同时提供 arm64-v8a、armeabi-v7a、x86 与 x86_64 单 ABI 安装包。",
-          "一键更新更稳定: 根据设备支持的 CPU 架构精确选择 APK，无法确认兼容包时不再盲目下载。"
-        ],
-        "v0.6.1": [
-          "原生导航升级: 默认启用 iOS 原生底部标签栏，让主要页面切换更贴合系统体验。",
-          "下拉刷新优化: 接入原生刷新交互并稳定跨平台触觉反馈，移除 Android 拖动过程中的连续震动。",
-          "阅读体验修复: 避免滚动回答时误触文本选择，并修正富文本列表标记的对齐表现。"
-        ],
-        "v0.6.0": [
-          "创作发布中心: 支持写回答、写文章、发想法和提问题，正文编辑器支持标题、粗体、引用、列表、链接及图片上传预览。",
-          "评论互动增强: 支持评论与回复中上传图片、复制评论和删除自己的评论，并统一处理评论投票错误。",
-          "搜索与动态升级: 扩展综合/用户搜索及回答、文章、最新发布筛选，新增关注用户最近更新和用户发布流。",
-          "信息流体验优化: 统一 Feed 卡片与详情页的互动状态，减少无效刷新并提升内容缓存复用。"
-        ],
-        "v0.4.2": [
-          "回答加载优化: 复用推荐流已包含的完整回答正文，减少进入详情和长按预览时的重复请求。",
-          "回答横向浏览优化: 在空闲时预取相邻回答，并避免未聚焦页面提前挂载完整富文本内容。",
-          "富文本维护与性能基线: 集中渲染实现、真实内容案例、分析工具、回归测试与 Android 真机记录。"
-        ],
-        "v0.4.0": [
-          "图片保存与长按交互优化: 增加长按图片保存到本地相册。",
-          "本地内容过滤系统: 新增「过滤与推荐」设置页面，支持针对关键词、作者及内容的屏蔽规则配置与实时效果预览。"
-        ],
-        "v0.3.0": [
-          "推荐流本地去重（实验性）: 为「推荐」与「同城」Tab 增加可选的本地已看去重，支持基于曝光判定（面积≥50% 且停留≥800ms）快照式过滤已看内容，支持 SQLite 自动淘汰清理与账号隔离管理；可在「外观与定制 → 实验性功能」中开启。",
-          "优雅 404 无知识荒原展示: 详情页与内容加载针对 404 错误禁止无效重试，第一时间呈现“荒原”占位及返回导航；静默拦截控制台日志堆栈与无效链接弹窗。"
-        ],
-        "v0.2.0": [
-          "导航栏自适应与发布页定制: 允许自由隐藏/展示“发布”栏目；重构顶部胶囊导航栏渐隐与平滑指示动画，解决多栏目切换时的错位与抖动问题。",
-          "多款精选调和主题色: 重构主题配色面板，新增樱花粉、蜜桃粉、极客靛、薄荷青、翡翠绿等多款高颜值为阅读优化的主题预设。"
-        ],
-        "v0.1.1": [
-          "全新主题自由定制配色系统: 新增以计算及主题钩子形式渲染的主题配色方案，允许在暗黑模式与明亮模式下跟随用户选择进行实时自适应变色。",
-          "修复多处硬编码样式: 重构并统一了包括回答详情页、作者卡片、文章详情页、动态 Moments 页、搜索页面、我的关注页、收藏夹列表和 CollectionSelectorModal 中的知乎官方蓝色与静态收藏金色图标，全数收纳进动态主题色拦截引擎中。",
-          "修复 CollectionSelectorModal 页面中 React 规则 Hooks 顺序调用报错导致崩溃的严重问题。"
-        ],
-        "v0.0.13": [
-          "ZSE 签名算法重构: 引入 zhi-purity 纯 JS 实现，全面替换旧版 JS/Rust 混合逻辑，彻底解决签名失败导致的 403 问题，提升 API 调用成功率。",
-          "环境兼容性增强: 针对 React Native 环境优化加密核心，移除对 Node.js 原生模块的依赖。"
-        ],
-        "v0.0.12": [
-          "基础稳定性优化: 修复了若干 UI 细节与已知的小概率崩溃问题。"
-        ]
-      },
-      "status": "🚀 v0.9.4 - 功能完善中",
-      "lastUpdated": "2026-10-23",
-      "eas": {
-        "projectId": "faa0f061-50e6-4ec4-bb6f-accda0dbd24f"
-      }
+    "scheme": "zhihu--",
+    "slug": "ZhihuMinusT",
+    "userInterfaceStyle": "automatic",
+    "version": "0.9.5",
+    "web": {
+      "bundler": "metro",
+      "favicon": "./src/assets/images/favicon.png",
+      "output": "static"
     }
   }
 }

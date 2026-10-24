@@ -11,9 +11,10 @@ import { useActiveScreen } from './useActiveScreen';
 export function useNeighborAnswerPrefetch(
   answerIds: string[],
   currentPage: number,
+  enabled = true,
 ) {
   const client = useQueryClient();
-  const active = useActiveScreen();
+  const active = useActiveScreen() && enabled;
   const currentId = answerIds[currentPage];
   const [firstNeighborId, secondNeighborId] = getNeighborAnswerIds(
     answerIds,

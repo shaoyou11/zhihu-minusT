@@ -3,10 +3,12 @@ import {
   QueryClient,
   QueryClientProvider,
 } from '@tanstack/react-query';
-import { act, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { ComponentProps, ReactNode } from 'react';
 import { type AnswerDetail, getAnswer } from '../src/api/zhihu';
 import { getAllContentCollectionStatus } from '../src/api/zhihu/collection';
+import { getQuestionAnswers } from '../src/api/zhihu/question';
+import AnswerScreen from '../src/app/answer/[id]';
 import { AnswerDetailView } from '../src/components/AnswerDetailView';
 import type { CollectionButton } from '../src/components/CollectionButton';
 import type { RichContentLoadingPhase } from '../src/features/rich-content';
@@ -15,6 +17,10 @@ import {
   getAnswerEndorsementsKey,
   seedAnswerEndorsements,
 } from '../src/utils/answerEndorsements';
+import {
+  getGuestAnswerKey,
+  seedGuestAnswerFromList,
+} from '../src/utils/guestAnswer';
 
 interface ReadingOptions {
   enabled: boolean;
@@ -32,6 +38,8 @@ interface Settings {
   richContentRenderer: string;
   fontSizeScale: number;
   lineHeightScale: number;
+  answerReadingMode: string;
+  enableBrowseHistory: boolean;
 }
 
 interface Collections {
@@ -78,13 +86,26 @@ const mockCollectionButton = jest.fn(
   (_props: ComponentProps<typeof CollectionButton>) => {},
 );
 let mockSessionVersion = 1;
+let mockCookies = 'z_c0=synthetic-session';
 let mockLayoutReady: () => void;
 let mockContentLoadingPhase: RichContentLoadingPhase | null = null;
+const mockPagerMount = jest.fn();
+let mockScreenAnswerIds = ['84'];
+let mockEntryAnswerId = '84';
+let mockSelectPage: (event: { nativeEvent: { position: number } }) => void;
+const mockRouterPush = jest.fn();
 
+jest.mock('../src/api/client', () => ({
+  hasAuthenticationCookie: (cookie: string | null) =>
+    Boolean(cookie?.includes('z_c0=')),
+}));
 jest.mock('../src/api/zhihu', () => ({
   ...jest.requireActual('../src/api/zhihu/contentCollection'),
   getAnswer: jest.fn(),
   deleteAnswer: jest.fn(),
+}));
+jest.mock('../src/api/zhihu/question', () => ({
+  getQuestionAnswers: jest.fn(),
 }));
 jest.mock('../src/api/zhihu/collection', () => ({
   getAllContentCollectionStatus: jest.fn(),
@@ -94,7 +115,56 @@ jest.mock('../src/api/zhihu/member', () => ({
   unfollowMember: jest.fn(),
 }));
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
+  Stack: { Screen: () => null },
+  useLocalSearchParams: () => ({
+    id: mockEntryAnswerId,
+    questionId: '7',
+    answerScene: 'question_feed',
+  }),
+  useRouter: () => ({
+    push: mockRouterPush,
+    back: jest.fn(),
+    setParams: jest.fn(),
+  }),
+}));
+jest.mock('react-native-pager-view', () => {
+  const react = jest.requireActual<typeof import('react')>('react');
+  const native =
+    jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    __esModule: true,
+    default: react.forwardRef(
+      (
+        props: {
+          children: ReactNode;
+          onPageSelected: typeof mockSelectPage;
+        },
+        ref,
+      ) => {
+        mockSelectPage = props.onPageSelected;
+        react.useImperativeHandle(ref, () => ({
+          setPageWithoutAnimation: jest.fn(),
+        }));
+        react.useEffect(() => mockPagerMount(), []);
+        return react.createElement(native.View, null, props.children);
+      },
+    ),
+  };
+});
+jest.mock('../src/components/AnswerPreviewList', () => ({
+  AnswerPreviewList: () => null,
+}));
+jest.mock('../src/api/zhihu/history', () => ({ recordReadHistory: jest.fn() }));
+jest.mock('../src/hooks/useAnswerPagerSource', () => ({
+  useAnswerPagerSource: () => ({
+    data: { pages: [{ data: mockScreenAnswerIds.map((id) => ({ id })) }] },
+    pagerKey: 'synthetic-question-session',
+    isQuestionSource: true,
+    sessionVersion: mockSessionVersion,
+  }),
+}));
+jest.mock('../src/hooks/useNeighborAnswerPrefetch', () => ({
+  useNeighborAnswerPrefetch: () => {},
 }));
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -172,6 +242,7 @@ jest.mock('../src/components/ContentRelationshipNotice', () => {
   };
 });
 jest.mock('../src/components/DetailNavigationHeader', () => ({
+  DetailNavigationHeader: () => null,
   useDetailNavigationHeight: () => 44,
 }));
 jest.mock('../src/components/DownvoteButton', () => ({
@@ -200,9 +271,6 @@ jest.mock('../src/components/CollectionButton', () => {
 jest.mock('../src/components/MoreActionsButton', () => ({
   MoreActionsButton: () => null,
 }));
-jest.mock('../src/components/QueryErrorView', () => ({
-  QueryErrorView: () => null,
-}));
 jest.mock('../src/components/ReadingProgressNotice', () => ({
   ReadingProgressNotice: () => null,
 }));
@@ -221,6 +289,10 @@ jest.mock('../src/hooks/useOptimisticToggle', () => ({
 }));
 jest.mock('../src/hooks/useAnswerDetailRead', () => ({
   useAnswerDetailRead: jest.fn(),
+  useAnswerReadSession: () => ({
+    sessionVersion: mockSessionVersion,
+    recorded: new Set<string>(),
+  }),
 }));
 jest.mock('../src/hooks/useReadingProgress', () => ({
   useReadingProgress: (options: ReadingOptions) => mockReadingProgress(options),
@@ -231,7 +303,8 @@ jest.mock('../src/hooks/useReadingContentMeasurement', () => ({
 }));
 jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
-  useAuthStore: (selector: () => unknown) => selector(),
+  useAuthStore: (selector: (state: { cookies: string }) => unknown) =>
+    selector({ cookies: mockCookies }),
 }));
 jest.mock('../src/store/useSettingsStore', () => ({
   useSettingsStore: Object.assign(
@@ -240,6 +313,8 @@ jest.mock('../src/store/useSettingsStore', () => ({
         richContentRenderer: 'native-v2',
         fontSizeScale: 1,
         lineHeightScale: 1,
+        answerReadingMode: 'detail',
+        enableBrowseHistory: false,
       }),
     {
       getState: () => ({
@@ -394,7 +469,11 @@ beforeEach(() => {
   jest.clearAllMocks();
   onlineManager.setOnline(true);
   mockSessionVersion = 1;
+  mockCookies = 'z_c0=synthetic-session';
   mockContentLoadingPhase = null;
+  mockScreenAnswerIds = ['84'];
+  mockEntryAnswerId = '84';
+  jest.mocked(getQuestionAnswers).mockResolvedValue({ data: [] });
   jest.mocked(getAnswer).mockResolvedValue(answer);
   jest
     .mocked(getAllContentCollectionStatus)
@@ -816,6 +895,223 @@ test('changes an uncached focused answer from fetching to its actual native layo
   expect(host.queryByText('正在确认正文宽度…')).toBeNull();
   expect(host.queryByText('正在获取回答…')).toBeNull();
   expect(getAnswer).toHaveBeenCalledTimes(1);
+});
+
+test.each([401, 403])(
+  'keeps a failed initial answer mounted after HTTP %s and recovers only on explicit retry',
+  async (status) => {
+    let rejectRequest!: (error: unknown) => void;
+    jest
+      .mocked(getAnswer)
+      .mockReturnValue(new Promise(() => {}))
+      .mockReturnValueOnce(
+        new Promise<AnswerDetail>((_resolve, reject) => {
+          rejectRequest = reject;
+        }),
+      );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    clients.push(queryClient);
+    const host = await render(
+      <QueryClientProvider client={queryClient}>
+        <AnswerScreen />
+      </QueryClientProvider>,
+    );
+    expect(host.getByText('正在获取回答…')).toBeOnTheScreen();
+
+    await act(() =>
+      rejectRequest(
+        Object.assign(new Error('Synthetic request failure'), {
+          isAxiosError: true,
+          response: { status },
+        }),
+      ),
+    );
+
+    await waitFor(() =>
+      expect(host.getByText('回答加载失败')).toBeOnTheScreen(),
+    );
+    expect(host.queryByText('正在获取回答…')).toBeNull();
+    expect(getAnswer).toHaveBeenCalledTimes(1);
+    expect(mockPagerMount).toHaveBeenCalledTimes(1);
+
+    jest.mocked(getAnswer).mockResolvedValue(answer);
+    await fireEvent.press(host.getByRole('button', { name: '重新加载' }));
+
+    await waitFor(() =>
+      expect(host.getByTestId('answer-body')).toHaveTextContent(answer.content),
+    );
+    expect(host.queryByText('回答加载失败')).toBeNull();
+    expect(getAnswer).toHaveBeenCalledTimes(2);
+    expect(mockPagerMount).toHaveBeenCalledTimes(1);
+  },
+);
+
+test('allows paging to another answer when the initial answer cannot be fetched', async () => {
+  mockScreenAnswerIds = ['84', '85'];
+  jest.mocked(getAnswer).mockImplementation(async (id) => {
+    if (String(id) === '84')
+      throw Object.assign(new Error('Synthetic request failure'), {
+        isAxiosError: true,
+        response: { status: 403 },
+      });
+    return { ...answer, id, content: '<p>另一个可读取的回答</p>' };
+  });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  clients.push(queryClient);
+  const host = await render(
+    <QueryClientProvider client={queryClient}>
+      <AnswerScreen />
+    </QueryClientProvider>,
+  );
+  await waitFor(() => expect(host.getByText('回答加载失败')).toBeOnTheScreen());
+
+  await act(() => mockSelectPage({ nativeEvent: { position: 1 } }));
+
+  await waitFor(() =>
+    expect(host.getByTestId('answer-body')).toHaveTextContent(
+      '<p>另一个可读取的回答</p>',
+    ),
+  );
+  expect(jest.mocked(getAnswer).mock.calls.map(([id]) => id)).toEqual([
+    '84',
+    '85',
+  ]);
+  expect(mockPagerMount).toHaveBeenCalledTimes(1);
+});
+
+test.each<Partial<AnswerDetail>>([
+  { id: '84', content_need_truncated: true },
+  { id: '85', answer_type: 'PAID' },
+  { id: '86', paid_info: {} },
+])(
+  'shows guest content with a working login action for answer $id',
+  async (overrides) => {
+    mockCookies = '';
+    const guestAnswer: AnswerDetail = { ...answer, ...overrides };
+    mockEntryAnswerId = String(guestAnswer.id);
+    mockScreenAnswerIds = [mockEntryAnswerId];
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    clients.push(queryClient);
+    seedGuestAnswerFromList(queryClient, guestAnswer, mockSessionVersion);
+    const host = await render(
+      <QueryClientProvider client={queryClient}>
+        <AnswerScreen />
+      </QueryClientProvider>,
+    );
+
+    expect(host.getByTestId('answer-body')).toHaveTextContent(
+      guestAnswer.content,
+    );
+    expect(host.getByText('当前仅展示游客可见的部分正文')).toBeOnTheScreen();
+    expect(host.queryByText('正在获取回答…')).toBeNull();
+    expect(getAnswer).not.toHaveBeenCalled();
+    expect(getQuestionAnswers).not.toHaveBeenCalled();
+    expect(
+      queryClient.getQueryData(
+        getGuestAnswerKey(mockEntryAnswerId, mockSessionVersion),
+      ),
+    ).toEqual(guestAnswer);
+    expect(
+      queryClient.getQueryData(['answer-detail', mockEntryAnswerId]),
+    ).toBeUndefined();
+
+    await fireEvent.press(host.getByRole('button', { name: '登录后查看回答' }));
+    expect(mockRouterPush).toHaveBeenCalledWith('/login');
+    expect(mockPagerMount).toHaveBeenCalledTimes(1);
+  },
+);
+
+test('fetches an uncached guest answer once from its public question cards', async () => {
+  mockCookies = '';
+  jest.mocked(getQuestionAnswers).mockResolvedValue({ data: [answer] });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  clients.push(queryClient);
+  const host = await render(
+    <QueryClientProvider client={queryClient}>
+      <AnswerScreen />
+    </QueryClientProvider>,
+  );
+
+  await waitFor(() =>
+    expect(host.getByTestId('answer-body')).toHaveTextContent(answer.content),
+  );
+  expect(getQuestionAnswers).toHaveBeenCalledTimes(1);
+  expect(getQuestionAnswers).toHaveBeenCalledWith('7', 0, 'default', '', {
+    signal: expect.any(AbortSignal),
+  });
+  expect(getAnswer).not.toHaveBeenCalled();
+  expect(host.queryByText('正在获取回答…')).toBeNull();
+  expect(host.queryByText('当前仅展示游客可见的部分正文')).toBeNull();
+});
+
+test('settles on a stable message when public question cards do not contain the guest answer', async () => {
+  mockCookies = '';
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  clients.push(queryClient);
+  const host = await render(
+    <QueryClientProvider client={queryClient}>
+      <AnswerScreen />
+    </QueryClientProvider>,
+  );
+
+  await waitFor(() =>
+    expect(
+      host.getByText('游客暂时无法获取该回答，请登录后重试'),
+    ).toBeOnTheScreen(),
+  );
+  expect(host.queryByText('正在获取回答…')).toBeNull();
+  expect(getQuestionAnswers).toHaveBeenCalledTimes(1);
+  expect(getAnswer).not.toHaveBeenCalled();
+  expect(mockPagerMount).toHaveBeenCalledTimes(1);
+});
+
+test('replaces a signed-in answer with the new guest session content after switching modes', async () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  clients.push(queryClient);
+  const signedInAnswer = { ...answer, content: '<p>登录态完整正文</p>' };
+  queryClient.setQueryData(['answer-detail', answer.id], signedInAnswer);
+  const screen = () => (
+    <QueryClientProvider client={queryClient}>
+      <AnswerScreen />
+    </QueryClientProvider>
+  );
+  const host = await render(screen());
+  expect(host.getByTestId('answer-body')).toHaveTextContent(
+    signedInAnswer.content,
+  );
+
+  mockCookies = '';
+  mockSessionVersion += 1;
+  const guestAnswer = {
+    ...answer,
+    content: '<p>新游客会话可以读取的部分</p>',
+    content_need_truncated: true,
+  };
+  seedGuestAnswerFromList(queryClient, guestAnswer, mockSessionVersion);
+  await host.rerender(screen());
+
+  expect(host.getByTestId('answer-body')).toHaveTextContent(
+    guestAnswer.content,
+  );
+  expect(host.queryByText(signedInAnswer.content)).toBeNull();
+  expect(host.getByText('当前仅展示游客可见的部分正文')).toBeOnTheScreen();
+  expect(getAnswer).not.toHaveBeenCalled();
+  expect(getQuestionAnswers).not.toHaveBeenCalled();
+  expect(queryClient.getQueryData(['answer-detail', answer.id])).toEqual(
+    signedInAnswer,
+  );
 });
 
 test('keeps an uncached neighbor blank and mounts its body when prefetch populates the disabled query', async () => {

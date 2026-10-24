@@ -100,6 +100,18 @@ Firebase 26 继续通过 CocoaPods 链接，`withIosFirebaseCocoaPods` 保留禁
 
 iOS 原生 tab 自动收起使用 [Screens 补丁](../patches/react-native-screens+4.30.0.patch)，按祖先裁切后的可见面积选择当前竖向列表，忽略隐藏、禁用及横向滚动容器。首页左右切页时监听外层横向容器的几何变化，主动更新 UIKit 底边滚动绑定；Fabric 惰性挂载、布局和返回页面也会刷新，离页移除监听。不能缓存首次找到的列表，否则已访问的离屏页仍可能控制 tab 收起。`bash scripts/test-ios-tab-scroll-binding.sh` 在临时 iOS 模拟器中直接测试生产 finder/tracker 的 UIKit 行为，退出时删除测试模拟器。仍需在原生应用中检查首次打开各列表、连续左右滑动、取消半途切页、切换底部 tab 和从详情返回后的收起/展开。
 
+#### iOS 外链验证
+
+`app.json` 的顶层 `scheme: "zhihu--"` 与 `ios.scheme: "zhihu"` 会由 Expo 合并到生成的 `Info.plist` 的 `CFBundleURLTypes`。链接继续由 `src/app/+native-intent.tsx` 和 `src/utils/url.ts` 统一解析；不需要额外注册 `Linking` 导航处理器。修改协议配置后须重新 prebuild、编译并安装原生包，Fast Refresh 或 JavaScript 更新不会更新系统的协议注册。
+
+在临时源码副本中运行 `npm run prebuild -- --platform ios --no-install`，确认生成的 URL schemes 同时包含 `zhihu--` 和 `zhihu`。SDK 58 默认清理原生目录，不要用现有本机签名工程做无备份的配置验证。运行 `npm test -- tests/url.test.ts --runInBand` 和 `npm run check` 后，用重新安装的原生包验证：
+
+- 分别在应用未运行和后台运行时，从外部打开问题、回答、文章等受支持的 `zhihu://` 链接，确认进入正确内容；同时检查原有 `zhihu--://` 入口。
+- 在 Safari 与微信中分别点击实际分享页的“App 内打开”，确认按钮发出的 URL 能否交给本应用。`zhihu://hybrid?…` 等查询参数包装路径目前不在通用解析范围内，不应将某个直接内容链接成功视为所有分享链接均可用。
+- 分别检查仅安装知乎--和同时安装官方知乎的情况。多个应用注册同一个 scheme 时，iOS 的目标应用未定义，不能承诺优先打开知乎--，见 [Apple URL scheme 说明](https://developer.apple.com/documentation/xcode/defining-a-custom-url-scheme-for-your-app)。
+
+当前未配置 `ios.associatedDomains`。直接接收知乎 HTTPS Universal Links 需要知乎域名的 AASA 文件授权本应用，仅增加客户端域名配置不能实现；参见 [Apple Associated Domains 说明](https://developer.apple.com/documentation/xcode/supporting-associated-domains)。prebuild 与 JavaScript 测试只验证生成配置和路由，不能替代 Safari、微信及真机冷/热启动检查。
+
 ### Web
 
 ```bash
@@ -247,7 +259,7 @@ xcrun simctl openurl booted 'zhihu--:///dev/rich-content/prototype?caseId=attach
 - RN 普通和 Animated 图片统一通过 `src/utils/imageSource.ts` 的 `getCachedImageSource` 创建 source。HTTP(S) 使用 `cache: 'force-cache'`，用于优先复用已有原生缓存，缓存未命中时仍可加载；升级 RN 后仍需检查双端缓存行为。按完整 URL（含版本参数、尺寸及主机）区分图片，不按账号或页面另存副本，也不定时清空或主动刷新；同 URL 的服务器原地替换不会主动校准。JS source 索引最多 512 条，灯箱另保存最多 256 条成功加载的原始尺寸，并关闭库的主动预加载，重新打开已有尺寸的图片不再调用 `getSize`。这两个索引只存元数据；图片字节仍由 RN 原生缓存管理和淘汰，未新增自建磁盘图片库或统一 MB 上限。WebView、SVG 和原生行内附件仍使用各自加载链路。回归见 `imageSource`、`imagePreviewModal` 和富文本测试；同页重复头像、重新进页、重启、离线命中及系统淘汰后的请求次数仍须 Android/iOS 真机验证。
 - 登录态主存于应用沙箱的 `auth-storage.json`，用于容纳多账号 Cookie；旧版本的 SecureStore Cookie 只在首次缺少文件时用于兼容导入。主文件与当前备份使用 AES-GCM，密钥另存 SecureStore，原子读取负责 Android `.bak` 恢复；旧明文与旧 store 均保留兼容迁移，详见 [账号保存与恢复](./AUTH_STORAGE.md)。
 - 设置和 telemetry 开关使用 SecureStore；内容阅读进度的记录与恢复目前由 `src/constants/readingProgress.ts` 中的 `ENABLE_READING_PROGRESS = false` 统一停用，回答、文章、日报和想法均不恢复历史位置或保存新进度，也不读取或迁移旧记录。页面尺寸测量与回答滚动条继续工作。已有阅读进度数据保留，持久格式仍为最多 100 条的双快照文件，迁移逻辑保留且仅在启用后运行，两个快照提交后才清理旧 SecureStore。推荐流缓存、曝光与创作草稿使用 Expo SQLite；缓存 24 小时过期、曝光 30 天保留并定期限量，草稿规则见 [发布编辑器](../src/features/publishing/README.md)。
-- 内容过滤仅作用于推荐流，默认开启广告/营销等现有规则，升级保留已保存的总开关。设置 v17 新增 `filterRegexPatterns`，迁移与更新时移除空白、重复、非法或不受支持的规则；新规则默认留空，修改其他设置或保存归一后相同的规则时保留数组引用，避免重复过滤和重编译。`src/utils/feedRegex.ts` 使用已有 htmlparser2 提取完整正文纯文本，只读取 Pin 的文字段落，忽略摘要、截断正文与纯媒体内容。关注豁免先于广告、正则与质量规则；正则与质量开关独立，折叠/隐藏和设置页统计共用 `evaluateFeedItem`。相关回归运行 `npm test -- tests/feedFilter.test.ts tests/FeedRegexSettings.test.tsx tests/settings-renderer-migration.test.ts --runInBand`。
+- 内容过滤仅作用于推荐流，总开关默认开启；质量过滤（含赞同数阈值，`filterEnableQuality`）和带推广标记的内容（`filterBlockLabeled`）默认关闭，其他广告/营销规则沿用各自默认值。首次使用、重置设置及旧数据缺失这两项时均采用关闭值，升级保留已保存的总开关和各项选择；持久字段与格式不变。设置 v17 新增 `filterRegexPatterns`，迁移与更新时移除空白、重复、非法或不受支持的规则；新规则默认留空，修改其他设置或保存归一后相同的规则时保留数组引用，避免重复过滤和重编译。`src/utils/feedRegex.ts` 使用已有 htmlparser2 提取完整正文纯文本，只读取 Pin 的文字段落，忽略摘要、截断正文与纯媒体内容。关注豁免先于广告、正则与质量规则；正则与质量开关独立，折叠/隐藏和设置页统计共用 `evaluateFeedItem`。相关回归运行 `npm test -- tests/feedFilter.test.ts tests/FeedRegexSettings.test.tsx tests/settings-renderer-migration.test.ts --runInBand`。
 - 推荐流解析集中在 `src/utils/recommendFeed.ts`；Feed 外层 `promotion_extra` 的 JSON 字符串或对象中，只有明确的 `is_card === true` 才归一为 `isAdPromotion`，由现有“知乎广告平台推广”开关过滤，独立于 `target.is_labeled` 和正文广告链接。空值、损坏 JSON 和不带明确标记的结构不据此过滤；本地缓存只新增可选布尔信号，不保存投放参数或追踪 URL。旧缓存缺失该信号时仍可读取，需要刷新推荐流重新取得标记。回归见 `recommendFeedPromotion` 和 `feedFilter`。
 - 自定义正则采用纯 JavaScript [RE2JS](https://github.com/le0pard/re2js) 的有限状态匹配引擎，使用 RE2 语法与 `DOTALL`，内建 Unicode 码点匹配。默认不支持前后查找或反向引用，不调用宽松的 JS 正则转换器，也不回退执行原生 `RegExp`。例如 `^.{0,50}$` 和 `广告\s*推广` 可继续使用；Unicode 转义使用实际字符或 `\x{...}`，属性类使用 RE2 的 `\p{Han}` 等语法。
 - 资源边界集中在 `FEED_REGEX_LIMITS`：最多 20 条规则，单条源长度最多 256，编辑器输入最多 16384；编译后超过 4096 条指令的规则不接受。HTML 最多 262144、纯文本最多 65536、Pin 最多 2048 段（字符串长度限额以 UTF-16 码元计）；超限正文跳过，不能截断后匹配。表达式按规则数组身份缓存，用 `matcher(text).find()` 请求匹配边界并搜索任意位置，命中即停止，不切换为 `test()` / `RE2Set.match()`；RE2JS 已升级到 2.9.0，原有 Unicode 与病态表达式测试用于检查升级后的匹配行为和资源边界。正文按不可变 FeedItem 身份缓存。复杂嵌套重复不再走指数回溯，但长文本与复杂规则仍有处理开销，不能把这些准入限制当作实际内存或耗时的硬上限。可用性测试用带超时的子进程执行实际 helper，覆盖病态嵌套重复和大量不同 Unicode 字符；升级 RE2JS 时必须复核匹配路径并重跑测试。
@@ -266,6 +278,8 @@ xcrun simctl openurl booted 'zhihu--:///dev/rich-content/prototype?caseId=attach
 写入查询默认使用 `networkMode: always`、`retry: false`，离线时按请求失败和既有回滚处理，避免评论、私信和发布排队后在恢复网络时自动提交。不要为恢复读取而取消或重放 mutation。离线首屏处于 `pending/paused`，页面需保留加载状态，不能显示“暂无内容”或“内容已删除”。
 
 首次游客初始化由 `useGuestBootstrap` / `GuestBootstrap` 管理：已有原生设备 Cookie 时立即放行，否则短暂等待隐藏 WebView；等待期间首页显示加载状态，网页错误或最多 5 秒后允许 API 继续尝试，不再无限等待 Cookie，也不在成功后固定再等 2 秒。失败后在本次游客会话的下一次联网恢复时最多补试一次，不能重新关闭已放行的 Feed；取得 Cookie 后只重启当前游客的活跃错误/无数据 Feed。异步读取、旧网页消息、定时器和换账号均按代次/会话隔离；匿名 Cookie 只用于请求，不写入认证 store，不通过网页消息传出其值。
+
+登录后切游客会立即登记原生 Cookie 同步，游客初始化与 API 读取原生 Cookie 前等待旧账号清理，不能在保存账号文件的等待间隙先创建游客 Cookie 再把它清空。含登录凭据的旧原生 Cookie 不用于游客 WebView。问题详情和回答列表查询均按会话隔离并拒绝旧响应；游客回答正文独立缓存并保留摘要/截断标记，详情与 Pager 不再请求登录态 Web 正文。相关回归覆盖 `guestBootstrap`、`profileSessionActions`、`apiClientSession`、`guestAnswerReading`、`answerPagerSource` 和 `answerNeighborRendering`；真机需验证首次游客、登录后切游客、重新登录，以及回答失败后的重试和左右切换。
 
 新增 `expo-network` 后必须重新编译原生应用，Fast Refresh 无法添加模块。运行 `npm ci`、`npx expo prebuild --platform android --no-install`、`npx expo prebuild --platform ios --no-install` 和 `npm run check`。回归包括 `queryConnectivity`、`queryRecovery`、`queryClient`、`queryRetry`、`feedFallback` 与 `guestBootstrap`；真机重点验证 Android 飞行模式恢复、Wi-Fi 切换流量、首屏/刷新/翻页中的断网、后台恢复，以及清除应用数据后在线和离线首次游客启动。原生连接状态不能保证知乎服务可达，路由器有连接但上游断网仍需通过请求超时/失败反馈处理；自动化测试不替代这类真机验证。
 

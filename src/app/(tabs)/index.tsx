@@ -1479,6 +1479,7 @@ const FeedList = React.forwardRef<
                 onRetry={() => void handleRefresh()}
               />
             ) : (filterEnabled || localDedupEnabled) &&
+              !isError &&
               !isRefreshing &&
               !isRefetching &&
               !isLoading &&

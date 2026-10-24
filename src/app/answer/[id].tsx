@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   useCallback,
@@ -10,25 +9,22 @@ import {
 } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import PagerView from 'react-native-pager-view';
-import { getAnswer } from '@/api/zhihu';
 import { recordReadHistory } from '@/api/zhihu/history';
 import {
   AnswerDetailView,
   type AnswerEndorsementSource,
 } from '@/components/AnswerDetailView';
-import { AnswerLoadingPlaceholder } from '@/components/AnswerLoadingPlaceholder';
 import { AnswerPreviewList } from '@/components/AnswerPreviewList';
 import { DetailNavigationHeader } from '@/components/DetailNavigationHeader';
 import { ShareMenu } from '@/components/ShareMenu';
 import { View } from '@/components/Themed';
-import { RICH_CONTENT_STALE_TIME } from '@/features/rich-content';
+import { useAnswerDetailQuery } from '@/hooks/useAnswerDetailQuery';
 import { useAnswerReadSession } from '@/hooks/useAnswerDetailRead';
 import { useAnswerHeaderState } from '@/hooks/useAnswerHeaderState';
 import { useAnswerPagerSource } from '@/hooks/useAnswerPagerSource';
 import { useNeighborAnswerPrefetch } from '@/hooks/useNeighborAnswerPrefetch';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { getAnswerReadingContext } from '@/utils/answerReadingContext';
-import { shouldRetryQuery } from '@/utils/query';
 
 export default function AnswerScreen() {
   const params = useLocalSearchParams<{
@@ -92,20 +88,9 @@ function AnswerDetailScreen() {
   }, [enableBrowseHistory, initialId]);
 
   // 先获取选中回答，默认切换同题回答，明确的用户来源切换该用户的回答。
-  const {
-    data: initialAnswer,
-    isLoading: initialQueryLoading,
-    isPending: initialPending,
-    isPaused: initialPaused,
-  } = useQuery({
-    queryKey: ['answer-detail', initialId],
-    queryFn: ({ signal }) => getAnswer(initialId, undefined, { signal }),
-    enabled: !!initialId,
-    staleTime: RICH_CONTENT_STALE_TIME,
-    retry: shouldRetryQuery,
+  const { data: initialAnswer, isGuest } = useAnswerDetailQuery(initialId, {
+    questionId: initialEntry.questionId,
   });
-  const loadingInitial =
-    initialQueryLoading || (initialPending && initialPaused);
 
   const questionId =
     answerContext.scene === 'question_feed'
@@ -215,12 +200,10 @@ function AnswerDetailScreen() {
   const currentPage = Math.max(0, answerIds.indexOf(selectedId));
   const currentId = answerIds[currentPage];
   const headerState = useAnswerHeaderState(pagerKey, currentId);
-  const { data: currentAnswer } = useQuery({
-    queryKey: ['answer-detail', currentId],
-    queryFn: ({ signal }) => getAnswer(currentId, undefined, { signal }),
-    enabled: !!currentId,
-    staleTime: RICH_CONTENT_STALE_TIME,
-    retry: shouldRetryQuery,
+  const { data: currentAnswer } = useAnswerDetailQuery(currentId, {
+    questionId:
+      questionIdsByAnswer.get(currentId) ||
+      (isQuestionSource || currentId === initialId ? questionId : undefined),
   });
   const headerQuestionId =
     currentAnswer?.question?.id ||
@@ -324,7 +307,7 @@ function AnswerDetailScreen() {
     );
   }, [currentId, pagerKey, headerState.scopeVersion]);
 
-  useNeighborAnswerPrefetch(answerIds, currentPage);
+  useNeighborAnswerPrefetch(answerIds, currentPage, !isGuest);
 
   useEffect(() => {
     if (
@@ -353,15 +336,9 @@ function AnswerDetailScreen() {
       );
   };
 
-  if (loadingInitial && !initialAnswer) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <Stack.Screen options={{ headerShown: false, title: '回答' }} />
-        <AnswerLoadingPlaceholder phase="fetching-answer" />
-      </View>
-    );
-  }
-
+  // Keep the visible query observer mounted through loading and failure.
+  // Unmounting it while fetching causes retry-on-mount to restart a failed
+  // initial answer indefinitely. Each page owns its loading/error state.
   return (
     <View className="flex-1">
       <Stack.Screen options={{ headerShown: false, title: '回答' }} />

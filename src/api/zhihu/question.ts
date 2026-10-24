@@ -75,28 +75,47 @@ export const getQuestion = async (
   return res.data;
 };
 
+/** Only a public feed of the same question may receive the App session. */
+function getQuestionFeedNextUrl(id: string | number, next: string): string {
+  let url: URL;
+  try {
+    url = new URL(next, 'https://api.zhihu.com');
+  } catch {
+    throw new Error('回答列表分页地址无效');
+  }
+  if (
+    url.origin !== 'https://api.zhihu.com' ||
+    url.username ||
+    url.password ||
+    url.pathname !== `/questions/${encodeURIComponent(String(id))}/feeds`
+  )
+    throw new Error('回答列表分页地址无效');
+  return url.href;
+}
+
 export const getQuestionAnswers = async (
   id: string | number,
   pageParam: number | string,
   sortBy: 'default' | 'created',
   include: string,
+  options: ApiRequestOptions = {},
 ): Promise<QuestionAnswersResponse> => {
   const isAuthenticated = hasAuthenticationCookie(
     useAuthStore.getState().cookies,
   );
-  const offset =
-    typeof pageParam === 'number'
-      ? pageParam
-      : Number(
-          new URL(pageParam, 'https://api.zhihu.com').searchParams.get(
-            'offset',
-          ) || 0,
-        );
-
   if (isAuthenticated) {
+    const offset =
+      typeof pageParam === 'number'
+        ? pageParam
+        : Number(
+            new URL(pageParam, 'https://api.zhihu.com').searchParams.get(
+              'offset',
+            ) || 0,
+          );
     const res = await apiClient.get<QuestionAnswersResponse>(
       `/questions/${id}/answers`,
       {
+        signal: options.signal,
         params: { include, limit: 20, offset, sort_by: sortBy },
       },
     );
@@ -105,13 +124,14 @@ export const getQuestionAnswers = async (
 
   const url =
     typeof pageParam === 'string'
-      ? pageParam
+      ? getQuestionFeedNextUrl(id, pageParam)
       : buildZhihuAppQuestionFeedsUrl(id, {
           order: sortBy === 'created' ? 'updated' : 'default',
           limit: 10,
-          offset,
+          offset: pageParam,
         });
   const res = await apiClient.get<ZhihuAppQuestionFeedsResponse>(url, {
+    signal: options.signal,
     headers: getZhihuAppEndpointHeaders(url),
   });
   return normalizeZhihuAppQuestionFeeds(res.data);

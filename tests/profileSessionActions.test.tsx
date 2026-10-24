@@ -1,6 +1,8 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { PressableProps } from 'react-native';
 import ProfileScreen from '../src/app/(tabs)/profile';
+import { persistAuthStateWithFeedback } from '../src/utils/authPersistenceFeedback';
+import { syncNativeSessionCookies } from '../src/utils/authSession';
 
 const mockVerify = jest.fn();
 const mockClearCookies = jest.fn();
@@ -128,6 +130,24 @@ test('account verification finishing after a session change cannot switch accoun
     finish({ cookies: 'z_c0=synthetic-verified', me: { id: 'second' } });
   });
   expect(mockSwitch).not.toHaveBeenCalled();
+  await host.unmount();
+});
+
+test('switching to guest begins native cleanup before waiting for account persistence', async () => {
+  let finishSave: (saved: boolean) => void = () => {};
+  jest.mocked(persistAuthStateWithFeedback).mockImplementationOnce(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finishSave = resolve;
+      }),
+  );
+  const host = await render(<ProfileScreen />);
+  await fireEvent.press(host.getByText('切换账号'));
+  await fireEvent.press(host.getByText('游客模式 (未登录)'));
+  expect(mockSwitch).toHaveBeenCalledWith(-1, undefined);
+  expect(syncNativeSessionCookies).toHaveBeenCalledWith(null);
+  expect(persistAuthStateWithFeedback).toHaveBeenCalledTimes(1);
+  await act(() => finishSave(true));
   await host.unmount();
 });
 

@@ -21,7 +21,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   type AnswerDetail,
   deleteAnswer,
-  getAnswer,
   getContentCollectionMetadata,
 } from '@/api/zhihu';
 import { getAllContentCollectionStatus } from '@/api/zhihu/collection';
@@ -51,10 +50,10 @@ import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import {
   isRichTextNativeAvailable,
-  RICH_CONTENT_STALE_TIME,
   type RichContentLoadingPhase,
   ZhihuContent,
 } from '@/features/rich-content';
+import { useAnswerDetailQuery } from '@/hooks/useAnswerDetailQuery';
 import {
   type AnswerReadSession,
   useAnswerDetailRead,
@@ -70,7 +69,6 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { getAnswerEndorsementsKey } from '@/utils/answerEndorsements';
 import { formatDate } from '@/utils/date';
 import { calculateDetailHeaderAppearance } from '@/utils/detailHeaderAppearance';
-import { shouldRetryQuery } from '@/utils/query';
 import { getZhihuErrorMessage, getZhihuErrorStatus } from '@/utils/zhihuError';
 
 const slowTransition = SharedTransition.duration(600);
@@ -185,12 +183,10 @@ export const AnswerDetailView = ({
     isError,
     error,
     refetch,
-  } = useQuery({
-    queryKey: ['answer-detail', id],
-    queryFn: ({ signal }) => getAnswer(id, undefined, { signal }),
+    isGuest,
+  } = useAnswerDetailQuery(id, {
     enabled: isFocused,
-    staleTime: RICH_CONTENT_STALE_TIME,
-    retry: shouldRetryQuery,
+    questionId,
   });
   const isAnswerLoading =
     queryLoading || (queryPending && queryPaused && isFocused);
@@ -616,7 +612,7 @@ export const AnswerDetailView = ({
               <AnswerLoadingPlaceholder phase="fetching-answer" />
             ) : isError && !answer && getZhihuErrorStatus(error) !== 404 ? (
               <QueryErrorView
-                message="回答加载失败"
+                message={isGuest ? getZhihuErrorMessage(error) : '回答加载失败'}
                 onRetry={() => void refetch()}
               />
             ) : getZhihuErrorStatus(error) === 404 && !answer ? (
@@ -668,6 +664,22 @@ export const AnswerDetailView = ({
                   renderPlaceholder={renderContentPlaceholder}
                   onLayoutReady={handleContentLayoutReady}
                 />
+                {isGuest &&
+                (answer?.content_need_truncated ||
+                  answer?.answer_type?.toUpperCase() === 'PAID' ||
+                  answer?.paid_info != null) ? (
+                  <View className="mt-4 bg-transparent">
+                    <Text type="secondary">当前仅展示游客可见的部分正文</Text>
+                    <BouncyButton
+                      accessibilityRole="button"
+                      accessibilityLabel="登录后查看回答"
+                      onPress={() => router.push('/login')}
+                      className="py-3"
+                    >
+                      <Text type="primary">登录后查看回答</Text>
+                    </BouncyButton>
+                  </View>
+                ) : null}
                 {/* Meta info */}
                 <View
                   style={{

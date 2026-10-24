@@ -2,6 +2,7 @@ import CookieManager from '@preeternal/react-native-cookie-manager';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { getAuthSessionVersion, useAuthStore } from '@/store/useAuthStore';
+import { waitForNativeSessionCookies } from '@/utils/authSession';
 
 export const GUEST_BOOTSTRAP_TIMEOUT_MS = 5000;
 
@@ -83,10 +84,21 @@ export function useGuestBootstrap(isGuest: boolean) {
         }
       };
       void Promise.resolve()
-        .then(() => CookieManager.get('https://www.zhihu.com', true))
+        .then(waitForNativeSessionCookies)
+        .then((nativeSessionReady) => {
+          if (!isCurrentAttempt()) return null;
+          if (!nativeSessionReady) {
+            complete(false);
+            return null;
+          }
+          return CookieManager.get('https://www.zhihu.com', true);
+        })
         .then((cookies) => {
-          if (!isCurrentAttempt()) return;
-          if (cookies.d_c0?.value) complete(true);
+          if (!cookies || !isCurrentAttempt()) return;
+          // A failed native cleanup can leave the previous account in this
+          // jar. Do not bootstrap an anonymous WebView with its credentials.
+          if (cookies.z_c0?.value) complete(false);
+          else if (cookies.d_c0?.value) complete(true);
           else showWebView();
         })
         .catch(showWebView);

@@ -34,20 +34,21 @@ interface PrefetchProps {
   answerIds: string[];
   currentPage: number;
   active: boolean;
+  enabled?: boolean;
 }
 
-async function renderPrefetch() {
+async function renderPrefetch(enabled = true) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   clients.push(client);
   const host = await renderHook(
-    ({ answerIds, currentPage, active }: PrefetchProps) => {
+    ({ answerIds, currentPage, active, enabled }: PrefetchProps) => {
       mockActive = active;
-      useNeighborAnswerPrefetch(answerIds, currentPage);
+      useNeighborAnswerPrefetch(answerIds, currentPage, enabled);
     },
     {
-      initialProps: { answerIds: ids, currentPage: 2, active: true },
+      initialProps: { answerIds: ids, currentPage: 2, active: true, enabled },
       wrapper: ({ children }: PropsWithChildren) =>
         createElement(QueryClientProvider, { client }, children),
     },
@@ -69,6 +70,39 @@ function requestSignal(id: string) {
 
 test('starts neighboring requests without waiting for an idle callback', async () => {
   const { host } = await renderPrefetch();
+  expect(requestedIds()).toEqual(['b', 'd']);
+  await host.unmount();
+});
+
+test('does not preload Web answer details while disabled for guest reading', async () => {
+  const { host } = await renderPrefetch(false);
+  expect(getAnswer).not.toHaveBeenCalled();
+
+  await host.rerender({
+    answerIds: ids,
+    currentPage: 3,
+    active: true,
+    enabled: false,
+  });
+
+  expect(getAnswer).not.toHaveBeenCalled();
+  await host.unmount();
+});
+
+test('switching to guest mode cancels pending Web preloads', async () => {
+  const { host } = await renderPrefetch();
+  const bSignal = requestSignal('b');
+  const dSignal = requestSignal('d');
+
+  await host.rerender({
+    answerIds: ids,
+    currentPage: 2,
+    active: true,
+    enabled: false,
+  });
+
+  expect(bSignal.aborted).toBe(true);
+  expect(dSignal.aborted).toBe(true);
   expect(requestedIds()).toEqual(['b', 'd']);
   await host.unmount();
 });

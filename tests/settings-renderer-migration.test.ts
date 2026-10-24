@@ -34,6 +34,10 @@ test('defaults to tiqian-super-mini with visual feedback and filtering enabled i
   expect(useSettingsStore.getState().richContentRenderer).toBe('native-v2');
   expect(useSettingsStore.getState().enablePressFeedback).toBe(true);
   expect(useSettingsStore.getState().enableLocalFeedFilter).toBe(true);
+  expect(useSettingsStore.getInitialState().filterEnableQuality).toBe(false);
+  expect(useSettingsStore.getInitialState().filterBlockLabeled).toBe(false);
+  expect(useSettingsStore.getState().filterEnableQuality).toBe(false);
+  expect(useSettingsStore.getState().filterBlockLabeled).toBe(false);
   expect(useSettingsStore.getState().filterRegexPatterns).toEqual([]);
   expect(useSettingsStore.persist.getOptions().version).toBe(19);
 });
@@ -254,6 +258,29 @@ test.each([1, 7, 16])(
       (await migrate({ enableLocalFeedFilter: false }, version))
         .enableLocalFeedFilter,
     ).toBe(false);
+  },
+);
+
+test.each([7, 8, 17, 18])(
+  'hydrates v%s quality and labeled filters with disabled defaults while preserving saved choices',
+  async (version) => {
+    for (const saved of [undefined, false, true]) {
+      const state =
+        saved === undefined
+          ? {}
+          : { filterEnableQuality: saved, filterBlockLabeled: saved };
+      useSettingsStore.getState().resetSettings();
+      jest
+        .mocked(SecureStore.getItemAsync)
+        .mockResolvedValue(JSON.stringify({ state, version }));
+      await useSettingsStore.persist.rehydrate();
+
+      expect(useSettingsStore.getState()).toMatchObject({
+        enableLocalFeedFilter: true,
+        filterEnableQuality: saved ?? false,
+        filterBlockLabeled: saved ?? false,
+      });
+    }
   },
 );
 

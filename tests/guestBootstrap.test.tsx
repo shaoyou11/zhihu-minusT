@@ -20,6 +20,7 @@ import {
   GUEST_BOOTSTRAP_TIMEOUT_MS,
   useGuestBootstrap,
 } from '../src/hooks/useGuestBootstrap';
+import { syncNativeSessionCookies } from '../src/utils/authSession';
 import { resolveLocalAccountKey } from '../src/utils/localAccount';
 
 let mockQueryClient: QueryClient;
@@ -34,7 +35,15 @@ jest.mock('@tanstack/react-query', () => ({
 }));
 jest.mock('@preeternal/react-native-cookie-manager', () => ({
   __esModule: true,
-  default: { get: jest.fn() },
+  default: {
+    get: jest.fn(),
+    clearAllStores: jest.fn(async () => undefined),
+    set: jest.fn(async () => undefined),
+  },
+}));
+jest.mock('expo-secure-store', () => ({
+  setItemAsync: jest.fn(async () => undefined),
+  deleteItemAsync: jest.fn(async () => undefined),
 }));
 jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockSessionVersion,
@@ -66,10 +75,14 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
   getCookies.mockReset().mockResolvedValue({});
+  jest.mocked(CookieManager.clearAllStores).mockReset().mockResolvedValue(true);
 });
 
 afterEach(async () => {
   await cleanup();
+  // The readiness result belongs to the module, so a failed synchronization
+  // must not leave later tests using the same rejected native session.
+  await syncNativeSessionCookies(mockAuthCookie);
   mockQueryClient.clear();
   onlineManager.setOnline(true);
   jest.useRealTimers();
@@ -80,6 +93,127 @@ test('existing native anonymous cookies release the feed without mounting a WebV
   const host = await renderHook(() => useGuestBootstrap(true));
   expect(host.result.current).toEqual({ ready: true, attempt: null });
   expect(getCookies).toHaveBeenCalledTimes(1);
+});
+
+test('guest bootstrap waits for native account cleanup before inspecting or creating cookies', async () => {
+  let finishClear: () => void = () => {};
+  getCookies.mockResolvedValue({
+    ...guestCookies,
+    z_c0: { name: 'z_c0', value: 'synthetic-old-account' },
+  });
+  jest.mocked(CookieManager.clearAllStores).mockImplementationOnce(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finishClear = () => {
+          getCookies.mockResolvedValue({});
+          resolve(true);
+        };
+      }),
+  );
+  const synchronization = syncNativeSessionCookies(null);
+  const host = await renderHook(() => useGuestBootstrap(true));
+  expect(getCookies).not.toHaveBeenCalled();
+  expect(host.result.current).toEqual({ ready: false, attempt: null });
+  await act(async () => {
+    finishClear();
+    await synchronization;
+  });
+  expect(getCookies).toHaveBeenCalledTimes(1);
+  expect(host.result.current.ready).toBe(false);
+  expect(host.result.current.attempt).not.toBeNull();
+  await act(() => host.result.current.attempt?.complete(true));
+  expect(host.result.current).toEqual({ ready: true, attempt: null });
+});
+
+test('failed native cleanup releases browsing without reading the stale jar or mounting a bootstrap WebView', async () => {
+  getCookies.mockResolvedValue({
+    ...guestCookies,
+    z_c0: { name: 'z_c0', value: 'synthetic-old-account' },
+  });
+  jest
+    .mocked(CookieManager.clearAllStores)
+    .mockRejectedValueOnce(new Error('Synthetic native cleanup failure'));
+  await expect(syncNativeSessionCookies(null)).rejects.toThrow(
+    'Synthetic native cleanup failure',
+  );
+
+  const host = await renderHook(() => useGuestBootstrap(true));
+  expect(getCookies).not.toHaveBeenCalled();
+  expect(host.result.current).toEqual({ ready: true, attempt: null });
+});
+
+test('a successful synchronization restores bootstrap for a new guest session after native cleanup failed', async () => {
+  jest
+    .mocked(CookieManager.clearAllStores)
+    .mockRejectedValueOnce(new Error('Synthetic native cleanup failure'));
+  await expect(syncNativeSessionCookies(null)).rejects.toThrow(
+    'Synthetic native cleanup failure',
+  );
+  const host = await renderHook(() => useGuestBootstrap(true));
+  expect(getCookies).not.toHaveBeenCalled();
+  expect(host.result.current).toEqual({ ready: true, attempt: null });
+
+  await act(async () => {
+    mockSessionVersion += 1;
+    await syncNativeSessionCookies(null);
+  });
+  await host.rerender(undefined);
+  expect(getCookies).toHaveBeenCalledTimes(1);
+  expect(host.result.current.ready).toBe(false);
+  expect(host.result.current.attempt).not.toBeNull();
+  await act(() => host.result.current.attempt?.complete(true));
+  expect(host.result.current).toEqual({ ready: true, attempt: null });
+});
+
+test('a stale logged-in native jar releases browsing without mounting an authenticated bootstrap WebView', async () => {
+  getCookies.mockResolvedValue({
+    ...guestCookies,
+    z_c0: { name: 'z_c0', value: 'synthetic-old-account' },
+  });
+  const host = await renderHook(() => useGuestBootstrap(true));
+  expect(host.result.current).toEqual({ ready: true, attempt: null });
+});
+
+test('a session change while native cleanup is pending prevents the old guest bootstrap read', async () => {
+  let finishClear: () => void = () => {};
+  jest.mocked(CookieManager.clearAllStores).mockImplementationOnce(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finishClear = () => resolve(true);
+      }),
+  );
+  const synchronization = syncNativeSessionCookies(null);
+  const host = await renderHook(() => useGuestBootstrap(!mockAuthCookie));
+  await act(async () => {
+    mockAuthCookie = 'z_c0=synthetic-new-account';
+    mockSessionVersion += 1;
+    finishClear();
+    await synchronization;
+  });
+  await host.rerender(undefined);
+  expect(getCookies).not.toHaveBeenCalled();
+  expect(host.result.current).toEqual({ ready: true, attempt: null });
+});
+
+test('a native cleanup that misses the bootstrap deadline releases browsing without reading the old jar', async () => {
+  let finishClear: () => void = () => {};
+  jest.mocked(CookieManager.clearAllStores).mockImplementationOnce(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finishClear = () => resolve(true);
+      }),
+  );
+  const synchronization = syncNativeSessionCookies(null);
+  const host = await renderHook(() => useGuestBootstrap(true));
+  await act(() => jest.advanceTimersByTime(GUEST_BOOTSTRAP_TIMEOUT_MS));
+  expect(host.result.current).toEqual({ ready: true, attempt: null });
+  expect(getCookies).not.toHaveBeenCalled();
+  await act(async () => {
+    finishClear();
+    await synchronization;
+  });
+  expect(host.result.current).toEqual({ ready: true, attempt: null });
+  expect(getCookies).not.toHaveBeenCalled();
 });
 
 test('a silent WebView cannot keep the feed disabled beyond the deadline', async () => {

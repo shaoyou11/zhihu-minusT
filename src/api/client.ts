@@ -12,6 +12,7 @@ import {
   useAuthStore,
 } from '@/store/useAuthStore';
 import { useVerificationStore } from '@/store/useVerificationStore';
+import { waitForNativeSessionCookies } from '@/utils/authSession';
 import { classifyNetworkError } from '@/utils/networkFailure';
 import {
   encryptZseV4,
@@ -409,10 +410,11 @@ apiClient.interceptors.request.use(async (config) => {
 
   if (!cookie) {
     try {
-      const nativeCookies = await CookieManager.get(
-        'https://www.zhihu.com',
-        true,
-      );
+      const nativeSessionReady = await waitForNativeSessionCookies();
+      requireCurrentSession(sessionVersion);
+      const nativeCookies = nativeSessionReady
+        ? await CookieManager.get('https://www.zhihu.com', true)
+        : null;
       requireCurrentSession(sessionVersion);
       if (nativeCookies) {
         const nativeCookie = Object.entries(nativeCookies)

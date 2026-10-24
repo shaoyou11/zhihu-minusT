@@ -180,14 +180,14 @@ export interface AppSettings {
   filterBlockZhihuSchool: boolean;
   /** 正文含 mp.weixin.qq.com（微信公众号引流文章） */
   filterBlockWeChat: boolean;
-  /** is_labeled（带推广标记的内容） */
+  /** is_labeled（带推广标记的内容）；默认关闭。 */
   filterBlockLabeled: boolean;
   /** author.is_org（机构号发布的内容；默认放行，机构号也有正经内容） */
   filterBlockOrgAuthor: boolean;
   /** author.is_advertiser（广告主发布的内容） */
   filterBlockAdvertiser: boolean;
   // 内容质量过滤
-  /** 质量过滤开关，与上面推广开关独立。 */
+  /** 质量过滤开关，与上面推广开关独立，默认关闭。 */
   filterEnableQuality: boolean;
   /** 三档强度阈值，驱动四类内容的组合条件（详见 utils/feedFilter.ts）。 */
   filterQualityLevel: FilterQualityLevel;
@@ -239,10 +239,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   filterBlockAdPlatform: true,
   filterBlockZhihuSchool: true,
   filterBlockWeChat: true,
-  filterBlockLabeled: true,
+  filterBlockLabeled: false,
   filterBlockOrgAuthor: false,
   filterBlockAdvertiser: true,
-  filterEnableQuality: true,
+  filterEnableQuality: false,
   filterQualityLevel: 'standard',
   filterKeepFollowing: true,
   filterKeepUpvotedByFollowee: true,
@@ -404,13 +404,13 @@ export const useSettingsStore = create<SettingsState>()(
           persistedState.filterBlockWeChat =
             persistedState.filterBlockWeChat ?? true;
           persistedState.filterBlockLabeled =
-            persistedState.filterBlockLabeled ?? true;
+            persistedState.filterBlockLabeled ?? false;
           persistedState.filterBlockOrgAuthor =
             persistedState.filterBlockOrgAuthor ?? false;
           persistedState.filterBlockAdvertiser =
             persistedState.filterBlockAdvertiser ?? true;
           persistedState.filterEnableQuality =
-            persistedState.filterEnableQuality ?? true;
+            persistedState.filterEnableQuality ?? false;
           persistedState.filterQualityLevel = isValidQualityLevel(
             persistedState.filterQualityLevel,
           )
