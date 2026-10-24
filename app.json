@@ -112,10 +112,7 @@
               "pathPrefix": "/collection/"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         },
         {
           "action": "VIEW",
@@ -126,10 +123,7 @@
               "pathPrefix": "/p/"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         },
         {
           "action": "VIEW",
@@ -195,10 +189,7 @@
               "pathPrefix": "/videos/"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         },
         {
           "action": "VIEW",
@@ -207,16 +198,11 @@
               "scheme": "zhihu"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ],
       "package": "com.huamu013.ZhihuMinusMinus",
-      "permissions": [
-        "REQUEST_INSTALL_PACKAGES"
-      ],
+      "permissions": ["REQUEST_INSTALL_PACKAGES"],
       "predictiveBackGestureEnabled": false,
       "versionCode": 905
     },
@@ -329,10 +315,7 @@
           "ios": {
             "deploymentTarget": "16.4",
             "useFrameworks": "static",
-            "forceStaticLinking": [
-              "RNFBApp",
-              "RNFBAnalytics"
-            ]
+            "forceStaticLinking": ["RNFBApp", "RNFBAnalytics"]
           }
         }
       ],

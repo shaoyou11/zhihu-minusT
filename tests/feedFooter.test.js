@@ -42,6 +42,7 @@ function renderFooter(overrides = {}) {
     isFetchingNextPage: false,
     isFetchNextPageError: false,
     isError: false,
+    isPaused: false,
     filterEnabled: true,
     localDedupEnabled: false,
     isRefreshing: false,
@@ -52,6 +53,7 @@ function renderFooter(overrides = {}) {
     hasNextPage: false,
     autoFetchExhausted: false,
     fetchNextPage: jest.fn(),
+    handleRefresh: jest.fn(),
     ...overrides,
   });
 }
@@ -80,4 +82,20 @@ test('a pagination failure retains its retry action instead of a filtering messa
   expect(footer.props.message).toBe('更多内容加载失败');
   footer.props.onRetry();
   expect(fetchNextPage).toHaveBeenCalledTimes(1);
+});
+
+test.each([
+  [{ isPaused: true }, '等待网络恢复，已保留原有内容'],
+  [{ isError: true }, '刷新失败，已保留原有内容'],
+])('retained feed content offers refresh retry: %j', (state, message) => {
+  const handleRefresh = jest.fn();
+  const footer = renderFooter({
+    ...state,
+    flattenedData: [{ id: 'retained' }],
+    handleRefresh,
+  });
+  expect(footer.type).toBe('QueryErrorView');
+  expect(footer.props.message).toBe(message);
+  footer.props.onRetry();
+  expect(handleRefresh).toHaveBeenCalledTimes(1);
 });
