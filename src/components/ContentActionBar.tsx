@@ -7,12 +7,7 @@ import {
   useEffect,
   useState,
 } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -27,6 +22,7 @@ import Animated, {
 import { BouncyButton } from '@/components/BouncyButton';
 import { useRuntimeThemeColors } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
+import { usePaneDimensions } from '@/features/adaptive-layout/PaneContext';
 import { useReduceTransparency } from '@/hooks/useReduceTransparency';
 
 export const CONTENT_ACTION_BAR_HEIGHT = 48;
@@ -81,8 +77,8 @@ export function ContentActionBar({
   // System material tints add their own opaque grey wash on iOS. A light
   // blur plus a thin highlight preserves the actual content behind the bar.
   const glassTint = colorScheme === 'dark' ? 'dark' : 'light';
-  const { width: windowWidth } = useWindowDimensions();
-  const availableWidth = Math.max(CONTENT_ACTION_BAR_HEIGHT, windowWidth - 32);
+  const { width: paneWidth } = usePaneDimensions();
+  const availableWidth = Math.max(CONTENT_ACTION_BAR_HEIGHT, paneWidth - 32);
   const [contentWidth, setContentWidth] = useState(0);
   const [interactionExpanded, setInteractionExpanded] = useState(false);
   const morphs = Boolean(collapseProgress && onExpand);
@@ -134,7 +130,7 @@ export function ContentActionBar({
       transform: [
         {
           translateX:
-            (16 - (windowWidth - CONTENT_ACTION_BAR_HEIGHT) / 2) * contraction,
+            (16 - (paneWidth - CONTENT_ACTION_BAR_HEIGHT) / 2) * contraction,
         },
       ],
     };

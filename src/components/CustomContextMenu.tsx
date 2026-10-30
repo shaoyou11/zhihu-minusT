@@ -4,7 +4,6 @@ import type { ComponentProps } from 'react';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   type LayoutRectangle,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,6 +20,7 @@ import { BouncyButton } from '@/components/BouncyButton';
 import { CollectionStarIcon } from '@/components/CollectionStarIcon';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { PaneModal } from '@/features/adaptive-layout/PaneModal';
 import { ImpactFeedbackStyle, impactAsync } from '@/utils/haptics';
 import { Text, View } from './Themed';
 
@@ -78,6 +78,7 @@ export function CustomContextMenu({
   const openingStarted = useRef(false);
   const pendingAction = useRef<MenuOption['onPress'] | null>(null);
   const closing = useRef(false);
+  const scrollOffset = useRef({ x: 0, y: 0 });
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -98,6 +99,7 @@ export function CustomContextMenu({
     };
     pendingAction.current = null;
     closing.current = false;
+    scrollOffset.current = { x: 0, y: 0 };
   }
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -251,7 +253,7 @@ export function CustomContextMenu({
   if (!visible) return null;
 
   return (
-    <Modal
+    <PaneModal
       visible={visible}
       transparent
       animationType="none"
@@ -306,7 +308,14 @@ export function CustomContextMenu({
             { backgroundColor: Colors[colorScheme].backgroundSecondary },
           ]}
         >
-          <ScrollView keyboardShouldPersistTaps="handled">
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentOffset={scrollOffset.current}
+            onScroll={({ nativeEvent }) => {
+              scrollOffset.current = nativeEvent.contentOffset;
+            }}
+            scrollEventThrottle={16}
+          >
             {options.map((option, index) => (
               <React.Fragment key={option.key}>
                 <BouncyButton
@@ -360,7 +369,7 @@ export function CustomContextMenu({
           </ScrollView>
         </Animated.View>
       </View>
-    </Modal>
+    </PaneModal>
   );
 }
 

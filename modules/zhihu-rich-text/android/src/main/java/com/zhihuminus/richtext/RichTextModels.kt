@@ -54,6 +54,9 @@ internal data class TextConfig(
 
 internal fun JSONObject.range(text: String): TextRange? = richTextRange(opt("start"), opt("end"), text)
 
+internal fun JSONObject.emptyLineAnchor(text: String): Int? =
+  richTextEmptyLineAnchor(opt("start"), opt("end"), text, opt("emptyLine"))
+
 internal fun JSONObject.number(key: String, fallback: Double = Double.NaN): Double = richTextNumber(opt(key), fallback)
 
 internal fun JSONArray?.objects(): List<JSONObject> =

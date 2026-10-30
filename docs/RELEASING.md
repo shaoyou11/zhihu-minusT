@@ -83,9 +83,10 @@ npm test -- tests/altstoreSource.test.js --runInBand
 
 将版本号和日期替换为本次产物对应值；同一 IPA、commit、日期和配置会产生相同源文件。本地生成只校验元数据，不会上传 IPA 或公开订阅源；实际安装、更新与签名流程仍需用正式产物在侧载工具中验证。
 
-## Pull Request 检查
+## Pull Request 检查与预览构建
 
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) 会在 Pull Request 和 `main` push 时使用 Node.js 24 运行 `npm ci` 与 `npm run check`。建议在分支保护规则中将 **TypeScript, Biome and tests** job 设置为合并前必须通过。
+- **常规门禁**：[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) 会在 Pull Request 和 `main` push 时使用 Node.js 24 运行 `npm ci` 与 `npm run check`。建议在分支保护规则中将 **TypeScript, Biome and tests** job 设置为合并前必须通过。
+- **minusT 定制发布**：继续使用 [`.github/workflows/minust-ios.yml`](../.github/workflows/minust-ios.yml)。本仓库不启用上游 PR ChatOps 预览构建；上游 v0.9.7 新增的 `pr-build.yml` 已在人工合并时排除，既有个人工作流与未知工作流保护保持不变。
 
 ## 依赖更新策略
 

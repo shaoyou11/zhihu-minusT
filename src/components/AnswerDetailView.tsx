@@ -1,13 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { skipToken, useMutation, useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import React, { useRef } from 'react';
 import {
   Alert,
   type ScrollViewInstance as NativeScrollView,
   type ViewInstance as NativeView,
+  Platform,
   View as RawView,
-  useWindowDimensions,
 } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Reanimated, {
@@ -38,6 +38,7 @@ import { ContentActionButton } from '@/components/ContentActionButton';
 import { ContentRelationshipNotice } from '@/components/ContentRelationshipNotice';
 import { useDetailNavigationHeight } from '@/components/DetailNavigationHeader';
 import { FollowButton } from '@/components/FollowButton';
+import { InitialContentReveal } from '@/components/InitialContentReveal';
 import { MoreActionsButton } from '@/components/MoreActionsButton';
 import { QueryErrorView } from '@/components/QueryErrorView';
 import { ReadingProgressNotice } from '@/components/ReadingProgressNotice';
@@ -48,6 +49,8 @@ import { StableAvatar } from '@/components/StableAvatar';
 import { Text, ThemedIcon, useThemeColor, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { usePaneDimensions } from '@/features/adaptive-layout/PaneContext';
+import { TitleTransitionTarget } from '@/features/adaptive-layout/TitleTransition';
 import {
   isRichTextNativeAvailable,
   type RichContentLoadingPhase,
@@ -73,10 +76,6 @@ import { getZhihuErrorMessage, getZhihuErrorStatus } from '@/utils/zhihuError';
 
 const slowTransition = SharedTransition.duration(600);
 
-function renderContentPlaceholder(phase: RichContentLoadingPhase) {
-  return <AnswerLoadingPlaceholder phase={phase} />;
-}
-
 export interface AnswerEndorsementSource {
   answerId: string;
   sessionVersion: number;
@@ -100,6 +99,12 @@ interface AnswerDetailViewProps {
   isPreloading?: boolean;
 }
 
+interface AnswerDeleteScope {
+  id: string;
+  sessionVersion: number;
+  scopeVersion: number | undefined;
+}
+
 export const AnswerDetailView = ({
   id,
   readSession,
@@ -117,6 +122,7 @@ export const AnswerDetailView = ({
   isPreloading = false,
 }: AnswerDetailViewProps) => {
   const router = useRouter();
+  const navigation = useNavigation();
   const sessionVersion = useAuthStore(() => getAuthSessionVersion());
   const insets = useSafeAreaInsets();
   const actionBarBottom = getContentActionBarBottom(insets.bottom);
@@ -208,7 +214,17 @@ export const AnswerDetailView = ({
   );
   const fontSizeScale = useSettingsStore((state) => state.fontSizeScale);
   const lineHeightScale = useSettingsStore((state) => state.lineHeightScale);
-  const dimensions = useWindowDimensions();
+  const dimensions = usePaneDimensions();
+  // Reserve the visible reading area during the fetch and native layout so
+  // the footer does not jump into view before the measured body replaces it.
+  const placeholderHeight =
+    Platform.OS === 'android' ? Math.max(200, dimensions.height * 0.55) : 200;
+  const renderContentPlaceholder = React.useCallback(
+    (phase: RichContentLoadingPhase) => (
+      <AnswerLoadingPlaceholder phase={phase} minHeight={placeholderHeight} />
+    ),
+    [placeholderHeight],
+  );
   const waitForNativeLayout =
     richContentRenderer === 'native-v2' && isRichTextNativeAvailable();
   const shouldRenderBody =
@@ -389,14 +405,36 @@ export const AnswerDetailView = ({
     successMessage: (isActive) => (isActive ? '已取消关注' : '已关注'),
   });
 
+  const deleteScope = React.useMemo<AnswerDeleteScope>(
+    () => ({ id, sessionVersion, scopeVersion }),
+    [id, sessionVersion, scopeVersion],
+  );
+  const currentDeleteScope = useRef<AnswerDeleteScope | null>(deleteScope);
+  React.useLayoutEffect(() => {
+    currentDeleteScope.current = deleteScope;
+    return () => {
+      if (currentDeleteScope.current === deleteScope)
+        currentDeleteScope.current = null;
+    };
+  }, [deleteScope]);
+  const isCurrentDelete = (attempt: AnswerDeleteScope) =>
+    currentDeleteScope.current === attempt &&
+    attempt.sessionVersion === getAuthSessionVersion() &&
+    (!activeAnswerId || activeAnswerId.value === attempt.id) &&
+    (!activeScopeVersion || activeScopeVersion.value === attempt.scopeVersion);
   const deleteMutation = useMutation({
-    mutationFn: () => deleteAnswer(id),
-    onSuccess: () => {
+    mutationFn: (attempt: AnswerDeleteScope) => deleteAnswer(attempt.id),
+    onSuccess: (_data, attempt) => {
+      if (!isCurrentDelete(attempt)) return;
       Alert.alert('删除成功', '你的回答已删除喵！');
-      router.back();
+      // Dispatch from this route, so a newer list/detail is never popped.
+      const target = navigation.getState()?.key;
+      if (target) navigation.dispatch({ type: 'GO_BACK', target });
     },
-    onError: (err: unknown) =>
-      Alert.alert('删除失败', getZhihuErrorMessage(err) || '无法删除回答'),
+    onError: (err: unknown, attempt) => {
+      if (isCurrentDelete(attempt))
+        Alert.alert('删除失败', getZhihuErrorMessage(err) || '无法删除回答');
+    },
   });
 
   const handleDelete = () => {
@@ -405,7 +443,9 @@ export const AnswerDetailView = ({
       {
         text: '确认删除',
         style: 'destructive',
-        onPress: () => deleteMutation.mutate(),
+        onPress: () => {
+          if (isCurrentDelete(deleteScope)) deleteMutation.mutate(deleteScope);
+        },
       },
     ]);
   };
@@ -467,7 +507,20 @@ export const AnswerDetailView = ({
 
   const goToProfile = () => {
     const token = answer?.author?.url_token || answer?.author?.id;
-    if (token) router.push(`/user/${token}`);
+    if (token)
+      router.push({
+        pathname: '/user/[id]',
+        params: {
+          id: token,
+          ...(answer?.author?.avatar_url
+            ? { avatar: answer.author.avatar_url }
+            : {}),
+          ...(answer?.author?.name ? { name: answer.author.name } : {}),
+          ...(answer?.author?.headline
+            ? { headline: answer.author.headline }
+            : {}),
+        },
+      });
   };
 
   const linkColor = useThemeColor({}, 'link');
@@ -553,20 +606,24 @@ export const AnswerDetailView = ({
                     color={secondaryColor}
                   />
                 </View>
-                <Reanimated.View
-                  sharedTransitionTag={`title-${questionId || answer?.question?.id || id}`}
-                  sharedTransitionStyle={slowTransition}
+                <TitleTransitionTarget
+                  id={String(questionId || answer?.question?.id || id)}
                 >
-                  <Text
-                    style={{
-                      fontSize: 21,
-                      lineHeight: 29,
-                      fontWeight: '700',
-                    }}
+                  <Reanimated.View
+                    sharedTransitionTag={`title-${questionId || answer?.question?.id || id}`}
+                    sharedTransitionStyle={slowTransition}
                   >
-                    {answer?.question?.title || initialTitle || '加载中...'}
-                  </Text>
-                </Reanimated.View>
+                    <Text
+                      style={{
+                        fontSize: 21,
+                        lineHeight: 29,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {answer?.question?.title || initialTitle || '加载中...'}
+                    </Text>
+                  </Reanimated.View>
+                </TitleTransitionTarget>
               </BouncyButton>
               <View className="flex-row items-center pt-4 pb-5 justify-between gap-3 bg-transparent">
                 <BouncyButton
@@ -609,7 +666,10 @@ export const AnswerDetailView = ({
             </View>
 
             {isAnswerLoading && !answer ? (
-              <AnswerLoadingPlaceholder phase="fetching-answer" />
+              <AnswerLoadingPlaceholder
+                phase="fetching-answer"
+                minHeight={placeholderHeight}
+              />
             ) : isError && !answer && getZhihuErrorStatus(error) !== 404 ? (
               <QueryErrorView
                 message={isGuest ? getZhihuErrorMessage(error) : '回答加载失败'}
@@ -653,17 +713,19 @@ export const AnswerDetailView = ({
                   enabled={isFocused && Boolean(answer)}
                   voteCount={answer?.voteup_count}
                 />
-                <ZhihuContent
-                  suppressDoubleTapSelection={isDoubleTapEnabled}
-                  content={answer?.content || ''}
-                  segmentInfos={answer?.segment_infos}
-                  linkCardInfo={answer?.link_card_info}
-                  objectId={id}
-                  type="answer"
-                  onRefresh={refetch}
-                  renderPlaceholder={renderContentPlaceholder}
-                  onLayoutReady={handleContentLayoutReady}
-                />
+                <InitialContentReveal key={id} ready={contentLayoutReady}>
+                  <ZhihuContent
+                    suppressDoubleTapSelection={isDoubleTapEnabled}
+                    content={answer?.content || ''}
+                    segmentInfos={answer?.segment_infos}
+                    linkCardInfo={answer?.link_card_info}
+                    objectId={id}
+                    type="answer"
+                    onRefresh={refetch}
+                    renderPlaceholder={renderContentPlaceholder}
+                    onLayoutReady={handleContentLayoutReady}
+                  />
+                </InitialContentReveal>
                 {isGuest &&
                 (answer?.content_need_truncated ||
                   answer?.answer_type?.toUpperCase() === 'PAID' ||

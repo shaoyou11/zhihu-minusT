@@ -5,12 +5,15 @@ import {
 } from '@tanstack/react-query';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { ComponentProps, ReactNode } from 'react';
-import { type AnswerDetail, getAnswer } from '../src/api/zhihu';
+import { Alert } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
+import { type AnswerDetail, deleteAnswer, getAnswer } from '../src/api/zhihu';
 import { getAllContentCollectionStatus } from '../src/api/zhihu/collection';
 import { getQuestionAnswers } from '../src/api/zhihu/question';
 import AnswerScreen from '../src/app/answer/[id]';
 import { AnswerDetailView } from '../src/components/AnswerDetailView';
 import type { CollectionButton } from '../src/components/CollectionButton';
+import type { ActionSheetOption } from '../src/components/overlays/ActionSheet';
 import type { RichContentLoadingPhase } from '../src/features/rich-content';
 import { useAnswerDetailRead } from '../src/hooks/useAnswerDetailRead';
 import {
@@ -94,6 +97,9 @@ let mockScreenAnswerIds = ['84'];
 let mockEntryAnswerId = '84';
 let mockSelectPage: (event: { nativeEvent: { position: number } }) => void;
 const mockRouterPush = jest.fn();
+const mockRouterBack = jest.fn();
+const mockNavigationDispatch = jest.fn();
+let mockDeleteAnswerAction: (() => void) | undefined;
 
 jest.mock('../src/api/client', () => ({
   hasAuthenticationCookie: (cookie: string | null) =>
@@ -115,6 +121,11 @@ jest.mock('../src/api/zhihu/member', () => ({
   unfollowMember: jest.fn(),
 }));
 jest.mock('expo-router', () => ({
+  useNavigation: () => ({
+    setParams: jest.fn(),
+    getState: () => ({ key: 'answer-stack' }),
+    dispatch: mockNavigationDispatch,
+  }),
   Stack: { Screen: () => null },
   useLocalSearchParams: () => ({
     id: mockEntryAnswerId,
@@ -123,7 +134,7 @@ jest.mock('expo-router', () => ({
   }),
   useRouter: () => ({
     push: mockRouterPush,
-    back: jest.fn(),
+    back: mockRouterBack,
     setParams: jest.fn(),
   }),
 }));
@@ -277,7 +288,18 @@ jest.mock('../src/components/ReadingProgressNotice', () => ({
 jest.mock('../src/components/ReadingScrollIndicator', () => ({
   ReadingScrollIndicator: () => null,
 }));
-jest.mock('../src/components/ShareMenu', () => ({ ShareMenu: () => null }));
+jest.mock('../src/components/ShareMenu', () => ({
+  ShareMenu: ({
+    additionalOptions,
+  }: {
+    additionalOptions?: ActionSheetOption[];
+  }) => {
+    mockDeleteAnswerAction = additionalOptions?.find(
+      ({ key }) => key === 'delete',
+    )?.onPress;
+    return null;
+  },
+}));
 jest.mock('../src/components/StableAvatar', () => ({
   StableAvatar: () => null,
 }));
@@ -420,6 +442,7 @@ async function renderAnswer({
   cachedAnswer = answer,
   endorsementSource,
   entryEndorsements,
+  activeAnswerId,
 }: {
   cached?: boolean;
   isFocused?: boolean;
@@ -427,9 +450,13 @@ async function renderAnswer({
   cachedAnswer?: AnswerDetail;
   endorsementSource?: EndorsementSource;
   entryEndorsements?: unknown;
+  activeAnswerId?: SharedValue<string>;
 } = {}) {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    defaultOptions: {
+      queries: { retry: false, gcTime: Infinity },
+      mutations: { gcTime: Infinity },
+    },
   });
   clients.push(queryClient);
   seedAnswerEndorsements(queryClient, {
@@ -449,6 +476,7 @@ async function renderAnswer({
         endorsementSource={endorsementSource}
         isFocused={focused}
         isPreloading={preloading}
+        activeAnswerId={activeAnswerId}
       />
     </QueryClientProvider>
   );
@@ -473,6 +501,7 @@ beforeEach(() => {
   mockContentLoadingPhase = null;
   mockScreenAnswerIds = ['84'];
   mockEntryAnswerId = '84';
+  mockDeleteAnswerAction = undefined;
   jest.mocked(getQuestionAnswers).mockResolvedValue({ data: [] });
   jest.mocked(getAnswer).mockResolvedValue(answer);
   jest
@@ -484,7 +513,73 @@ afterEach(() => {
   for (const client of clients) client.clear();
   clients.length = 0;
   onlineManager.setOnline(true);
+  jest.restoreAllMocks();
 });
+
+function deferAnswerDeletion() {
+  let finish!: () => void;
+  jest.mocked(deleteAnswer).mockReturnValueOnce(
+    new Promise<Awaited<ReturnType<typeof deleteAnswer>>>((resolve) => {
+      finish = () => resolve({ success: true });
+    }),
+  );
+  return () => finish();
+}
+
+async function confirmAnswerDeletion() {
+  await act(() => mockDeleteAnswerAction?.());
+  const confirm = jest
+    .mocked(Alert.alert)
+    .mock.calls.at(-1)?.[2]
+    ?.find(({ text }) => text === '确认删除');
+  expect(confirm?.onPress).toBeDefined();
+  await act(() => confirm?.onPress?.());
+  await waitFor(() => expect(deleteAnswer).toHaveBeenCalledWith('84'));
+}
+
+test('a delayed deletion targets its original answer even when a newer list hides the page', async () => {
+  jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const finish = deferAnswerDeletion();
+  const host = await renderAnswer({
+    isFocused: true,
+    cachedAnswer: { ...answer, relationship: { is_author: true } },
+  });
+  await confirmAnswerDeletion();
+  await host.rerender(host.page(false, false));
+  await act(() => finish());
+  await waitFor(() =>
+    expect(mockNavigationDispatch).toHaveBeenCalledWith({
+      type: 'GO_BACK',
+      target: 'answer-stack',
+    }),
+  );
+  expect(mockNavigationDispatch).toHaveBeenCalledTimes(1);
+  expect(mockRouterBack).not.toHaveBeenCalled();
+});
+
+test.each(['answer', 'pager', 'session', 'unmount'] as const)(
+  'a delayed deletion cannot close newer content after %s changes',
+  async (change) => {
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const finish = deferAnswerDeletion();
+    const activeAnswerId = { value: '84' } as SharedValue<string>;
+    const host = await renderAnswer({
+      isFocused: true,
+      activeAnswerId,
+      cachedAnswer: { ...answer, relationship: { is_author: true } },
+    });
+    await confirmAnswerDeletion();
+    if (change === 'answer') await host.rerender(host.page(true, true, '85'));
+    else if (change === 'pager') activeAnswerId.value = '85';
+    else if (change === 'session') mockSessionVersion += 1;
+    else await host.unmount();
+    await act(() => finish());
+    await waitFor(() => expect(host.queryClient.isMutating()).toBe(0));
+    expect(mockNavigationDispatch).not.toHaveBeenCalled();
+    expect(mockRouterBack).not.toHaveBeenCalled();
+    expect(Alert.alert).not.toHaveBeenCalledWith('删除成功', expect.anything());
+  },
+);
 
 test('shows a waiting placeholder only after an offline answer becomes active and loads it on reconnect', async () => {
   onlineManager.setOnline(false);

@@ -9,7 +9,7 @@
 - 粗体、斜体、下划线、删除线、背景高亮、上下标、等宽代码、链接，以及标题、引用线、列表缩进和段距。
 - 根据 Android `Layout` 的实际视觉行绘制实线、虚线、点线和波浪线；软换行不会复用下一行的首个 caret 作为上一行终点。
 - `ReplacementSpan` 表示 `U+FFFC` 附件。异步读取图片、HTTP(S) SVG 和 `data:image/…`，解析 SVG 根节点的 `ex`/`em` 尺寸与 `vertical-align`；同一动画帧完成的资源统一回填、保留选区并重新测量。
-- 行高是最小值，附件较高时保留其完整 ascent/descent；宽度按容器上限缩小。系统复制会把已选中的附件占位符替换为 `copyText`。
+- 正文行高是最小值，附件较高时保留其完整 ascent/descent；宽度按容器上限缩小。经过校验的合成空段使用 compiler 指定的精确行高，避免基础正文行高再次撑大空行。系统复制会把已选中的附件占位符替换为 `copyText`，只移除可信空段的合成锚点。
 - 统一字号、最小行高和段距；Android 高质量换行及可选系统双齐。没有通过插入空格或改变正文内容模拟中西文间距。
 - Android 段后间距由 `LineHeightSpan` 加入末行 descent。引用竖线以 `Layout` 的完整行结束位置识别末行，并扣除引用外部的段距；绘制回调的可见文字 end 会省略换行和末尾空白，不能用来判断段落结束。相邻引用段落之间的线仍保持连续。
 - 不使用 `LinkMovementMethod`。普通点击分发链接、知识点或附件 action；长按仍交给系统选择，附件可附加 `attachmentLongPress` 事件。
@@ -27,6 +27,7 @@
 - 范围字体/颜色、高亮、上下标、代码、链接与段落标题、间距、引用、列表缩进使用TextKit 1。装饰线依据视觉行与enclosing rect绘制实线、虚线、点线和波浪线。
 - `UIFontMetrics` 的body缩放比例统一应用到字号、行高、段距、标题、装饰与附件；`ex`/`em`尺寸使用已经缩放的字体，不再乘一次比例。
 - `NSTextAttachment`表示单个 `U+FFFC`。系统复制使用共享flow范围，并将真实附件替换为 `copyText`；拒绝越界、非整数、boolean偏移和拆分surrogate pair的范围。
+- 可信合成空段用小字号与相同的 minimum/maximumLineHeight 保留精确高度；普通正文和附件继续采用最小行高，不裁剪高附件。复制时仅删除这些空段的合成锚点，保留段界换行和用户原始零宽字符。
 - SVG根节点支持 `ex`/`em`、`px`/`pt`、viewBox与vertical-align；仅显式提供宽或高时保持intrinsic比例，基线随fit缩放。SVG使用 `SDWebImageSVGCoder@1.7.0` 的Retina raster路径，普通图片使用ImageIO thumbnail，实际bitmap边长上限2048px。
 - 附件以匿名ephemeral session加载，data图片和HTTP(S)资源均限4MiB；进程NSCache限24MB/128条，按图源哈希、kind与几何缓存并合并重复请求。缓存不含主题色，公式转为当前正文色，近白底先去底为alpha mask；普通图片保持原色。
 - 点击由当前TextKit glyph范围分发链接和附件事件；划线段落改为长按分发段落操作，单击不触发。已有选区时不派发普通点击，未划线文字长按仍保留系统选择。父ScrollView与系统选区拖柄的手势组合需平台交互验收。
@@ -39,6 +40,8 @@ iOS完整Simulator app已在iOS27 SDK、deployment target15.1下构建通过；�
 ## Props 与事件
 
 `flowJson` 使用 `src/features/rich-content/richText.ts` 的 `RichTextFlow` 布局字段（id、textVersion、text、spans、paragraphs、decorations、attachments）；sourceMap 保留在 JS 中进行业务选区映射，不随每个原生 view 的 JSON 重复传输。双端原生会跳过越界、非整数、字符串/boolean 偏移与拆分 surrogate pair 的 range，以及非单字符或没有 `U+FFFC` 的附件范围。Android 不再使用会强制转换/截断数值的 optInt 解析 range；系统选区与复制使用相同校验。标题优先使用 compiler 输出的 `fontSize`、`lineHeight` 和段落上下边距，与其他后端共享指标；旧 flow 缺少字号/行高时保留基础默认值。
+
+段落可选 `emptyLine: true` 表示 compiler 生成的空行。双端仅接受完整段界内的单个 `U+200B`，其后允许一个 `\n` 段落分隔符；混合正文、多锚点、跨多行范围和非 boolean 标记不能启用精确行高或复制替换。空段的 `lineHeight`、`marginTop`、`marginBottom` 仍以布局单位传入，随系统字号缩放；首个空段与连续后续空段的策略由 JS 决定。锚点保留在 UTF-16 buffer 中用于选区和布局，复制时只删除经过该校验的锚点，保留所有换行，不全局清除正文的 `U+200B`。
 
 `configJson` 支持 `fontSize`、`lineHeight`、`paragraphSpacing`、`textColor`、`secondaryColor`、`linkColor`、`justify` 和 `textAlign`（left/center/right）。尺寸按React Native布局单位传入：Android为dp，iOS为pt。文本、段距和附件应用各自系统字体缩放；`contentWidth`不乘字体缩放。`selectable` 控制系统选择。
 
@@ -70,6 +73,8 @@ JS 通过 `isRichTextNativeAvailable()` 探测原生模块；`RichTextNativeView
 2026-09-30：Android `assembleDebug`及vivo原型功能查看通过。2026-10-01：首载处理与短公式结构修复完成构建和真机确认。公式前景着色的mask边界及65,536组alpha/gray不变量通过纯Kotlin验证，匿名Ax=b图源为currentColor、无rect/image；最终Android prebuild和arm64 Debug构建通过（约10秒），新版APK更新安装后用户明确确认暗色公式修复。普通图片不着色由回归及native kind guard验证，未宣称所有图源已逐项真机检查。全仓检查及完整边界见[本轮记录](../../src/features/rich-content/docs/renderer-v2-experiment-03-native-flow.md)，未量化首载白闪，未验收Release性能或跨设备一致性；新增iOS实现的编译与平台验证另行记录。
 
 iOS纯Foundation模型可用 `bash modules/zhihu-rich-text/tests/run-model-smoke.sh` 验证，28项实际Swift模型/viewport断言已通过；JS平台可用性回归9项通过。这些检查不代替UIKit编译或模拟器/真机交互。
+
+空段精确行高本轮补充了 Android/iOS 模型与复制回归用例，按本次要求未运行测试、prebuild 或原生构建；双端实际行高、首尾空段、连续空段及系统选择/复制仍需平台验收。
 
 ## 附件 viewport 生命周期
 

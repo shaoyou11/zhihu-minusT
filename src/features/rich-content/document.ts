@@ -225,6 +225,8 @@ export type ZhihuInlineRun =
 export interface ZhihuParagraphBlock extends ZhihuDocumentNode {
   readonly type: 'paragraph';
   readonly paragraphId?: string;
+  /** One intentional blank paragraph; its count survives normalization. */
+  readonly empty?: true;
   readonly children: readonly ZhihuInlineRun[];
 }
 

@@ -8,7 +8,6 @@ import React, {
 } from 'react';
 import {
   Image,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -19,6 +18,7 @@ import {
 } from 'react-native';
 import { SvgUri } from 'react-native-svg';
 import { useRuntimeThemeColors } from '@/components/Themed';
+import { PaneModal as Modal } from '@/features/adaptive-layout/PaneModal';
 import {
   isRichTextNativeAvailable,
   RichTextNativeView,
@@ -289,6 +289,12 @@ const NativeFlow = React.memo(function NativeFlow({
     (measuredHeight?.verified && measuredHeight.geometryKey === geometryKey)
       ? measuredHeight.height
       : initialHeight;
+  // An isolated blank between media must also be allowed below body line height.
+  const minimumHeight = flow.paragraphs.every(
+    (paragraph) => paragraph.emptyLine,
+  )
+    ? 1
+    : lineHeight;
 
   return (
     <RichTextNativeView
@@ -298,7 +304,7 @@ const NativeFlow = React.memo(function NativeFlow({
       layoutKey={measureKey}
       selectable={selectable}
       suppressDoubleTapSelection={suppressDoubleTapSelection}
-      style={{ width: contentWidth, height: Math.max(lineHeight, height) }}
+      style={{ width: contentWidth, height: Math.max(minimumHeight, height) }}
       onHeightChange={(raw) => {
         if (!mounted.current || currentInput.current.measureKey !== measureKey)
           return;
@@ -398,17 +404,27 @@ interface BlockViewProps {
   onFlowSelection?: (event: FlowEvent, flow: RichTextFlow) => void;
   renderLinkCard?: (card: ZhihuLinkCardBlock) => React.ReactNode;
   textAlign?: 'left' | 'center' | 'right';
+  followsEmptyParagraph?: boolean;
+}
+
+function isEmptyParagraph(block: ZhihuBlock | undefined): boolean {
+  return block?.type === 'paragraph' && block.empty === true;
 }
 
 function NativeParagraph(props: BlockViewProps) {
-  const { block, fontSize, lineHeight } = props;
+  const { block, fontSize, lineHeight, followsEmptyParagraph } = props;
   const compiled = useMemo(
     () =>
       compileZhihuDocument(
         { id: `${block.id}:nested`, blocks: [block] },
-        { fontSize, lineHeight, paragraphSpacing: 0 },
+        {
+          fontSize,
+          lineHeight,
+          paragraphSpacing: 0,
+          continuesEmptyParagraph: followsEmptyParagraph,
+        },
       ),
-    [block, fontSize, lineHeight],
+    [block, fontSize, lineHeight, followsEmptyParagraph],
   );
   const configJson = useMemo(() => {
     const config: unknown = JSON.parse(props.configJson);
@@ -693,10 +709,13 @@ function NativeBlock(props: BlockViewProps) {
             ) : undefined
           }
           renderCell={(cell, contentWidth) =>
-            cell.blocks.map((child) => (
+            cell.blocks.map((child, childIndex) => (
               <NativeBlock
                 key={child.id}
                 {...props}
+                followsEmptyParagraph={isEmptyParagraph(
+                  cell.blocks[childIndex - 1],
+                )}
                 width={contentWidth}
                 textAlign={
                   cell.alignment && cell.alignment !== 'default'
@@ -749,10 +768,13 @@ function NativeBlock(props: BlockViewProps) {
     case 'quote':
       return (
         <View style={[styles.quote, { borderColor: linkColor }]}>
-          {block.blocks.map((child) => (
+          {block.blocks.map((child, childIndex) => (
             <NativeBlock
               key={child.id}
               {...props}
+              followsEmptyParagraph={isEmptyParagraph(
+                block.blocks[childIndex - 1],
+              )}
               block={child}
               width={width - 18}
               textColor={secondaryColor}
@@ -769,10 +791,13 @@ function NativeBlock(props: BlockViewProps) {
                 {block.ordered ? `${(block.start || 1) + index}. ` : '• '}
               </Text>
               <View style={{ flex: 1 }}>
-                {item.blocks.map((child) => (
+                {item.blocks.map((child, childIndex) => (
                   <NativeBlock
                     key={child.id}
                     {...props}
+                    followsEmptyParagraph={isEmptyParagraph(
+                      item.blocks[childIndex - 1],
+                    )}
                     block={child}
                     width={width - 24}
                   />
@@ -1065,6 +1090,7 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
       variant,
       segmentInfos,
       linkCardInfo,
+      removeImageWatermark: settings.removeImageWatermark,
     };
     return contentArray
       ? normalizeZhihuContentSegments(contentArray, normalizationOptions)
@@ -1076,6 +1102,7 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
     linkCardInfo,
     objectId,
     segmentInfos,
+    settings.removeImageWatermark,
     type,
     variant,
   ]);

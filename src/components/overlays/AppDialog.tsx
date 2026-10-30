@@ -3,7 +3,6 @@ import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +13,7 @@ import { BouncyButton } from '@/components/BouncyButton';
 import { Text, useThemeColor, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { PaneModal } from '@/features/adaptive-layout/PaneModal';
 
 export interface AppDialogAction {
   label: string;
@@ -55,6 +55,7 @@ export function AppDialog({
   const onCloseRef = useRef(onClose);
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.96)).current;
+  const scrollOffset = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -76,6 +77,7 @@ export function AppDialog({
       ]).start(({ finished }) => {
         if (!finished) return;
         mountedRef.current = false;
+        scrollOffset.current = { x: 0, y: 0 };
         setMounted(false);
         if (notify) onCloseRef.current?.();
       });
@@ -120,7 +122,7 @@ export function AppDialog({
   const primary = primaryColor;
 
   return (
-    <Modal
+    <PaneModal
       visible={mounted}
       transparent
       animationType="none"
@@ -160,6 +162,11 @@ export function AppDialog({
         >
           <ScrollView
             nestedScrollEnabled
+            contentOffset={scrollOffset.current}
+            onScroll={({ nativeEvent }) => {
+              scrollOffset.current = nativeEvent.contentOffset;
+            }}
+            scrollEventThrottle={16}
             style={styles.scroll}
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
@@ -219,7 +226,7 @@ export function AppDialog({
           </ScrollView>
         </Animated.View>
       </Animated.View>
-    </Modal>
+    </PaneModal>
   );
 }
 

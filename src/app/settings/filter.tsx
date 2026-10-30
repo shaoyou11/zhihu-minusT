@@ -7,7 +7,6 @@ import {
   View as RNView,
   ScrollView,
   StyleSheet,
-  Switch,
   TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +19,7 @@ import {
   settingsChipStyles as s,
 } from '@/components/SettingItem';
 import { Text, useThemeColor } from '@/components/Themed';
+import { ThemedSwitch } from '@/components/ThemedSwitch';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { feedExposureRepository } from '@/storage/feedExposureRepository';
@@ -146,10 +146,6 @@ export default function FilterSettings() {
   const warnThreshold = filterMode === 'hide' ? 0.5 : 0.7;
   const warn = stats != null && stats.rate > warnThreshold;
 
-  const switchProps = {
-    trackColor: { true: tintColor },
-  };
-
   return (
     <RNView
       style={[
@@ -236,12 +232,11 @@ export default function FilterSettings() {
             icon="shield-checkmark-outline"
             colorScheme={colorScheme}
           >
-            <Switch
+            <ThemedSwitch
               value={enableLocalFeedFilter}
               onValueChange={(val) =>
                 updateSettings({ enableLocalFeedFilter: val })
               }
-              {...switchProps}
             />
           </SettingItem>
         </Section>
@@ -256,7 +251,6 @@ export default function FilterSettings() {
                 colorScheme={colorScheme}
                 value={filterBlockPaid}
                 onValueChange={(v) => updateSettings({ filterBlockPaid: v })}
-                {...switchProps}
               />
               <Toggle
                 label="知乎广告平台推广"
@@ -266,7 +260,6 @@ export default function FilterSettings() {
                 onValueChange={(v) =>
                   updateSettings({ filterBlockAdPlatform: v })
                 }
-                {...switchProps}
               />
               <Toggle
                 label="知乎学堂课程卡片"
@@ -276,7 +269,6 @@ export default function FilterSettings() {
                 onValueChange={(v) =>
                   updateSettings({ filterBlockZhihuSchool: v })
                 }
-                {...switchProps}
               />
               <Toggle
                 label="微信公众号引流文章"
@@ -284,7 +276,6 @@ export default function FilterSettings() {
                 colorScheme={colorScheme}
                 value={filterBlockWeChat}
                 onValueChange={(v) => updateSettings({ filterBlockWeChat: v })}
-                {...switchProps}
               />
               <Toggle
                 label="带推广标记的内容"
@@ -292,7 +283,6 @@ export default function FilterSettings() {
                 colorScheme={colorScheme}
                 value={filterBlockLabeled}
                 onValueChange={(v) => updateSettings({ filterBlockLabeled: v })}
-                {...switchProps}
               />
               <Toggle
                 label="机构号发布的内容"
@@ -302,7 +292,6 @@ export default function FilterSettings() {
                 onValueChange={(v) =>
                   updateSettings({ filterBlockOrgAuthor: v })
                 }
-                {...switchProps}
               />
               <Toggle
                 label="广告主发布的内容"
@@ -312,7 +301,6 @@ export default function FilterSettings() {
                 onValueChange={(v) =>
                   updateSettings({ filterBlockAdvertiser: v })
                 }
-                {...switchProps}
               />
             </Section>
 
@@ -326,7 +314,6 @@ export default function FilterSettings() {
                 onValueChange={(v) =>
                   updateSettings({ filterEnableQuality: v })
                 }
-                {...switchProps}
               />
               <SettingItem
                 label="过滤强度"
@@ -387,7 +374,6 @@ export default function FilterSettings() {
                 onValueChange={(v) =>
                   updateSettings({ filterKeepFollowing: v })
                 }
-                {...switchProps}
               />
               <Toggle
                 label="我关注的人赞同过的"
@@ -397,7 +383,6 @@ export default function FilterSettings() {
                 onValueChange={(v) =>
                   updateSettings({ filterKeepUpvotedByFollowee: v })
                 }
-                {...switchProps}
               />
             </Section>
 
@@ -466,7 +451,6 @@ export default function FilterSettings() {
                 onValueChange={(v) =>
                   updateSettings({ filterHideAdPlaceholders: v })
                 }
-                {...switchProps}
               />
               {filterMode === 'collapse' && (
                 <Toggle
@@ -475,7 +459,6 @@ export default function FilterSettings() {
                   colorScheme={colorScheme}
                   value={filterShowReason}
                   onValueChange={(v) => updateSettings({ filterShowReason: v })}
-                  {...switchProps}
                 />
               )}
             </Section>
@@ -490,7 +473,6 @@ export default function FilterSettings() {
             colorScheme={colorScheme}
             value={enableLocalFeedDedup}
             onValueChange={(v) => updateSettings({ enableLocalFeedDedup: v })}
-            {...switchProps}
           />
           <Toggle
             label="启动时保留推荐流"
@@ -500,7 +482,6 @@ export default function FilterSettings() {
             onValueChange={(v) =>
               updateSettings({ enableFeedCacheOnLaunch: v })
             }
-            {...switchProps}
           />
           <SettingItem
             label="清除本地去重记录"
@@ -546,7 +527,6 @@ export default function FilterSettings() {
             onValueChange={(v) =>
               updateSettings({ recommendRequestIncludeDesktop: v })
             }
-            {...switchProps}
           />
           <Toggle
             label="发送 ad_interval"
@@ -556,7 +536,6 @@ export default function FilterSettings() {
             onValueChange={(v) =>
               updateSettings({ recommendRequestIncludeAdInterval: v })
             }
-            {...switchProps}
           />
           {recommendRequestIncludeAdInterval && (
             <SettingItem
@@ -603,22 +582,16 @@ function Toggle({
   colorScheme,
   value,
   onValueChange,
-  trackColor,
 }: {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   colorScheme: 'light' | 'dark';
   value: boolean;
   onValueChange: (val: boolean) => void;
-  trackColor: { true: string; false?: string };
 }) {
   return (
     <SettingItem label={label} icon={icon} colorScheme={colorScheme}>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={trackColor}
-      />
+      <ThemedSwitch value={value} onValueChange={onValueChange} />
     </SettingItem>
   );
 }

@@ -237,8 +237,21 @@ class RichTextView(context: Context, appContext: AppContext) : ExpoView(context,
     fun apply(span: Any, range: TextRange) {
       content.setSpan(span, range.start, range.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
-    if (content.isNotEmpty()) {
-      apply(ParagraphHeightSpan(TextRange(0, content.length), px(config.lineHeight), 0, 0), TextRange(0, content.length))
+    val emptyLineRanges = activeFlow.paragraphs.mapNotNull { spec ->
+      if (spec.emptyLineAnchor(activeFlow.text) == null) null else spec.range(activeFlow.text)
+    }.distinct().sortedBy { it.start }
+    // The base minimum must not restore a full text line inside an exact empty line.
+    var baseStart = 0
+    for (range in emptyLineRanges) {
+      if (baseStart < range.start) {
+        val baseRange = TextRange(baseStart, range.start)
+        apply(ParagraphHeightSpan(baseRange, px(config.lineHeight), 0, 0), baseRange)
+      }
+      baseStart = max(baseStart, range.end)
+    }
+    if (baseStart < content.length) {
+      val baseRange = TextRange(baseStart, content.length)
+      apply(ParagraphHeightSpan(baseRange, px(config.lineHeight), 0, 0), baseRange)
     }
     for (spec in activeFlow.spans) {
       val range = spec.range(activeFlow.text) ?: continue
@@ -263,10 +276,15 @@ class RichTextView(context: Context, appContext: AppContext) : ExpoView(context,
     for ((index, spec) in activeFlow.paragraphs.withIndex()) {
       val range = spec.range(activeFlow.text) ?: continue
       val kind = spec.optString("kind")
+      val emptyLine = spec.emptyLineAnchor(activeFlow.text) != null
       val marginTop = spec.number("marginTop", if (kind == "heading" && index > 0) 8.0 else 0.0).toFloat()
       val marginBottom = spec.number("marginBottom", if (index < activeFlow.paragraphs.lastIndex) config.paragraphSpacing.toDouble() else 0.0).toFloat()
       val headingScale = when (spec.number("level", 2.0)) { 1.0 -> 1.55f; 2.0 -> 1.35f; else -> 1.15f }
       var lineHeight = config.lineHeight
+      if (emptyLine) {
+        lineHeight = spec.number("lineHeight", config.lineHeight.toDouble()).toFloat()
+          .takeIf { it.isFinite() && it > 0f } ?: config.lineHeight
+      }
       when (kind) {
         "heading" -> {
           // The compiler supplies the same heading metrics as the other backends.
@@ -290,7 +308,7 @@ class RichTextView(context: Context, appContext: AppContext) : ExpoView(context,
           apply(BackgroundColorSpan((config.secondaryColor and 0x00ffffff) or 0x16000000), range)
         }
       }
-      apply(ParagraphHeightSpan(range, px(lineHeight), px(marginTop), px(marginBottom)), range)
+      apply(ParagraphHeightSpan(range, px(lineHeight), px(marginTop), px(marginBottom), exactHeight = emptyLine), range)
     }
     val maxAttachmentWidth = max(1f, if (contentWidthPx > 0) contentWidthPx.toFloat() else resources.displayMetrics.widthPixels.toFloat())
     val fontPx = config.fontSize * textScale
@@ -474,7 +492,10 @@ class RichTextView(context: Context, appContext: AppContext) : ExpoView(context,
       val range = attachment.range(activeFlow.text) ?: return@mapNotNull null
       RichTextCopySlot(range, attachment.opt("copyText") as? String ?: attachment.opt("latex") as? String ?: attachment.opt("alt") as? String ?: "[图片]")
     }
-    return richTextSelectionText(activeFlow.text, start, end, slots) ?: ""
+    val emptyLines = activeFlow.paragraphs.mapNotNull { paragraph ->
+      if (paragraph.emptyLineAnchor(activeFlow.text) == null) null else paragraph.range(activeFlow.text)
+    }
+    return richTextSelectionText(activeFlow.text, start, end, slots, emptyLines) ?: ""
   }
 
   private fun px(dp: Float): Int = ceil(dp.coerceAtLeast(0f) * textScale).toInt()

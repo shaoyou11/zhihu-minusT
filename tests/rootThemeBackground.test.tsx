@@ -9,6 +9,7 @@ import { useThemeStore } from '../src/store/useThemeStore';
 const mockNavigationMount = jest.fn();
 const mockNavigationUnmount = jest.fn();
 let mockPathname = '/';
+const mockScreenOptions = new Map<string, { headerShown?: boolean }>();
 
 jest.mock('../src/global.css', () => ({}));
 jest.mock('@sentry/react-native', () => ({
@@ -29,7 +30,16 @@ jest.mock('expo-router', () => {
     }, []);
     return <View testID="navigator">{children}</View>;
   };
-  Stack.Screen = () => null;
+  Stack.Screen = ({
+    name,
+    options,
+  }: {
+    name: string;
+    options?: { headerShown?: boolean };
+  }) => {
+    mockScreenOptions.set(name, options ?? {});
+    return null;
+  };
   return {
     DarkTheme: { dark: true, colors: {} },
     DefaultTheme: { dark: false, colors: {} },
@@ -55,6 +65,9 @@ jest.mock('expo-router', () => {
     useRouter: () => ({ push: jest.fn() }),
   };
 });
+jest.mock('../src/features/adaptive-layout/AdaptiveStack', () => ({
+  AdaptiveStack: jest.requireMock('expo-router').Stack,
+}));
 jest.mock('react-native-gesture-handler', () => ({
   GestureHandlerRootView: (props: ViewProps) => {
     const { View } = jest.requireActual('react-native');
@@ -143,8 +156,15 @@ beforeEach(() => {
   mockNavigationMount.mockClear();
   mockNavigationUnmount.mockClear();
   mockPathname = '/';
+  mockScreenOptions.clear();
   useThemeStore.setState({ isDark: false });
   useSettingsStore.setState({ readingBackground: 'default' });
+});
+
+test('the recent publications route hides the default header at registration', async () => {
+  const host = await render(<RootLayout />);
+  expect(mockScreenOptions.get('user/[id]/stream')?.headerShown).toBe(false);
+  await host.unmount();
 });
 
 test('the surface behind fading screens follows appearance changes without remounting navigation', async () => {

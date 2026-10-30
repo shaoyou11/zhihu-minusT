@@ -2,12 +2,14 @@ import { act, render } from '@testing-library/react-native';
 import React from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import AnswerDetailScreen from '../src/app/answer/[id]';
+import { PaneContext } from '../src/features/adaptive-layout/PaneContext';
 import type { AnswerReadSession } from '../src/hooks/useAnswerDetailRead';
 import { calculateDetailHeaderAppearance } from '../src/utils/detailHeaderAppearance';
 
 interface PagerProps {
   children?: React.ReactNode;
   initialPage: number;
+  scrollEnabled: boolean;
   onLayout: (event: LayoutChangeEvent) => void;
   onPageSelected: (event: { nativeEvent: { position: number } }) => void;
   onPageScrollStateChanged: (event: {
@@ -91,8 +93,8 @@ const mockHeaderThresholds = new Map<string, number>();
 const mockSetPage = jest.fn();
 const mockSetParams = jest.fn();
 const mockFetchNextPage = jest.fn();
+const mockNavigation = { setParams: mockSetParams };
 const mockRouter = {
-  setParams: mockSetParams,
   push: jest.fn(),
   back: jest.fn(),
 };
@@ -157,6 +159,7 @@ jest.mock('../src/hooks/useAnswerPagerSource', () => ({
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
   useRouter: () => mockRouter,
+  useNavigation: () => mockNavigation,
   Stack: { Screen: () => null },
 }));
 jest.mock('react-native-pager-view', () => {
@@ -1283,6 +1286,62 @@ test('routes preview mode to the list and honors its explicit detail escape', as
   await host.rerender(React.createElement(AnswerDetailScreen));
   expect(host.queryByTestId('answer-preview-list')).toBeNull();
   expect(mockPagerMounts).toBe(1);
+});
+
+function adaptiveAnswerScreen(twoPane: boolean) {
+  return React.createElement(
+    PaneContext.Provider,
+    {
+      value: {
+        width: twoPane ? 480 : 800,
+        height: 800,
+        visible: true,
+        twoPane,
+      },
+    },
+    React.createElement(AnswerDetailScreen),
+  );
+}
+
+test('two-pane rotation disables swiping while retaining the current answer, scroll and read session', async () => {
+  setList(['42', '11']);
+  const host = await render(adaptiveAnswerScreen(false));
+  expect(mockPagerProps.scrollEnabled).toBe(true);
+  await selectPage(1);
+  await scrollAnswer('11', 320);
+  const session = mockAnswerProps.get('11')?.readSession;
+  expect(session).toBeDefined();
+  session?.recorded.add('question:7');
+
+  await host.rerender(adaptiveAnswerScreen(true));
+  expect(mockPagerProps.scrollEnabled).toBe(false);
+  expect(mockAnswerProps.get('11')?.isFocused).toBe(true);
+  expect(mockAnswerProps.get('11')?.activeScrollY?.value).toBe(320);
+  expect(mockAnswerProps.get('11')?.readSession).toBe(session);
+  expect(mockPagerMounts).toBe(1);
+  expect(mockAnswerMounts.get('11')).toBe(1);
+
+  await host.rerender(adaptiveAnswerScreen(false));
+  expect(mockPagerProps.scrollEnabled).toBe(true);
+  expect(mockAnswerProps.get('11')?.isFocused).toBe(true);
+  expect(mockAnswerProps.get('11')?.activeScrollY?.value).toBe(320);
+  expect(mockAnswerProps.get('11')?.readSession).toBe(session);
+  expect(session?.recorded.has('question:7')).toBe(true);
+  expect(mockPagerMounts).toBe(1);
+  expect(mockAnswerMounts.get('11')).toBe(1);
+});
+
+test('rotation preserves an already open preview reading mode', async () => {
+  mockReadingMode = 'preview-list';
+  const host = await render(adaptiveAnswerScreen(false));
+  expect(host.getByTestId('answer-preview-list')).toHaveTextContent('42');
+
+  await host.rerender(adaptiveAnswerScreen(true));
+  expect(host.getByTestId('answer-preview-list')).toHaveTextContent('42');
+
+  await host.rerender(adaptiveAnswerScreen(false));
+  expect(host.getByTestId('answer-preview-list')).toHaveTextContent('42');
+  expect(mockPagerMounts).toBe(0);
 });
 
 test('keeps profile navigation across questions and passes its source to both reading modes', async () => {

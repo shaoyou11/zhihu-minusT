@@ -60,6 +60,8 @@ export interface ProfileTabListProps {
   keyExtractor: (item: unknown) => string;
   listHeader?: ReactNode;
   emptyState?: ReactNode;
+  /** Keep initial profile placeholders still while the member details load. */
+  hideInitialLoadingIndicator?: boolean;
 }
 
 interface PendingScroll {
@@ -86,6 +88,7 @@ export const ProfileTabList = forwardRef<
     keyExtractor,
     listHeader,
     emptyState,
+    hideInitialLoadingIndicator = false,
   },
   ref,
 ) {
@@ -282,6 +285,10 @@ export const ProfileTabList = forwardRef<
       });
   };
 
+  // Mount with the measured spacer from the first frame, so cached cards do
+  // not appear underneath the overlay and then jump down after onLayout.
+  if (headerHeight <= 0) return null;
+
   return (
     <AnimatedFlashList
       ref={listRef}
@@ -322,13 +329,16 @@ export const ProfileTabList = forwardRef<
       }
       ListEmptyComponent={
         query.isLoading ? (
-          <ActivityIndicator style={{ margin: 32 }} color={primaryColor} />
+          hideInitialLoadingIndicator ? null : (
+            <ActivityIndicator style={{ margin: 32 }} color={primaryColor} />
+          )
         ) : query.isError ? (
           <QueryErrorView
             message={`${label}加载失败`}
             onRetry={() => void query.refetch().catch(() => undefined)}
           />
         ) : emptyState ? (
+          // biome-ignore lint/complexity/noUselessFragments: FlashList requires a ReactElement while emptyState accepts ReactNode.
           <>{emptyState}</>
         ) : (
           <View className="items-center py-20 bg-transparent">

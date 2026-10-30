@@ -2,6 +2,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import { ContentActionBar } from '../src/components/ContentActionBar';
+import { PaneContext } from '../src/features/adaptive-layout/PaneContext';
 
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
 jest.mock('expo-blur', () => ({
@@ -178,4 +179,56 @@ test('measuring a wider count updates the expanded width without a collapse feed
     StyleSheet.flatten(host.getByTestId('content-action-bar').props.style)
       .width,
   ).toBe(280);
+});
+
+test('pane resize keeps expanded actions and the collapsed expand button within the reading pane', async () => {
+  const onExpand = jest.fn();
+  const onMore = jest.fn();
+  const progress = { value: 0 } as SharedValue<number>;
+  const content = (width: number) => (
+    <PaneContext.Provider value={{ width, height: 800, visible: true }}>
+      <ContentActionBar
+        bottomInset={34}
+        collapseProgress={progress}
+        onExpand={onExpand}
+        trailing={
+          <Pressable accessibilityLabel="更多操作" onPress={onMore}>
+            <Text>更多操作</Text>
+          </Pressable>
+        }
+      />
+    </PaneContext.Provider>
+  );
+  const host = await render(content(320));
+  await fireEvent(host.getByTestId('content-action-bar-intrinsic'), 'layout', {
+    nativeEvent: { layout: { width: 600, height: 48 } },
+  });
+  for (const paneWidth of [320, 125, 480]) {
+    progress.value = 0;
+    await host.rerender(content(paneWidth));
+    const expanded = StyleSheet.flatten(
+      host.getByTestId('content-action-bar').props.style,
+    );
+    expect(expanded.width).toBeLessThanOrEqual(paneWidth);
+    expect(
+      host.getByTestId('content-action-bar-actions').props.scrollEnabled,
+    ).toBe(true);
+    await fireEvent.press(host.getByLabelText('更多操作'));
+
+    progress.value = 1;
+    await host.rerender(content(paneWidth));
+    const collapsed = StyleSheet.flatten(
+      host.getByTestId('content-action-bar').props.style,
+    );
+    const width = Number(collapsed.width);
+    const translation = collapsed.transform?.find(
+      (transform: object) => 'translateX' in transform,
+    ) as { translateX: number };
+    const left = (paneWidth - width) / 2 + translation.translateX;
+    expect(left).toBeGreaterThanOrEqual(0);
+    expect(left + width).toBeLessThanOrEqual(paneWidth);
+    await fireEvent.press(host.getByLabelText('展开阅读操作栏'));
+  }
+  expect(onMore).toHaveBeenCalledTimes(3);
+  expect(onExpand).toHaveBeenCalledTimes(3);
 });

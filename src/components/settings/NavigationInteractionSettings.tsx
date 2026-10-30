@@ -1,20 +1,28 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps } from 'react';
-import { Platform, View as RNView, StyleSheet, Switch } from 'react-native';
+import { Platform, View as RNView, StyleSheet } from 'react-native';
 import { BouncyButton } from '@/components/BouncyButton';
-import { Section, SettingItem } from '@/components/SettingItem';
+import { Section, SettingItem, SettingOptions } from '@/components/SettingItem';
 import { Text, useThemeColor } from '@/components/Themed';
+import { ThemedSwitch } from '@/components/ThemedSwitch';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { type TabKey, useSettingsStore } from '@/store/useSettingsStore';
 
+const ANDROID_FEEDBACK_OPTIONS = [
+  { value: 'ripple', label: '水波纹' },
+  { value: 'scale-opacity', label: '缩放' },
+] as const;
+
 export function NavigationInteractionSettings() {
   const colorScheme = useColorScheme() ?? 'light';
   const tintColor = useThemeColor({}, 'primary');
+  const previewBackground = useThemeColor({}, 'primary_26');
   const {
     androidFeedbackType,
     defaultTab,
     enableHapticFeedback,
+    enableLargeScreenLayout,
     enablePressFeedback,
     localCityName,
     pressOpacity,
@@ -45,6 +53,29 @@ export function NavigationInteractionSettings() {
 
   return (
     <>
+      <Section title="双栏布局（试验性）" colorScheme={colorScheme}>
+        <SettingItem
+          label="启用双栏布局"
+          icon="grid-outline"
+          colorScheme={colorScheme}
+        >
+          <ThemedSwitch
+            accessibilityLabel="启用双栏布局"
+            accessibilityHint="试验性功能，开启后并排显示列表与详情"
+            value={enableLargeScreenLayout}
+            onValueChange={(value) =>
+              updateSettings({ enableLargeScreenLayout: value })
+            }
+          />
+        </SettingItem>
+        <Text type="secondary" style={styles.feedbackHint}>
+          试验性功能，布局和手势仍在完善。开启后并排显示列表与详情，不限制屏幕大小或横竖屏。长按两栏之间再拖动可调整栏宽，按住时显示指示器。切换时保留返回记录。
+          {Platform.OS === 'ios'
+            ? ' iOS 切换布局时页面会重新加载，滚动位置等临时状态可能重置。'
+            : ' 切换时保留当前页面状态。'}
+        </Text>
+      </Section>
+
       <Section title="底部导航栏" colorScheme={colorScheme}>
         {(Object.keys(tabLabels) as TabKey[]).map((tab) => (
           <SettingItem
@@ -53,10 +84,9 @@ export function NavigationInteractionSettings() {
             icon={tab === 'profile' ? 'person-outline' : 'albums-outline'}
             colorScheme={colorScheme}
           >
-            <Switch
+            <ThemedSwitch
               value={visibleTabs.includes(tab)}
               onValueChange={() => toggleTab(tab)}
-              trackColor={{ true: tintColor }}
               disabled={tab === 'profile'}
             />
           </SettingItem>
@@ -67,12 +97,11 @@ export function NavigationInteractionSettings() {
             icon="phone-portrait-outline"
             colorScheme={colorScheme}
           >
-            <Switch
+            <ThemedSwitch
               value={useNativeIOSBottomTabs}
               onValueChange={(value) =>
                 updateSettings({ useNativeIOSBottomTabs: value })
               }
-              trackColor={{ true: tintColor }}
             />
           </SettingItem>
         ) : null}
@@ -102,12 +131,11 @@ export function NavigationInteractionSettings() {
           icon="phone-portrait-outline"
           colorScheme={colorScheme}
         >
-          <Switch
+          <ThemedSwitch
             value={enableHapticFeedback}
             onValueChange={(value) =>
               updateSettings({ enableHapticFeedback: value })
             }
-            trackColor={{ true: tintColor }}
           />
         </SettingItem>
 
@@ -116,13 +144,12 @@ export function NavigationInteractionSettings() {
           icon="sparkles-outline"
           colorScheme={colorScheme}
         >
-          <Switch
+          <ThemedSwitch
             accessibilityLabel="视觉反馈"
             value={enablePressFeedback}
             onValueChange={(value) =>
               updateSettings({ enablePressFeedback: value })
             }
-            trackColor={{ true: tintColor }}
           />
         </SettingItem>
         <Text type="secondary" style={styles.feedbackHint}>
@@ -135,26 +162,14 @@ export function NavigationInteractionSettings() {
             icon="hardware-chip-outline"
             colorScheme={colorScheme}
           >
-            <RNView style={styles.choiceRow}>
-              <ChoiceChip
-                label="水波纹"
-                selected={androidFeedbackType === 'ripple'}
-                colorScheme={colorScheme}
-                tintColor={tintColor}
-                onPress={() =>
-                  updateSettings({ androidFeedbackType: 'ripple' })
-                }
-              />
-              <ChoiceChip
-                label="缩放"
-                selected={androidFeedbackType === 'scale-opacity'}
-                colorScheme={colorScheme}
-                tintColor={tintColor}
-                onPress={() =>
-                  updateSettings({ androidFeedbackType: 'scale-opacity' })
-                }
-              />
-            </RNView>
+            <SettingOptions
+              accessibilityLabel="反馈样式"
+              options={ANDROID_FEEDBACK_OPTIONS}
+              value={androidFeedbackType}
+              onChange={(value) =>
+                updateSettings({ androidFeedbackType: value })
+              }
+            />
           </SettingItem>
         ) : null}
 
@@ -214,8 +229,16 @@ export function NavigationInteractionSettings() {
           icon="play-circle-outline"
           colorScheme={colorScheme}
         >
-          <BouncyButton hapticFeedback style={styles.previewButton}>
-            <Text style={styles.previewText}>按我测试</Text>
+          <BouncyButton
+            hapticFeedback
+            style={[
+              styles.previewButton,
+              { backgroundColor: previewBackground },
+            ]}
+          >
+            <Text style={[styles.previewText, { color: tintColor }]}>
+              按我测试
+            </Text>
           </BouncyButton>
         </SettingItem>
       </Section>
@@ -326,7 +349,6 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 16,
   },
-  choiceRow: { flexDirection: 'row', gap: 8 },
   feedbackHint: {
     paddingHorizontal: 16,
     paddingVertical: 10,

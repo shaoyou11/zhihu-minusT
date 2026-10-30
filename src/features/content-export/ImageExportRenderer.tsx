@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState,
-  Modal,
   PixelRatio,
   Platform,
   StyleSheet,
@@ -16,6 +15,8 @@ import {
 } from 'react-native-webview';
 import { BouncyButton } from '@/components/BouncyButton';
 import { Text, useRuntimeThemeColors } from '@/components/Themed';
+import { usePaneVisible } from '@/features/adaptive-layout/PaneContext';
+import { PaneModal } from '@/features/adaptive-layout/PaneModal';
 import { ContentExportError } from './errors';
 import {
   type ImageSlice,
@@ -47,6 +48,7 @@ export function releaseImageCaptures(uris: readonly string[]): void {
 
 function ImageExportSurface({ request }: { request: CaptureRequest }) {
   const colors = useRuntimeThemeColors();
+  const paneVisible = usePaneVisible();
   const dimensions = useWindowDimensions();
   const webview = useRef<WebView<WebViewProps>>(null);
   const surface = useRef<ViewInstance>(null);
@@ -93,6 +95,10 @@ function ImageExportSurface({ request }: { request: CaptureRequest }) {
       cancel();
     };
   }, [request, fail]);
+  useEffect(() => {
+    // The native modal destroys its WebView when hidden, so its capture cannot resume.
+    if (!paneVisible) fail('页面已切换，长图生成已取消');
+  }, [paneVisible, fail]);
   useEffect(() => {
     if (
       dimensions.width < request.width ||
@@ -206,7 +212,7 @@ function ImageExportSurface({ request }: { request: CaptureRequest }) {
     }
   };
   return (
-    <Modal
+    <PaneModal
       visible
       hardwareAccelerated
       animationType="none"
@@ -263,7 +269,7 @@ function ImageExportSurface({ request }: { request: CaptureRequest }) {
           <Text type="primary">取消</Text>
         </BouncyButton>
       </View>
-    </Modal>
+    </PaneModal>
   );
 }
 

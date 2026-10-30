@@ -56,6 +56,8 @@ import { ZhihuContent } from '@/features/rich-content';
 
 Block AST 表达内容语义，不规定逐段 cell 或 FlashList 布局。`compileZhihuDocument` 已将连续的标题、段落、简单引用/列表编成共享UTF-16 buffer，并输出text/paragraph spans、独立decoration、inline attachment和source map。媒体/表格形成flow边界；同一flow可跨段选择，跨媒体选择尚未实现。`mapRichTextSelection` 把flow全局范围映回段落源位置，生成换行/列表符号不推进源偏移，U+FFFC复制时替换为语义文本。
 
+空白或仅一个 `<br>` 的 `<p>`（包括 `ztext-empty-paragraph`）保留为 `empty: true` 的段落，不删除或合并。每组相邻空段的首段高度为正文行高的四分之一、上下段距为零；后续空段使用正文行高和正常段后间距。正文、媒体和容器边界开启新的一组；多个 `<br>` 的段落保留原有显式换行。空段在原生 flow 中使用一个受控的 U+200B 锚点获得非零范围，避免文首、文尾或媒体之间的空段消失；JS 和双端原生复制时仅移除这些锚点，保留段落换行及正文原有的零宽字符。WebView 按实际内容派生受控样式并使用同一行高比例。精确空行高度需要包含该原生实现的新 Development Build，旧安装包只刷新 JS 不足以获得一致结果。合成回归样本为 `fixtures/cases/empty-paragraph-spacing-001.json`。
+
 行内公式还须与宿主容器中的相邻文字保持连续，不能只检查节点类型。列表、引用和裸div/root中的混合文本与公式现已一起进入段落，避免短公式虽标为inline却被单独包成paragraph。Android公式附件统一使用正文前景色；普通图片保持原色，识别出的浅色公式底板先转为前景alpha mask。该着色策略不保留彩色公式的分色语义。
 
 模型补充参考了 Zhihu++ 的 Kotlin Markdown AST、图片画廊和知识点高亮处理，映射与规范化约定见 [Markdown 参考记录](./docs/markdown-reference.md)。`segment` 对应接口 `segment_infos` 的范围标记；`segmentHighlight` 对应 HTML `highlight-wrap` 的划线；普通 `highlight` 对应 `mark` 的背景高亮。高亮业务元数据可缺省，缺少交互目标或位置时仍保留视觉结构，不用空 ID 或 0 偏移补造提交数据。跨段 `displayText` 用于菜单/复制，不替代本段偏移坐标系。

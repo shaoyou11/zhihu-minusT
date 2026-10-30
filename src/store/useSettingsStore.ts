@@ -2,10 +2,12 @@ import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { colors } from '@/constants/designTokens';
-import type {
-  ReadingBackground,
-  SurfaceStyle,
-  TextContrast,
+import {
+  type ReadingBackground,
+  type SurfaceStyle,
+  type TextContrast,
+  UNREAD_BADGE_STYLE_OPTIONS,
+  type UnreadBadgeStyle,
 } from '@/constants/theme';
 import type { RichContentRenderer } from '@/features/rich-content';
 import type { FilterMode, FilterQualityLevel } from '@/utils/feedFilter';
@@ -54,6 +56,13 @@ const VALID_READING_BACKGROUNDS: ReadonlyArray<ReadingBackground> = [
 const VALID_TEXT_CONTRASTS: ReadonlyArray<TextContrast> = ['standard', 'high'];
 const VALID_SURFACE_STYLES: ReadonlyArray<SurfaceStyle> = ['layered', 'flat'];
 const DEFAULT_RECOMMEND_AD_INTERVAL = -10;
+const DEFAULT_LARGE_SCREEN_LIST_RATIO = 1 / 3;
+
+function normalizeLargeScreenListRatio(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(0.6, Math.max(0.2, value))
+    : DEFAULT_LARGE_SCREEN_LIST_RATIO;
+}
 
 function isValidFilterMode(v: unknown): v is FilterMode {
   return typeof v === 'string' && (VALID_FILTER_MODES as string[]).includes(v);
@@ -96,6 +105,10 @@ function isValidDoubleTapAction(value: unknown): value is DoubleTapAction {
   return value === 'off' || value === 'like' || value === 'comments';
 }
 
+function isValidUnreadBadgeStyle(value: unknown): value is UnreadBadgeStyle {
+  return UNREAD_BADGE_STYLE_OPTIONS.some((option) => option.value === value);
+}
+
 function isValidRichContentRenderer(v: unknown): v is RichContentRenderer {
   return v === 'webview' || v === 'native-v2';
 }
@@ -127,6 +140,8 @@ export interface AppSettings {
   localCityName: string | null;
   borderRadius: number;
   richContentRenderer: RichContentRenderer;
+  /** 正文图片加载作者上传的原文件（知乎提供时），不带知乎水印。 */
+  removeImageWatermark: boolean;
   /** 点击回答卡片后的阅读方式；列表入口始终使用普通卡片。 */
   answerReadingMode: AnswerReadingMode;
   /**
@@ -145,8 +160,14 @@ export interface AppSettings {
   androidFeedbackType: 'ripple' | 'scale-opacity';
   /** 是否开启应用内震动反馈 */
   enableHapticFeedback: boolean;
+  /** 关注动态、消息通知与私信的未读角标样式 */
+  unreadBadgeStyle: UnreadBadgeStyle;
   /** iOS 是否使用系统原生底部 Tab（iOS 26+ 显示 Liquid Glass） */
   useNativeIOSBottomTabs: boolean;
+  /** 是否并排显示列表与详情；仅由开关控制，不限制设备、尺寸或方向。 */
+  enableLargeScreenLayout: boolean;
+  /** 双栏中列表占可用宽度的比例。 */
+  largeScreenListRatio: number;
   /** 是否开启浏览历史记录 */
   enableBrowseHistory: boolean;
   /** 是否在本地记录并过滤近期看过的推荐内容 */
@@ -215,6 +236,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   localCityName: null,
   borderRadius: 12,
   richContentRenderer: 'native-v2',
+  removeImageWatermark: true,
   answerReadingMode: 'detail',
   doubleTapAction: undefined,
   enablePrivateMessaging: false,
@@ -223,7 +245,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   pressScale: 0.98,
   androidFeedbackType: 'ripple',
   enableHapticFeedback: true,
+  unreadBadgeStyle: 'count',
   useNativeIOSBottomTabs: true,
+  enableLargeScreenLayout: false,
+  largeScreenListRatio: DEFAULT_LARGE_SCREEN_LIST_RATIO,
   enableBrowseHistory: true,
   enableLocalFeedDedup: false,
   enableFeedCacheOnLaunch: false,
@@ -287,6 +312,9 @@ export const useSettingsStore = create<SettingsState>()(
           if (!isValidRichContentRenderer(nextSettings.richContentRenderer)) {
             nextSettings.richContentRenderer = 'native-v2';
           }
+          if (typeof nextSettings.removeImageWatermark !== 'boolean') {
+            nextSettings.removeImageWatermark = true;
+          }
           if (
             nextSettings.doubleTapAction !== undefined &&
             !isValidDoubleTapAction(nextSettings.doubleTapAction)
@@ -295,6 +323,15 @@ export const useSettingsStore = create<SettingsState>()(
           }
           if (typeof nextSettings.enablePressFeedback !== 'boolean') {
             nextSettings.enablePressFeedback = true;
+          }
+          if (typeof nextSettings.enableLargeScreenLayout !== 'boolean') {
+            nextSettings.enableLargeScreenLayout = false;
+          }
+          nextSettings.largeScreenListRatio = normalizeLargeScreenListRatio(
+            nextSettings.largeScreenListRatio,
+          );
+          if (!isValidUnreadBadgeStyle(nextSettings.unreadBadgeStyle)) {
+            nextSettings.unreadBadgeStyle = 'count';
           }
           if (
             typeof nextSettings.recommendRequestIncludeDesktop !== 'boolean'
@@ -340,7 +377,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'zhihu-settings-storage',
       storage: createJSONStorage(() => settingsStorage),
-      version: 19,
+      version: 21,
       migrate: (rawPersistedState: unknown, version: number) => {
         const persistedState =
           normalizePersistedSettingsState(rawPersistedState);
@@ -502,6 +539,27 @@ export const useSettingsStore = create<SettingsState>()(
         )
           ? persistedState.doubleTapAction
           : undefined;
+
+        // v19 adds adaptive panes while retaining any saved layout preference.
+        persistedState.enableLargeScreenLayout =
+          typeof persistedState.enableLargeScreenLayout === 'boolean'
+            ? persistedState.enableLargeScreenLayout
+            : false;
+        persistedState.largeScreenListRatio = normalizeLargeScreenListRatio(
+          persistedState.largeScreenListRatio,
+        );
+        // v21 adds unread badge styles; existing installs keep red counts.
+        persistedState.unreadBadgeStyle = isValidUnreadBadgeStyle(
+          persistedState.unreadBadgeStyle,
+        )
+          ? persistedState.unreadBadgeStyle
+          : 'count';
+
+        // v20 adds watermark removal, on by default as body images already were.
+        persistedState.removeImageWatermark =
+          typeof persistedState.removeImageWatermark === 'boolean'
+            ? persistedState.removeImageWatermark
+            : true;
 
         return persistedState as unknown as SettingsState;
       },

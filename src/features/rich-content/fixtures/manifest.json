@@ -479,6 +479,42 @@
       }
     },
     {
+      "id": "empty-paragraph-spacing-001",
+      "file": "./cases/empty-paragraph-spacing-001.json",
+      "contentPath": "content",
+      "sourceType": "answer",
+      "collectedAt": "2026-10-26",
+      "traits": [
+        "synthetic",
+        "empty-paragraph",
+        "paragraph-spacing",
+        "consecutive-empty-paragraphs",
+        "whitespace",
+        "line-break",
+        "image",
+        "json-envelope"
+      ],
+      "expected": {
+        "paragraphs": 13,
+        "headings": 0,
+        "figures": 0,
+        "figcaptions": 0,
+        "lists": 0,
+        "totalImages": 1,
+        "activeImages": 1,
+        "formulaImages": 0,
+        "noscripts": 0,
+        "videoBoxes": 0,
+        "linkCards": 0
+      },
+      "expectedMetadata": {
+        "type": "answer",
+        "id": "synthetic-empty-paragraph-spacing",
+        "source": "synthetic",
+        "content_need_truncated": false
+      }
+    },
+    {
       "id": "next-render-seg-like-001",
       "file": "./cases/next-render-seg-like-001.json",
       "contentPath": "data.0.structured_content",

@@ -1,8 +1,9 @@
-import { type Href, useRouter } from 'expo-router';
+import type { Href } from 'expo-router';
 import React, { useCallback, useMemo } from 'react';
 import { Linking } from 'react-native';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { usePaneRouter as useRouter } from '@/features/adaptive-layout/usePaneRouter';
 import { LinkCard } from '@/features/rich-content';
 import type { ZhihuContentSegment } from '@/types/zhihu';
 import {

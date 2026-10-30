@@ -15,6 +15,7 @@ import {
 import { DAILY_AVATAR_SIZE, type RichContentVariant } from '../imagePolicy';
 import {
   createRichContentMetrics,
+  RICH_CONTENT_COMPACT_EMPTY_LINE_SCALE,
   RICH_CONTENT_LIST_ITEM_SPACING,
   RICH_CONTENT_PARAGRAPH_SPACING,
 } from '../presentation';
@@ -157,6 +158,7 @@ export default React.memo(function ZhihuDOMContent({
   const settings = useSettingsStore();
   const fontSizeScale = fontSizeOverride ?? settings.fontSizeScale;
   const lineHeightScale = lineHeightOverride ?? settings.lineHeightScale;
+  const removeImageWatermark = settings.removeImageWatermark;
   const metrics = useMemo(
     () => createRichContentMetrics(fontSizeScale, lineHeightScale),
     [fontSizeScale, lineHeightScale],
@@ -270,6 +272,17 @@ export default React.memo(function ZhihuDOMContent({
         }
         .zhihu-content p {
           margin: 0 0 ${RICH_CONTENT_PARAGRAPH_SPACING}px;
+        }
+        .zhihu-content p.zhihu-empty-paragraph {
+          height: ${metrics.body.lineHeight * RICH_CONTENT_COMPACT_EMPTY_LINE_SCALE}px !important;
+          line-height: ${metrics.body.lineHeight * RICH_CONTENT_COMPACT_EMPTY_LINE_SCALE}px !important;
+          font-size: 0 !important;
+          margin: 0 !important;
+        }
+        .zhihu-content p.zhihu-empty-paragraph + p.zhihu-empty-paragraph {
+          height: ${metrics.body.lineHeight}px !important;
+          line-height: ${metrics.body.lineHeight}px !important;
+          margin: 0 0 ${RICH_CONTENT_PARAGRAPH_SPACING}px !important;
         }
         .zhihu-content img {
           max-width: 100%;
@@ -544,10 +557,10 @@ export default React.memo(function ZhihuDOMContent({
             const originalToken = img.getAttribute('data-original-token');
             let actualSrc = img.getAttribute('data-actualsrc') || img.getAttribute('data-original') || src;
 
-            if (actualSrc && originalToken) {
+            if (${removeImageWatermark ? 'true' : 'false'} && actualSrc && originalToken) {
               const cleanToken = originalToken.trim();
               const tokenRegex = /v2-[a-fA-F0-9]{32}/;
-              if (tokenRegex.test(actualSrc)) {
+              if (/^v2-[a-fA-F0-9]{32}$/.test(cleanToken) && tokenRegex.test(actualSrc)) {
                 actualSrc = actualSrc.replace(tokenRegex, cleanToken);
               }
             }
@@ -967,6 +980,7 @@ export default React.memo(function ZhihuDOMContent({
     return { documentIdentity, source: { html } };
   }, [
     safeHtmlContent,
+    removeImageWatermark,
     segmentInfosStr,
     linkCardInfoStr,
     textColor,

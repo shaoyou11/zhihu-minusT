@@ -1,0 +1,8 @@
+{
+  "type": "answer",
+  "id": "synthetic-empty-paragraph-spacing",
+  "source": "synthetic",
+  "title": "合成空段与图片边界间距回归",
+  "content": "<p data-pid=\"leading-empty\"></p><p data-pid=\"before-consecutive\">连续空段之前。</p><p class=\"ztext-empty-paragraph\" data-pid=\"consecutive-one\"><br/></p><p data-pid=\"consecutive-two\"> \n&nbsp; </p><p data-pid=\"after-consecutive\">连续空段之后。</p><p data-pid=\"single-empty\"><br/></p><p data-pid=\"before-image\">单空段之后，图片之前。</p><p class=\"ztext-empty-paragraph\" data-pid=\"empty-before-image\"><br/></p><img src=\"https://example.com/synthetic-spacing-image.png\" alt=\"合成示例图片\" data-rawwidth=\"800\" data-rawheight=\"600\"/><p data-pid=\"empty-after-image\"> \t<br/> \n</p><p data-pid=\"after-image\">图片后的正文。</p><p data-pid=\"multiple-breaks\"><br/><br/></p><p class=\"ztext-empty-paragraph\" data-pid=\"marked-body\">带空段类名的真实正文。</p><p data-pid=\"trailing-empty\"></p>",
+  "content_need_truncated": false
+}

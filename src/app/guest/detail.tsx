@@ -271,6 +271,7 @@ export default function GuestDetailScreen() {
           {item.image && (
             <View className="px-5 my-3 rounded-lg overflow-hidden bg-transparent">
               <Image
+                fadeDuration={0}
                 source={getCachedImageSource(item.image)}
                 className="w-full h-[180px] rounded-lg"
                 resizeMode="cover"

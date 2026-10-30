@@ -246,6 +246,14 @@ public final class RichTextView: ExpoView, UITextViewDelegate, UIGestureRecogniz
         font = UIFont.monospacedSystemFont(ofSize: baseFont.pointSize * 0.9, weight: .regular)
         content.addAttribute(.backgroundColor, value: config.secondaryColor.withAlphaComponent(0.09), range: range)
       }
+      if richTextEmptyLineAnchor(spec, in: flow.text) != nil {
+        let height = CGFloat(max(1, richTextNumber(spec["lineHeight"], fallback: Double(config.lineHeight)))) * scale
+        // The anchor is invisible; a tiny font keeps its natural metrics below
+        // the requested height while leaving ordinary text/attachments uncapped.
+        font = UIFont.systemFont(ofSize: min(baseFont.pointSize, max(scale, height * 0.5)))
+        style.minimumLineHeight = height
+        style.maximumLineHeight = height
+      }
       if kind == "listItem" || kind == "quote" {
         let fallbackIndent = kind == "quote" ? config.fontSize : config.fontSize * 1.2
         let indent = CGFloat(max(0, richTextNumber(spec["indent"], fallback: Double(fallbackIndent)))) * scale

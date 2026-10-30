@@ -33,12 +33,18 @@ struct RichTextFlow {
     var result = ""
     var cursor = range.location
     let end = NSMaxRange(range)
-    let slots = attachments.compactMap { spec -> (NSRange, String)? in
+    var slots = attachments.compactMap { spec -> (NSRange, String)? in
       guard let slot = richTextRange(spec, in: text), slot.length == 1,
             text.character(at: slot.location) == 0xfffc,
             slot.location >= range.location, NSMaxRange(slot) <= end else { return nil }
       return (slot, spec["copyText"] as? String ?? spec["latex"] as? String ?? spec["alt"] as? String ?? "[图片]")
-    }.sorted { $0.0.location < $1.0.location }
+    }
+    slots += paragraphs.compactMap { spec -> (NSRange, String)? in
+      guard let anchor = richTextEmptyLineAnchor(spec, in: text),
+            anchor.location >= range.location, NSMaxRange(anchor) <= end else { return nil }
+      return (anchor, "")
+    }
+    slots.sort { $0.0.location < $1.0.location }
     for (slot, replacement) in slots where slot.location >= cursor {
       result += text.substring(with: NSRange(location: cursor, length: slot.location - cursor))
       result += replacement
@@ -81,4 +87,17 @@ func richTextRange(_ spec: RichTextSpec, in text: NSString) -> NSRange? {
         end > start, end <= text.length else { return nil }
   let range = NSRange(location: start, length: end - start)
   return validRichTextRange(range, in: text) ? range : nil
+}
+
+/** Only a complete synthetic blank paragraph may opt into exact line metrics. */
+func richTextEmptyLineAnchor(_ spec: RichTextSpec, in text: NSString) -> NSRange? {
+  guard let flag = spec["emptyLine"] as? NSNumber,
+        CFGetTypeID(flag) == CFBooleanGetTypeID(), flag.boolValue,
+        let range = richTextRange(spec, in: text),
+        range.length == 1 || range.length == 2,
+        text.character(at: range.location) == 0x200b,
+        range.location == 0 || text.character(at: range.location - 1) == 0x000a,
+        range.length == 1 || text.character(at: range.location + 1) == 0x000a,
+        NSMaxRange(range) == text.length || text.character(at: NSMaxRange(range) - 1) == 0x000a else { return nil }
+  return NSRange(location: range.location, length: 1)
 }

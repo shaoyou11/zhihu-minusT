@@ -161,6 +161,39 @@ describe('Native V2 renderer staging transitions', () => {
     expect(onLayoutReady).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps a measured blank between images below body line height while protecting normal text', async () => {
+    await render(
+      <ZhihuNativeContent
+        content='<img src="https://example.com/before.png"><p><br></p><img src="https://example.com/after.png"><p>普通文字</p>'
+        objectId="compact-blank-native-height"
+        type="answer"
+        renderFallback={() => null}
+      />,
+    );
+    await containerLayout(320);
+    const views = currentViews();
+    expect(views).toHaveLength(2);
+    const [blankView, textView] = views;
+    const blankFlow = JSON.parse(blankView.flowJson) as RichTextFlow;
+    expect(blankFlow.paragraphs).toHaveLength(1);
+    expect(blankFlow.paragraphs[0].emptyLine).toBe(true);
+    const { lineHeight } = JSON.parse(textView.configJson) as {
+      lineHeight: number;
+    };
+    const measuredHeight = lineHeight / 2;
+
+    await heightEvent(blankView, { height: measuredHeight });
+    await heightEvent(textView, { height: measuredHeight });
+
+    expect(screen.getByTestId(`native-flow-${flowId(blankView)}`)).toHaveStyle({
+      height: measuredHeight,
+    });
+    expect(screen.getByTestId(`native-flow-${flowId(textView)}`)).toHaveStyle({
+      height: lineHeight,
+    });
+    expect(screen.getByText('普通文字')).toBeVisible();
+  });
+
   it.each(['<hr/>', ''])(
     'reports content layout for a document without top-level text: %s',
     async (content) => {

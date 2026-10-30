@@ -179,6 +179,35 @@ beforeEach(() => {
   mockMeasureContent.mockReset();
 });
 
+test('initial profile loading leaves the list empty until member details arrive', async () => {
+  const props = createProps({
+    query: createQuery({ isLoading: true }),
+    hideInitialLoadingIndicator: true,
+  });
+  const host = await render(<ProfileTabList {...props} />);
+  expect(mockListProps.ListEmptyComponent).toBeNull();
+  await host.rerender(
+    <ProfileTabList {...props} hideInitialLoadingIndicator={false} />,
+  );
+  expect(mockListProps.ListEmptyComponent).not.toBeNull();
+});
+
+test('cached cards wait for the first measured header before mounting', async () => {
+  const props = createProps({
+    headerHeight: 0,
+    collapseDistance: 0,
+    query: createQuery({ data: ['cached-card'] }),
+    renderItem: () => <Text>已缓存的卡片</Text>,
+  });
+  const host = await render(<ProfileTabList {...props} />);
+  expect(host.queryByText('已缓存的卡片')).toBeNull();
+  await host.rerender(
+    <ProfileTabList {...props} headerHeight={420} collapseDistance={320} />,
+  );
+  expect(host.getByText('已缓存的卡片')).toBeVisible();
+  expect(mockListProps.contentContainerStyle.paddingTop).toBe(420);
+});
+
 test('restores an unmeasured tab after load without losing the request to initial native zero', async () => {
   const ref = createRef<ProfileTabListHandle>();
   const props = createProps();
@@ -300,7 +329,6 @@ test('the first header measurement preserves an unloaded absolute scroll request
   const props = createProps({ headerHeight: 0, collapseDistance: 0 });
   const host = await render(<ProfileTabList {...props} ref={ref} />);
   await act(() => ref.current?.scrollToOffset(160));
-  await scrollNative(0);
   await host.rerender(
     <ProfileTabList
       {...props}
@@ -309,6 +337,7 @@ test('the first header measurement preserves an unloaded absolute scroll request
       collapseDistance={320}
     />,
   );
+  await scrollNative(0);
   await readyList();
   expect(mockScrollToOffset).toHaveBeenLastCalledWith({
     offset: 160,

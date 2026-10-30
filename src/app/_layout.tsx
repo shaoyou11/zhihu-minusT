@@ -4,7 +4,6 @@ import {
   DarkTheme,
   DefaultTheme,
   type Href,
-  Stack,
   ThemeProvider,
   usePathname,
   useRouter,
@@ -24,6 +23,7 @@ import { GradientMaskOverlay } from '@/components/GradientMaskOverlay';
 import { useRuntimeThemeColors } from '@/components/Themed';
 import { UpdateChecker } from '@/components/UpdateChecker';
 import { VerificationModal } from '@/components/VerificationModal';
+import { AdaptiveStack as Stack } from '@/features/adaptive-layout/AdaptiveStack';
 import { useQueryConnectivity } from '@/hooks/useQueryConnectivity';
 import {
   useSyncThemeWithNativeWind,
@@ -51,7 +51,7 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = createAppQueryClient();
 
 export const unstable_settings = {
-  initialRouteName: '(tabs)',
+  anchor: '(tabs)',
 };
 
 function RootLayout() {
@@ -209,9 +209,11 @@ function RootLayout() {
                   },
                   headerTitleStyle: {
                     color: appThemeColors.text,
-                    fontWeight: 'bold',
+                    fontSize: 18,
+                    fontWeight: '600',
                   },
-                  headerTintColor: currentTint,
+                  // Back arrows match the text, as on the custom detail headers.
+                  headerTintColor: appThemeColors.text,
                   headerShadowVisible: false,
                   headerBackButtonDisplayMode: 'minimal',
                 }}
@@ -300,6 +302,16 @@ function RootLayout() {
                     headerShown: false,
                     animation: 'fade',
                   }}
+                />
+
+                {/* 自定义顶部栏的页面首次渲染也不能预留默认标题栏。 */}
+                <Stack.Screen
+                  name="user/[id]/index"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="user/[id]/stream"
+                  options={{ headerShown: false }}
                 />
 
                 {/* 回答详情页 */}

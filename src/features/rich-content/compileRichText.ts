@@ -2,6 +2,7 @@ import type { ZhihuBlock, ZhihuDocument, ZhihuInlineRun } from './document';
 import {
   createRichContentMetrics,
   RICH_CONTENT_BODY_FONT_SIZE,
+  RICH_CONTENT_COMPACT_EMPTY_LINE_SCALE,
   RICH_CONTENT_LIST_ITEM_SPACING,
   RICH_CONTENT_PARAGRAPH_SPACING,
 } from './presentation';
@@ -23,6 +24,8 @@ export interface RichTextCompilationOptions {
   fontSize: number;
   lineHeight: number;
   paragraphSpacing?: number;
+  /** A separately rendered container child can continue its preceding blank. */
+  continuesEmptyParagraph?: boolean;
 }
 
 interface FlowBuilder {
@@ -271,6 +274,7 @@ export function compileZhihuDocument(
   function compileParagraph(
     block: Extract<ZhihuBlock, { type: 'paragraph' | 'heading' }>,
     context: ParagraphContext,
+    followsEmptyParagraph = false,
   ): void {
     const paragraphId = 'paragraphId' in block ? block.paragraphId : undefined;
     const offsetKey = paragraphId ?? block.id;
@@ -303,7 +307,17 @@ export function compileZhihuDocument(
       );
       context.prefix.consumed = true;
     }
-    sourceOffset = compileInline(block.children, paragraphId, sourceOffset);
+    // The anchor gives leading/trailing/media-only blank paragraphs a real
+    // native range without adding a second newline or a visible character.
+    // A pending list marker is visible content and keeps normal typography.
+    const emptyLine =
+      block.type === 'paragraph' &&
+      block.empty === true &&
+      builder.text.length === start;
+    if (emptyLine)
+      append('\u200b', block.id, paragraphId, sourceOffset, 'synthetic');
+    else
+      sourceOffset = compileInline(block.children, paragraphId, sourceOffset);
     paragraphOffsets.set(offsetKey, sourceOffset);
     const kind =
       block.type === 'heading' ? 'heading' : (context.kind ?? 'paragraph');
@@ -322,19 +336,29 @@ export function compileZhihuDocument(
         fontSize: heading.fontSize,
         lineHeight: heading.lineHeight,
       }),
+      ...(emptyLine && {
+        emptyLine: true,
+        lineHeight: followsEmptyParagraph
+          ? lineHeight
+          : lineHeight * RICH_CONTENT_COMPACT_EMPTY_LINE_SCALE,
+      }),
       ...(context.indent && { indent: context.indent }),
       marginTop: heading?.marginTop ?? 0,
-      marginBottom: heading?.marginBottom ?? paragraphSpacing,
+      marginBottom:
+        emptyLine && !followsEmptyParagraph
+          ? 0
+          : (heading?.marginBottom ?? paragraphSpacing),
     });
   }
 
   function compileBlocks(
     blocks: readonly ZhihuBlock[],
     context: ParagraphContext = {},
+    previousEmptyParagraph = false,
   ): void {
     for (const block of blocks) {
       if (block.type === 'paragraph' || block.type === 'heading')
-        compileParagraph(block, context);
+        compileParagraph(block, context, previousEmptyParagraph);
       else if (block.type === 'quote')
         compileBlocks(block.blocks, {
           kind: 'quote',
@@ -385,10 +409,14 @@ export function compileZhihuDocument(
         flush();
         parts.push({ type: 'block', block });
       }
+      // Runs are local to sibling paragraphs: media, containers and prose
+      // start a new run, including when they split the native text flow.
+      previousEmptyParagraph =
+        block.type === 'paragraph' && block.empty === true;
     }
   }
 
-  compileBlocks(document.blocks);
+  compileBlocks(document.blocks, {}, options.continuesEmptyParagraph);
   if (document.footnotes?.length) {
     for (const definition of document.footnotes)
       compileBlocks(definition.blocks, {
@@ -420,7 +448,7 @@ function validSelection(
   return !splitsSurrogate(start) && !splitsSurrogate(end);
 }
 
-/** Native U+FFFC slots copy as semantic alt/LaTeX, without changing offsets. */
+/** Native slots copy semantically; blank-line anchors never enter copied text. */
 export function getRichTextSelectionText(
   flow: RichTextFlow,
   start: number,
@@ -429,8 +457,22 @@ export function getRichTextSelectionText(
   if (!validSelection(flow, start, end)) return '';
   let result = '';
   let cursor = start;
-  for (const attachment of flow.attachments) {
+  const replacements = [
+    ...flow.attachments,
+    ...flow.paragraphs.flatMap((paragraph) =>
+      paragraph.emptyLine === true &&
+      flow.text[paragraph.start] === '\u200b' &&
+      (paragraph.start === 0 || flow.text[paragraph.start - 1] === '\n') &&
+      (paragraph.end === flow.text.length ||
+        flow.text[paragraph.end - 1] === '\n') &&
+      /^\u200b\n?$/.test(flow.text.slice(paragraph.start, paragraph.end))
+        ? [{ start: paragraph.start, end: paragraph.start + 1, copyText: '' }]
+        : [],
+    ),
+  ].sort((left, right) => left.start - right.start);
+  for (const attachment of replacements) {
     if (attachment.start < start || attachment.end > end) continue;
+    if (attachment.start < cursor) continue;
     result += flow.text.slice(cursor, attachment.start) + attachment.copyText;
     cursor = attachment.end;
   }

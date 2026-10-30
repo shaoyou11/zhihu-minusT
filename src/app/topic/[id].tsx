@@ -166,6 +166,7 @@ export default function TopicDetail() {
       <View type="surface" className="pb-4">
         <View className="flex-row p-5 items-center bg-transparent">
           <Image
+            fadeDuration={0}
             source={getCachedImageSource(topic.avatar_url)}
             className="w-16 h-16 rounded-xl"
             resizeMode="cover"
@@ -473,6 +474,7 @@ function TopicItem({ topic }: { topic: ZhihuTopic }) {
       }}
     >
       <Image
+        fadeDuration={0}
         source={getCachedImageSource(topic.avatar_url)}
         className="w-8 h-8 rounded-lg"
       />

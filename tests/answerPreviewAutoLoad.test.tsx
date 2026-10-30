@@ -1,5 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
+import type { PropsWithChildren } from 'react';
 import type { ViewInstance } from 'react-native';
+import { PaneContext } from '../src/features/adaptive-layout/PaneContext';
 import { useAnswerPreviewAutoLoad } from '../src/hooks/useAnswerPreviewAutoLoad';
 
 jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
@@ -181,6 +183,106 @@ test('continues only near visible expanded footers, coalesces scrolls, and rejec
   expect(newLoader).toHaveBeenCalledTimes(1);
   expect(frames.size).toBe(0);
   clock.mockRestore();
+  animation.mockRestore();
+  cancel.mockRestore();
+});
+
+test('hidden panes cancel queued measurements and automatic chains, then resume from fresh geometry', async () => {
+  let frameId = 0;
+  const frames = new Map<number, Parameters<typeof requestAnimationFrame>[0]>();
+  const animation = jest
+    .spyOn(global, 'requestAnimationFrame')
+    .mockImplementation((callback) => {
+      const id = ++frameId;
+      frames.set(id, callback);
+      return id;
+    });
+  const cancel = jest
+    .spyOn(global, 'cancelAnimationFrame')
+    .mockImplementation((id) => {
+      if (id != null) frames.delete(id);
+    });
+  const flushFrame = async () => {
+    await act(() => {
+      const queued = [...frames.values()];
+      frames.clear();
+      for (const callback of queued) callback(1000);
+    });
+  };
+  let paneVisible = true;
+  const wrapper = ({ children }: PropsWithChildren) => (
+    <PaneContext.Provider
+      value={{ width: 480, height: 800, visible: paneVisible }}
+    >
+      {children}
+    </PaneContext.Provider>
+  );
+  const measures: MeasureCallback[] = [];
+  const pending: Array<() => void> = [];
+  const loader = jest.fn(
+    () => new Promise<void>((resolve) => pending.push(resolve)),
+  );
+  const props = {
+    scope: 'pane-answer',
+    expandedIds: new Set(['a']),
+    navigationHeight: 80,
+  };
+  const host = await renderHook(useAnswerPreviewAutoLoad, {
+    initialProps: props,
+    wrapper,
+  });
+  await act(() => {
+    host.result.current.registerFooter('a', {
+      measureInWindow: (callback) => measures.push(callback),
+    });
+    host.result.current.registerLoader('a', loader);
+    host.result.current.onViewableItemsChanged({
+      viewableItems: [{ item: { id: 'a', type: 'answer' } }],
+    });
+  });
+  expect(frames.size).toBe(1);
+  paneVisible = false;
+  await host.rerender(props);
+  expect(frames.size).toBe(0);
+  await act(() => host.result.current.onFooterLayout());
+  await flushFrame();
+  expect(measures).toHaveLength(0);
+
+  paneVisible = true;
+  await host.rerender(props);
+  await flushFrame();
+  expect(measures).toHaveLength(1);
+  const staleMeasurement = measures[0];
+  paneVisible = false;
+  await host.rerender(props);
+  await act(() => staleMeasurement(0, 700, 440, 44));
+  expect(loader).not.toHaveBeenCalled();
+
+  paneVisible = true;
+  await host.rerender(props);
+  await flushFrame();
+  await act(() => staleMeasurement(0, 700, 440, 44));
+  expect(loader).not.toHaveBeenCalled();
+  await act(() => measures.at(-1)?.(0, 700, 440, 44));
+  expect(loader).toHaveBeenCalledTimes(1);
+  await act(() => host.result.current.onFooterLayout());
+  await flushFrame();
+  paneVisible = false;
+  await host.rerender(props);
+  await act(async () => pending[0]());
+  await act(() => host.result.current.onFooterLayout());
+  expect(frames.size).toBe(0);
+  expect(loader).toHaveBeenCalledTimes(1);
+
+  paneVisible = true;
+  await host.rerender(props);
+  expect(frames.size).toBe(1);
+  await flushFrame();
+  await act(() => measures.at(-1)?.(0, 700, 440, 44));
+  expect(loader).toHaveBeenCalledTimes(2);
+  await act(async () => pending[1]());
+  expect(frames.size).toBe(0);
+  await host.unmount();
   animation.mockRestore();
   cancel.mockRestore();
 });

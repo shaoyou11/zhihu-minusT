@@ -4,6 +4,7 @@ import { isTag, type Node } from 'domhandler';
 import { DomUtils, parseDocument } from 'htmlparser2';
 import type { ZhihuDocument } from '../document';
 import { serializeZhihuDocumentHtml } from '../documentHtml';
+import { normalizeZhihuDocument } from '../normalization/normalizeZhihuDocument';
 import {
   getSafeRichContentUrl,
   sanitizeRichContentHtml,
@@ -15,6 +16,45 @@ function elements(nodes: readonly Node[]) {
     isTag(node) ? [node, ...elements(node.children)] : [],
   );
 }
+
+test('webview keeps blank paragraphs without classifying prose, media or multiple breaks as empty', () => {
+  const html =
+    '<p class="ztext-empty-paragraph"><br></p><p> </p><p></p>' +
+    '<p class="zhihu-empty-paragraph">正文</p><p><br><br></p>' +
+    '<p><img src="https://example.com/image.png"></p><p><br></p>';
+  const sanitized = sanitizeRichContentHtml(html);
+  const paragraphs = elements(parseDocument(sanitized).children)
+    .filter(isTag)
+    .filter((node) => node.name === 'p');
+  expect(paragraphs).toHaveLength(7);
+  expect(
+    paragraphs.map((node) =>
+      (node.attribs.class ?? '').split(/\s+/).includes('zhihu-empty-paragraph'),
+    ),
+  ).toEqual([true, true, true, false, false, false, true]);
+  expect(sanitizeRichContentHtml(sanitized)).toBe(sanitized);
+  expect(sanitized).not.toContain('\u200b');
+});
+
+test('document HTML roundtrips blank counts for the fallback renderer', () => {
+  const { document } = normalizeZhihuDocument(
+    '<p data-pid="blank"><br></p><p><br></p><p>正文</p><p><br></p>',
+    { documentId: 'empty-roundtrip' },
+  );
+  const html = serializeZhihuDocumentHtml(document);
+  const roundtrip = normalizeZhihuDocument(sanitizeRichContentHtml(html), {
+    documentId: 'empty-roundtrip',
+  }).document;
+  expect(roundtrip.blocks.map((block) => block.type)).toEqual(
+    document.blocks.map((block) => block.type),
+  );
+  expect(
+    roundtrip.blocks.map(
+      (block) => block.type === 'paragraph' && !!block.empty,
+    ),
+  ).toEqual([true, true, false, true]);
+  expect(roundtrip.blocks[0]).toMatchObject({ paragraphId: 'blank' });
+});
 
 test('stored video markup retains its cover and uses native player links or an unavailable label', () => {
   const fixture = JSON.parse(

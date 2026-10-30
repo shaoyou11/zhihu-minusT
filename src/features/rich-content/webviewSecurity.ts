@@ -1,4 +1,4 @@
-import { type ChildNode, isTag, isText } from 'domhandler';
+import { type ChildNode, Element, isTag, isText } from 'domhandler';
 import { DomUtils, parseDocument } from 'htmlparser2';
 import { getZhihuVideoRoute } from '@/utils/zhihuVideoRoute';
 import { videoPlaybackHtml } from './videoHtml';
@@ -154,6 +154,27 @@ export function sanitizeRichContentHtml(html: string): string {
       const children = clean(node.children);
       if (!CONTENT_TAGS.has(node.name)) return children;
       node.children = children;
+      // Derive the controlled layout class from content, including plain
+      // <p><br></p> emitted by the editor. A source class alone cannot hide text.
+      const classes = (node.attribs.class ?? '')
+        .split(/\s+/)
+        .filter((name) => name && name !== 'zhihu-empty-paragraph');
+      if (node.name === 'p') {
+        const elements = children.filter(isTag);
+        const whitespaceOnly = children.every(
+          (child) => !isText(child) || !child.data.trim(),
+        );
+        if (
+          whitespaceOnly &&
+          (elements.length === 0 ||
+            (elements.length === 1 && elements[0].name === 'br'))
+        ) {
+          classes.push('zhihu-empty-paragraph');
+          node.children = [new Element('br', {})];
+        }
+      }
+      if (classes.length) node.attribs.class = classes.join(' ');
+      else delete node.attribs.class;
       for (const [name, value] of Object.entries(node.attribs)) {
         if (name === 'href') {
           const safe = getSafeRichContentUrl(value);

@@ -30,7 +30,7 @@ beforeEach(() => {
   jest.mocked(SecureStore.getItemAsync).mockResolvedValue(null);
 });
 
-test('defaults to tiqian-super-mini with visual feedback and filtering enabled in settings version 19', () => {
+test('defaults to tiqian-super-mini with visual feedback and filtering enabled in settings version 21', () => {
   expect(useSettingsStore.getState().richContentRenderer).toBe('native-v2');
   expect(useSettingsStore.getState().enablePressFeedback).toBe(true);
   expect(useSettingsStore.getState().enableLocalFeedFilter).toBe(true);
@@ -39,7 +39,7 @@ test('defaults to tiqian-super-mini with visual feedback and filtering enabled i
   expect(useSettingsStore.getState().filterEnableQuality).toBe(false);
   expect(useSettingsStore.getState().filterBlockLabeled).toBe(false);
   expect(useSettingsStore.getState().filterRegexPatterns).toEqual([]);
-  expect(useSettingsStore.persist.getOptions().version).toBe(19);
+  expect(useSettingsStore.persist.getOptions().version).toBe(21);
 });
 
 test('leaves the double-tap action unset until the user picks one', () => {
@@ -60,6 +60,24 @@ test('keeps a previously saved double-tap action and defaults unset legacy data'
     (await migrate({ doubleTapAction: 'unknown' }, 17)).doubleTapAction,
   ).toBeUndefined();
   expect((await migrate({}, 17)).doubleTapAction).toBeUndefined();
+});
+
+test('keeps red unread counts for existing installs and accepts quieter badge styles', async () => {
+  expect(useSettingsStore.getState().unreadBadgeStyle).toBe('count');
+  expect((await migrate({}, 18)).unreadBadgeStyle).toBe('count');
+  expect((await migrate({}, 19)).unreadBadgeStyle).toBe('count');
+  expect(
+    (await migrate({ unreadBadgeStyle: 'dot' }, 20)).unreadBadgeStyle,
+  ).toBe('dot');
+  expect(
+    (await migrate({ unreadBadgeStyle: 'loud' }, 20)).unreadBadgeStyle,
+  ).toBe('count');
+  useSettingsStore.getState().updateSettings({ unreadBadgeStyle: 'hidden' });
+  expect(useSettingsStore.getState().unreadBadgeStyle).toBe('hidden');
+  useSettingsStore.getState().updateSettings({
+    unreadBadgeStyle: 'loud',
+  } as unknown as Partial<AppSettings>);
+  expect(useSettingsStore.getState().unreadBadgeStyle).toBe('count');
 });
 
 test.each([
@@ -151,7 +169,7 @@ test('hydrates legacy settings and writes back only the new renderer field', asy
       fontSizeScale: 1.3,
       enablePressFeedback: true,
     },
-    version: 19,
+    version: 21,
   });
   expect(JSON.parse(persistedJson).state).not.toHaveProperty('useWebView');
 });
@@ -304,7 +322,7 @@ test('persists and restores sanitized custom regex rules together with a disable
       enableLocalFeedFilter: false,
       filterRegexPatterns: expectedPatterns,
     },
-    version: 19,
+    version: 21,
   });
   useSettingsStore.setState({
     enableLocalFeedFilter: true,
@@ -423,4 +441,40 @@ test('migrates ad placeholders without changing existing filter mode and persist
   expect(await migrate({ filterHideAdPlaceholders: false }, 19)).toMatchObject({
     filterHideAdPlaceholders: false,
   });
+});
+
+test('upgrades minusT v19 settings without losing custom filtering or saved upstream choices', async () => {
+  expect(useSettingsStore.getInitialState().filterHideAdPlaceholders).toBe(
+    true,
+  );
+  expect(
+    await migrate(
+      {
+        filterHideAdPlaceholders: false,
+        filterMode: 'hide',
+        enableLargeScreenLayout: true,
+        largeScreenListRatio: 0.4,
+        removeImageWatermark: false,
+      },
+      19,
+    ),
+  ).toMatchObject({
+    filterHideAdPlaceholders: false,
+    filterMode: 'hide',
+    enableLargeScreenLayout: true,
+    largeScreenListRatio: 0.4,
+    removeImageWatermark: false,
+    unreadBadgeStyle: 'count',
+  });
+});
+
+test('v20 turns watermark removal on for older settings and keeps a saved choice', async () => {
+  expect((await migrate({}, 19)).removeImageWatermark).toBe(true);
+  expect(
+    (await migrate({ removeImageWatermark: false }, 19)).removeImageWatermark,
+  ).toBe(false);
+  expect(
+    (await migrate({ removeImageWatermark: 'off' }, 19)).removeImageWatermark,
+  ).toBe(true);
+  expect(useSettingsStore.getInitialState().removeImageWatermark).toBe(true);
 });

@@ -1,6 +1,7 @@
 import { compileZhihuDocument, mapRichTextSelection } from '../compileRichText';
 import type { ZhihuInlineRun } from '../document';
 import { walkZhihuDocument } from '../documentTraversal';
+import emptyParagraphFixture from '../fixtures/cases/empty-paragraph-spacing-001.json';
 import slicingFixture from '../fixtures/cases/segment-slicing-boundaries-001.json';
 import { createInlineRunSlicer } from '../normalization/inlineRunSlicer';
 import {
@@ -14,6 +15,132 @@ const normalize = (html: string) =>
 const image = 'https://example.com/image.png';
 
 describe('prototype HTML to ZhihuDocument normalization', () => {
+  it('preserves empty paragraphs at the beginning, between text and at the end', () => {
+    const { document } = normalize(
+      '<p data-pid="leading"></p><p data-pid="first">第一段</p><p class="ztext-empty-paragraph" data-pid="middle"><br/></p><p data-pid="second">第二段</p><p data-pid="trailing"> \t\n&nbsp; </p>',
+    );
+    expect(document.blocks.map((block) => block.type)).toEqual([
+      'paragraph',
+      'paragraph',
+      'paragraph',
+      'paragraph',
+      'paragraph',
+    ]);
+    const paragraphs = document.blocks.filter(
+      (block) => block.type === 'paragraph',
+    );
+    expect(paragraphs.map((block) => block.paragraphId)).toEqual([
+      'leading',
+      'first',
+      'middle',
+      'second',
+      'trailing',
+    ]);
+    expect(paragraphs.filter((block) => block.empty)).toEqual([
+      expect.objectContaining({ paragraphId: 'leading', children: [] }),
+      expect.objectContaining({ paragraphId: 'middle', children: [] }),
+      expect.objectContaining({ paragraphId: 'trailing', children: [] }),
+    ]);
+    expect(paragraphs[1].children).toEqual([
+      expect.objectContaining({ type: 'text', text: '第一段' }),
+    ]);
+    expect(paragraphs[3].children).toEqual([
+      expect.objectContaining({ type: 'text', text: '第二段' }),
+    ]);
+  });
+
+  it.each(['', ' \t\n\r\f ', '&nbsp;\u3000', '<br/>', ' \n&nbsp;<br/>\t '])(
+    'retains a single empty paragraph and stable identity for %j',
+    (content) => {
+      const html = `<p data-pid="empty">${content}</p>`;
+      const { document } = normalize(html);
+      expect(document.blocks).toEqual([
+        {
+          id: expect.any(String),
+          type: 'paragraph',
+          paragraphId: 'empty',
+          empty: true,
+          children: [],
+        },
+      ]);
+      expect(normalize(html).document.blocks).toEqual(document.blocks);
+    },
+  );
+
+  it('does not classify real text, images or formulas as empty from a marker class', () => {
+    const { document } = normalize(
+      `<p class="ztext-empty-paragraph">正文<br/>下一行</p><p class="ztext-empty-paragraph"><img src="${image}"/></p><p class="ztext-empty-paragraph"><img eeimg="1" alt="x" src="https://www.zhihu.com/equation?tex=x"/></p><p class="ztext-empty-paragraph"><strong>加粗正文</strong></p>`,
+    );
+    expect(document.blocks.map((block) => block.type)).toEqual([
+      'paragraph',
+      'image',
+      'paragraph',
+      'paragraph',
+    ]);
+    for (const block of document.blocks) {
+      expect(block).not.toHaveProperty('empty');
+    }
+    const nodes = [...walkZhihuDocument(document)];
+    expect(
+      nodes.filter((node) => node.type === 'text').map((node) => node.text),
+    ).toEqual(['正文', '下一行', '加粗正文']);
+    expect(nodes.filter((node) => node.type === 'image')).toHaveLength(1);
+    expect(nodes.filter((node) => node.type === 'inlineFormula')).toHaveLength(
+      1,
+    );
+  });
+
+  it('preserves multiple explicit line breaks instead of reducing them to one empty paragraph', () => {
+    const { document } = normalize(
+      '<p data-pid="double"><br/><br/></p><p data-pid="spaced"> \t<br/> \n<br/> </p>',
+    );
+    expect(document.blocks).toHaveLength(2);
+    for (const block of document.blocks) {
+      expect(block.type).toBe('paragraph');
+      expect(block).not.toHaveProperty('empty');
+      if (block.type !== 'paragraph') throw new Error('Expected paragraph');
+      expect(
+        block.children.filter((run) => run.type === 'lineBreak'),
+      ).toHaveLength(2);
+    }
+  });
+
+  it('retains the registered synthetic empty paragraphs around text and an image', () => {
+    const { document } = normalize(emptyParagraphFixture.content);
+    expect(document.blocks).toHaveLength(14);
+    const paragraphs = document.blocks.filter(
+      (block) => block.type === 'paragraph',
+    );
+    expect(paragraphs).toHaveLength(13);
+    const emptyParagraphs = paragraphs.filter((block) => block.empty);
+    expect(emptyParagraphs.map((block) => block.paragraphId)).toEqual([
+      'leading-empty',
+      'consecutive-one',
+      'consecutive-two',
+      'single-empty',
+      'empty-before-image',
+      'empty-after-image',
+      'trailing-empty',
+    ]);
+    expect(emptyParagraphs.every((block) => block.children.length === 0)).toBe(
+      true,
+    );
+    expect(document.blocks[7]).toMatchObject({
+      type: 'paragraph',
+      paragraphId: 'empty-before-image',
+      empty: true,
+    });
+    expect(document.blocks[8]).toMatchObject({
+      type: 'image',
+      resource: { url: 'https://example.com/synthetic-spacing-image.png' },
+    });
+    expect(document.blocks[9]).toMatchObject({
+      type: 'paragraph',
+      paragraphId: 'empty-after-image',
+      empty: true,
+    });
+  });
+
   it('passes structured pin fields through attribute escaping and the existing resource allowlist', () => {
     const { document, diagnostics } = normalizeZhihuContentSegments(
       [
@@ -111,6 +238,20 @@ describe('prototype HTML to ZhihuDocument normalization', () => {
     expect(images[3].resource.originalUrl).toBe(
       `https://example.com/${token}.jpg`,
     );
+  });
+
+  it('keeps the watermarked copies Zhihu serves when watermark removal is off', () => {
+    const token = 'v2-11111111111111111111111111111111';
+    const watermarked = 'v2-00000000000000000000000000000000';
+    const { document } = normalizeZhihuDocument(
+      `<img data-actualsrc="https://example.com/${watermarked}_720w.jpg" data-original="https://example.com/${watermarked}_r.jpg" data-original-token="${token}">`,
+      { documentId: 'test', removeImageWatermark: false },
+    );
+    const [image] = document.blocks.filter((node) => node.type === 'image');
+    expect(image.resource).toMatchObject({
+      url: `https://example.com/${watermarked}_720w.jpg`,
+      originalUrl: `https://example.com/${watermarked}_r.jpg`,
+    });
   });
 
   it('recovers raw formula tex from a lazy image URL when alt is absent without promoting it to a block', () => {

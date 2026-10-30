@@ -120,6 +120,12 @@ npm run web
 
 Web 适合检查路由和不依赖原生模块的页面，不代表 Android/iOS 的原生行为已经验证。
 
+### 空段落排版验证
+
+富文本空段保留数量：每组连续空段的首个压窄并移除段距，其余保留正文行高和段后间距。合成样本 `src/features/rich-content/fixtures/cases/empty-paragraph-spacing-001.json` 覆盖首尾、连续空段、普通正文和图片两侧；正文中的多个 `<br>` 不合并。双端原生模块增加了精确空行度量与复制锚点过滤，需要重新 prebuild、编译并安装 Development Build 后再检查，单独重启 Metro 不会更新原生代码。
+
+相关验证命令为 `npm test -- src/features/rich-content/tests --runInBand`、`npm run analyze:rich-content`、`npm run check`，以及原生模块 README 中的 Android JVM/iOS 模型检查。平台验收应查看单个/多个空段、图片间单空段、引用和列表、字体缩放，以及跨空段复制时空行数量与正文字符是否保留；同时切换到 WebView 对照。
+
 ## 什么时候需要重新 prebuild
 
 以下改动后应重新生成原生工程：
@@ -181,14 +187,53 @@ Biome 2.6 使用 `linter.rules.preset: "recommended"`；Markdown 格式化保持
 
 `expo-print` 与 `react-native-view-shot` 是原生依赖，新增或升级后分别运行 `npx expo prebuild --platform android --no-install` 和 `npx expo prebuild --platform ios --no-install`，重新编译 Development Build；生成目录不提交。导出当前仅支持 Android/iOS，Web 不能替代平台验收。真机需检查缺图重试、离线 HTML/公式、PDF 分页、长图边界与取消、SAF 保存、iOS“存储到文件”和多图相册权限；保存面板打开不能作为文件已保存的证据。完整测试矩阵和资源限制见模块 README。
 
+### 双栏布局与导航状态
+
+入口为 [`src/features/adaptive-layout/AdaptiveStack.tsx`](../src/features/adaptive-layout/AdaptiveStack.tsx)，路由分类和可见页面选择集中在 [`layout.ts`](../src/features/adaptive-layout/layout.ts)。双栏仅由默认关闭的 `enableLargeScreenLayout` 控制，不检查设备类型、屏幕大小或横竖屏。开关立即生效，无须重启应用；iOS 单栏使用原生 Stack 视图，其余情况使用自适应视图。切换视图保留同一导航容器和历史，但会重新挂载页面，滚动位置等临时状态可能重置；旋转和窗口缩放不会切换视图。Android 和 Web 切换布局不重新挂载页面。
+
+两栏共用一个 Stack。布局从当前历史向前寻找最近的详情页，并在最近列表页处停止，分别显示在右、左侧；当前是列表页时右侧显示提示，不能显示该列表之前的旧详情，没有列表来源的详情深链接使用全屏。设置、登录、编辑器、视频和其他未明确分类的路由始终使用全屏，并作为历史扫描的边界，避免显示不相关的旧页面；设置中的布局开关在各种尺寸下均可操作。新增路由默认全屏，只有明确适合并列浏览时才加入 `getPaneRole` 的列表或详情分类。
+
+横竖屏切换只重新计算尺寸和可见性，不派发 push、replace、reset 或 pop，也不清理历史。页面保持原有 route key、params 与 React 状态；自适应视图的隐藏页停止接收触摸并从无障碍树中隐藏。双栏中的列表选择通过 `usePaneRouter` 标记来源，`PaneStackRouter` 只替换该列表之后的详情分支，并同步浏览器历史；重复选择同一内容复用 route key 和页面状态。详情内部的普通链接仍加入历史，例如“问题 → 回答 → 评论”依次返回回答、问题，最后关闭右栏。单栏、深链接与未标记的导航保留 Expo Router 的原有语义，不建立独立返回栈。尺寸变化与返回动作必须分开处理，不能为了恢复双栏重建路由或复制详情页。布局开关在 iOS 上切换视图时保留路由历史，但不保留页面的临时 React 状态；不增加跨进程的导航历史恢复。
+
+列表初始占可用宽度的 `1/3`，分隔线交互宽度为 16dp。所有尺寸均按保存的比例分配扣除分隔线后的可用宽度，不设置固定的两栏最小宽度，避免窄屏左栏被挤空。细竖线常驻，拖拽握柄默认隐藏，按住时显示，松手或取消后隐藏。两栏之间须长按激活后才可拖动，普通点击和滑过不改变栏宽；激活时高亮并按震动设置提供轻触觉反馈，拖动时实时显示比例，松手保存 `largeScreenListRatio`，取消或尺寸变化则恢复已保存比例；设置 v19 为旧用户补充默认关闭的 `enableLargeScreenLayout` 和默认比例，保留已保存的合法偏好。比例限制为 `0.2..0.6`，非有限数值回退为 `1/3`。唯一开关位于“设置 → 外观与阅读 → 双栏布局（试验性） → 启用双栏布局”，关闭再开启仍保留上次调整的比例。正文、Pager 与弹层通过栏位上下文获取实际宽度和可见性，不能将整窗宽度当作详情栏宽度，也不能让隐藏页面的 Modal 继续覆盖当前内容。
+
+双栏列表选择回答时显式传入 `readingMode: detail`，右栏只打开该回答。双栏中 Pager 禁止手势翻页，切换到单栏后恢复；尺寸变化不替换 Pager 或强制切换已经打开的阅读模式。新增列表内容入口应使用 `usePaneRouter`；详情正文链接继续使用普通路由。
+
+自适应视图的隐藏页面保留最后可见尺寸和 effects，不使用 `display: none` 或 React Activity，以免滚动容器归零、刷新卡住或标题状态被重新初始化。栏位可见性单独控制自动续页、弹层和活跃状态；嵌套原生 Tab 仍需处于选中状态，隐藏持有输入焦点的栏位时收起键盘。回答翻页与删除内容使用来源路由的参数更新或带目标栈的动作，不能误改另一栏当前页面。删除回答的延迟回调还需核对回答、登录会话和 Pager scope；旧页面已被替换或已切换回答时，不得关闭新内容。
+
+首页顶部标签与搜索、底部导航在窄栏中均可横向滚动，按钮保留可操作宽度，选中项和栏宽变化会将当前控件滚入可视区。不要通过压缩按钮或裁切导航来容纳窄栏。
+
+iOS 单栏使用原生 Stack 的返回手势及交互式转场；双栏使用自适应视图与 JavaScript header，没有原生侧滑返回。Android 可使用系统返回，各平台均可使用页面返回按钮。切换布局不重建路由历史，但 iOS 页面会重新挂载。平台手势、键盘、安全区以及原生正文重排须用 Development Build 验证，逻辑测试不能证明这些体验已经通过验收。
+
+使用 Node.js 24 运行以下定向回归，再运行完整质量门禁：
+
+```bash
+npm test -- tests/adaptiveNavigation.test.tsx tests/iosNativeNavigation.test.tsx tests/adaptiveLayoutSettings.test.ts tests/navigationInteractionSettings.test.tsx tests/paneDivider.test.tsx tests/homeNavigationRow.test.tsx tests/answerNeighborRendering.test.tsx tests/paneDimensions.test.tsx tests/paneOverlays.test.tsx tests/paneSelection.test.ts --runInBand
+npm run check
+```
+
+专项测试分别覆盖导航历史与旋转、偏好迁移与宽度持久化、布局开关、栏内尺寸和隐藏页弹层。下表为需执行的验收矩阵，不代表已完成真机验证；Android/iOS 手机、Android 平板、iPad 和 Web 均须覆盖单开关控制布局，窗口缩放另在支持分屏的设备或 Web 中检查。
+
+| 场景 | 操作 | 预期 |
+| --- | --- | --- |
+| 单开关切换 | 手机、平板和 Web 分别在设置中关闭再开启“启用双栏布局”，返回已打开的列表和详情，再重启应用 | 设置始终全屏且开关可操作；开关立即控制单栏与双栏，无须重启，已保存的偏好在重启后恢复 |
+| 旋转与窗口缩放 | 滚动列表及长回答，横屏 → 竖屏 → 横屏，连续缩放窗口，并关闭再开启双栏 | 布局模式只随开关变化；旋转及缩放不重置页面，返回顺序保留；iOS 切换开关时页面重新挂载，其他平台保留页面状态；控件可见且可用 |
+| 长按拖动分隔线 | 普通点击与快速滑过；长按后连续拖动、拖至两端、取消拖动或旋转，并关闭震动后重复，再重启应用 | 细竖线常驻，握柄默认隐藏，按住显示、松手隐藏；普通触摸不改变栏宽；长按激活有高亮和可关闭的震动，拖动实时反馈比例；松手保存一次，取消/旋转恢复已保存比例，重启恢复已提交比例 |
+| 嵌套导航与返回 | 列表 → 问题 → 回答 → 评论，详情内再打开用户主页或另一篇内容，交替操作左右栏 | 列表重选替换右栏，同条内容不重置；详情内部逐级返回，最后关闭右栏，无重复详情、丢失列表或跳回首页 |
+| 冷/热深链接 | 关闭应用及应用已打开时，分别打开问题、回答、文章和想法链接；进入后旋转并返回 | 内容与参数正确，有列表来源时展示双栏，无列表来源时详情可全屏使用，返回不制造虚构历史 |
+| 系统返回与全屏页面 | Android 返回键/手势、iOS 单栏侧滑及各平台页面返回按钮分别返回；进入登录、编辑器和视频后旋转及退出 | 一次返回只消费一次导航或弹层关闭操作；iOS 侧滑跟手并可取消，不绕过编辑保护；全屏页面不露出旧栏位，退出后恢复原有浏览上下文 |
+| 弹层、键盘与主题 | 在两栏打开评论输入、菜单、收藏和图片预览，隐藏所属页面再返回，配合旋转、亮暗主题切换 | 隐藏页不残留遮罩或拦截触摸；弹层尺寸、关闭操作、键盘避让和安全区正常，无内容被遮挡 |
+
 ### 主要界面回归场景
 
 主要界面的代码回归覆盖分页、搜索提交、评论上传与提交、历史选择、账号切换和公共菜单。修改这些流程后，除运行 `npm run check`，还应在 Android/iOS Development Build 上检查以下场景；自动化逻辑测试不能替代原生布局和手势验收：
 
-- 主题与详情转场：在同一次运行中切换亮色 → 暗色 → 亮色，并验证跟随系统切换；每次切换后从首页 Feed 进入问题、回答、个人主页再返回，分别覆盖已有缓存和首次加载，并在切换阅读背景、前后台切换后重复。问题和回答使用原生淡入淡出，两屏同时半透明时会露出导航下面的背景，因此根 `GestureHandlerRootView` 必须保持与运行时主题一致的不透明底色，不能只给页面或 `Stack.contentStyle` 设置背景。`rootThemeBackground` 回归检查底色随主题和阅读偏好更新且导航不重新挂载；整页闪白是否消除仍需 Android 真机检查，冷启动正常不能替代运行中切换主题的验证。
+- 主题与详情切换：在同一次运行中切换亮色 → 暗色 → 亮色，并验证跟随系统切换；每次切换后从首页 Feed 进入问题、回答、个人主页再返回，分别覆盖已有缓存和首次加载，并在切换阅读背景、前后台切换后重复。根 `GestureHandlerRootView` 必须保持与运行时主题一致的不透明底色，不能只给页面或 `Stack.contentStyle` 设置背景。`rootThemeBackground` 回归检查底色随主题和阅读偏好更新且导航不重新挂载；页面切换、双栏开关和旋转时是否闪白仍需 Android/iOS 真机检查，冷启动正常不能替代运行中切换主题的验证。
 - 自定义主题色：色相、饱和度、亮度滑块拖动时更新色块与 Hex 预览，成功松手后提交一次并刷新全局主题；轻点轨道和短距离调整也直接提交。纵向滚动不应改色，拖动取消时恢复开始前的预览。`appearanceSettings` 覆盖提交、取消、连续调整及重新展开后的状态一致性；Android/iOS 真机还需检查滑块与页面滚动竞争，确认不用再点击阅读背景选项才能生效。
 - 首页、搜索和日报：快速点击历史词/建议词、切换分类、刷新过程中触底、分页失败后重试，以及过滤/曝光去重后整页为空。服务端返回结束标记或重复游标时应停止追加。
-- 关注更新：头像接口返回缺失、null 或非数组的 `data` 时应隐藏头像栏并关闭该区域的手势；数组中的畸形用户条目应丢弃，正常条目仍可显示、进入最近发布和标记已读，后续正常响应能恢复显示。头像栏原生触摸期间锁定首页 PagerView，检查从头像上横滑、滑到首尾、纵向滚动、取消手势及返回后首页横滑恢复。“最近发布”固定进入时的头像顺序，左右切换或按钮切换用户，保留已访问页的列表与刷新状态；相邻用户仅预加载，实际选中才标记已读。检查从中间用户进入、单用户/缺失缓存入口、后台头像刷新后顺序不跳动、每页独立未读分界和分页，以及已读请求失败回滚不覆盖新更新。回归见 `recentMoments`、`nestedHorizontalGesture`、`recentMomentStream`、`recentMomentRead` 和 `userStreamScreen`；Android/iOS 均需真机检查嵌套横滑与页面边缘返回手势。
+- 图片稳定性：头像、Feed 缩略图及其他使用缓存源的常用界面图片关闭 Android 原生默认淡入，避免图片视图重新加载时反复渐显；缓存和列表回收仍可能产生等待。真机需检查首页及评论头像、快速滚动回收、刷新、进入详情后返回、前后台切换和慢网首次加载，确认无明显闪动或错头像。富文本后端的图片加载独立验证。
+- Android 详情入场：整页过渡保持原有动画。个人页资料加载时为文本预留空间，待实际资料的标题栏完成测量后再显示标签和列表；封面、头像换源时保留旧图直到新图加载完成，并只在首次加载或换图时淡入。回答获取及原生排版期间预留阅读区域，首次排版完成后淡入正文；后续重排不重复入场淡入。减少动态效果开启时不执行这些淡入。回归见 `profileImage`、`initialContentReveal` 和 `userProfileScreen`；需用 Android 真机覆盖冷缓存、慢网、无简介、长简介及回答横向切页，确认列表无跳动、控件可操作且正文未被遮挡。
+- 关注更新：头像接口返回缺失、null 或非数组的 `data` 时应隐藏头像栏并关闭该区域的手势；数组中的畸形用户条目应丢弃，正常条目仍可显示、进入最近发布和标记已读，后续正常响应能恢复显示。头像栏原生触摸期间锁定首页 PagerView，检查从头像上横滑、滑到首尾、纵向滚动、取消手势及返回后首页横滑恢复。“最近发布”固定进入时的头像顺序，左右切换或按钮切换用户，保留已访问页的列表与刷新状态；点击顶部头像或用户名打开当前用户主页；路由首次渲染就隐藏默认标题栏，自适应容器入场时固定顶部操作栏并只缩放内容，避免顶部空隙和跳动。相邻用户仅预加载，实际选中才标记已读。检查从中间用户进入、单用户/缺失缓存入口、后台头像刷新后顺序不跳动、每页独立未读分界和分页，以及已读请求失败回滚不覆盖新更新。回归见 `recentMoments`、`nestedHorizontalGesture`、`recentMomentStream`、`recentMomentRead` 和 `userStreamScreen`；Android/iOS 均需真机检查嵌套横滑与页面边缘返回手势。
 - 回答、文章、想法和评论：分别验证首次失败、分页失败、排序切换、多行输入和图片输入栏。文章与想法的根评论、回复统一使用 Comment V5 发布接口，分别验证文字和图片评论发布成功后刷新列表、失败后保留草稿。评论列表和回复详情共用 `useCommentKeyboardLayout`，按页面底边与键盘顶边的实际重叠量定位输入栏，弹起时保持 12px 间距，收起后恢复设备底部安全区。Android 在 edge-to-edge 根视图中使用 `measure` 的 `pageY`，不能直接把已扣系统导航栏的键盘 `height` 当作上移量，也不能重复补偿窗口已经缩小的部分；`keyboardDidShow` 后立即定位。iOS 使用窗口坐标测量，并跟随键盘事件时长和 frame 变化。回归见 `commentKeyboardLayout`；真机需覆盖 Android 手势/三键导航、窗口缩放、有/无底部安全区、多行输入与图片附件，以及 iOS 键盘弹起、收起和高度切换。评论提交期间不得重复发送或清空新编辑；移除图片、重新选择同图及离页后，旧上传结果不得回填。想法多选投票应遵守选择上限、一次提交完整选项，提交及刷新期间不可重复发送。
 - 问题与回答顶部：页顶导航透明，问题页显示返回与右侧更多按钮，回答页顶部保留返回，完整问题标题在正文中；接近折叠边界的最后 48px 随滚动逐渐显示背景、紧凑标题与作者，背景高度与信息位置同步变化。回答导航保留作者小头像和姓名，其顶部更多操作问题、正文底栏更多操作当前回答；横向切页按回答 ID 直接恢复展开/折叠及渐显进度，取消横滑、列表重排、离屏页滚动及旧回调不得污染当前页，切换问题或排序时清空本次导航状态。右侧自绘滚动条只作位置提示，不拦截手势，需检查短文隐藏、长文顶部/底部、弹性过滚、旋转及大字体后比例与导航间距；重新打开内容时应从顶部开始且不出现恢复提示。回归见 `answer-pager-transition`、`detailNavigationHeader`、`detailHeaderAppearance`、`readingProgress`、`readingProgressDisabled` 和 `scrollIndicator`。
 - 回答相邻预加载：前台回答详情立即预取前后各一条完整回答，数据就绪后提前挂载正文；预加载本身不触发收藏查询或阅读进度恢复。切页时保留提升为当前页或仍在相邻窗口中的请求，只取消离开窗口且没有活跃查询的请求。未阅读的预热正文移出窗口后卸载，再次进入需重新确认原生布局就绪。列表异步插入或重排时按回答 ID 保持当前页；[Pager 9 Android 补丁](../patches/react-native-pager-view+9.0.7.patch) 避免用零宽高初始化 Compose Pager，并在本次原生挂载事务之后校验和执行最新定位命令，取消被手势或重置取代的命令。页面容器按 React child ID 保持身份，Fabric 移动子页时保留必要的 detach，并在重新插入时显式恢复既有 Compose 容器中的子视图。JS 仍保留有效布局与位置事件补偿，旧列表回调不得改变当前焦点，新手势接管后停止补偿。真机需检查慢网下提前请求、请求未完成时快速左右切换、推荐入口首屏列表晚到、列表追加/重排，以及首次回答长按、选区拖柄、双击和返回后再进入；回归见 `answerPrefetchResources`、`answerNeighborRendering` 和 `answer-pager-transition`。原生命令队列回归使用 `cd android && ./gradlew :react-native-pager-view:testDebugUnitTest`；这些测试不替代真机触摸验证。
@@ -240,7 +285,7 @@ xcrun simctl openurl booted 'zhihu--:///dev/rich-content/prototype?caseId=attach
 | `src/api/` | Axios 客户端、X-ZSE-96 签名及知乎接口适配；响应边界使用显式类型 |
 | `src/components/` | 跨页面 UI；业务专属渲染优先放进对应 feature |
 | `src/constants/` | 主题、设计 Token 和共享常量 |
-| `src/features/` | 独立业务能力，目前重点是 `rich-content/` 和 `publishing/` |
+| `src/features/` | 独立业务能力，包括 `adaptive-layout/`、`rich-content/` 和 `publishing/` |
 | `src/hooks/` | 可复用交互、查询和乐观更新逻辑 |
 | `src/storage/` | Expo SQLite、本地 Feed 缓存和曝光记录；schema 通过有序 migration 演进 |
 | `src/store/` | Zustand 全局状态与持久化迁移 |
@@ -273,7 +318,7 @@ xcrun simctl openurl booted 'zhihu--:///dev/rich-content/prototype?caseId=attach
 
 根布局通过 `useQueryConnectivity` 将 `expo-network` 和原生 AppState 接入 TanStack 的在线/前台状态。首次网络快照不得覆盖更新的网络事件，回到前台重新读取状态；相同在线事件去重。确认断网恢复或 Wi-Fi/移动网络类型切换时，`restartInterruptedQueries` 先取消仍在执行的活跃读取，再保留缓存与 `fetchMeta` 重启，使首屏和下一页无需等旧连接超时。后台可能漏掉断开与重连事件，前台确认在线后也重启回前台前就已挂起的读取，不取消此后新发起的请求。已经暂停的查询沿原任务继续，本地 `networkMode: always` 查询与非活跃查询不主动重启。
 
-已有页缓存的无限列表不因回前台/重连而从头串行重抓全部页，已有内容可继续阅读；无缓存首屏照常恢复，在途翻页保留原方向，已终止的分页失败仍可手动重试。普通无 HTTP 响应的传输失败最多自动重试一次；408、429 和 5xx 保留两次重试。游客推荐与同城接口遇传输失败不再串行尝试兼容接口，HTTP 兼容回退保持。
+已有页缓存的无限列表不因回前台/重连而从头串行重抓全部页，已有内容可继续阅读；无缓存首屏照常恢复，在途翻页保留原方向，已终止的分页失败仍可手动重试。普通无 HTTP 响应的传输失败最多自动重试一次；408、429 和 5xx 保留两次重试。知乎风控 `40362`（HTTP 403，“您当前请求存在异常，暂时限制本次访问”）在关注者列表等接口上由缺少反爬 Cookie `__zse_ck` 触发：它由知乎页面脚本写入 WebView Cookie 存储，API 客户端以 `withCredentials: false` 只发送账号保存的 Cookie，登录时也不一定取到它。读取请求收到 40362 时，若 WebView 的 `z_c0` 与当前账号一致且有不同的 `__zse_ck`，只把这一项合并进当前账号 Cookie 并重试一次；添加账号期间跳过读取，写入请求不自动重试。列表失败页向 `QueryErrorView` 传入 `error`，在页面文案下显示安全提示、HTTP 状态和知乎错误码。游客推荐与同城接口遇传输失败不再串行尝试兼容接口，HTTP 兼容回退保持。
 
 写入查询默认使用 `networkMode: always`、`retry: false`，离线时按请求失败和既有回滚处理，避免评论、私信和发布排队后在恢复网络时自动提交。不要为恢复读取而取消或重放 mutation。离线首屏处于 `pending/paused`，页面需保留加载状态，不能显示“暂无内容”或“内容已删除”。
 
@@ -296,6 +341,8 @@ xcrun simctl openurl booted 'zhihu--:///dev/rich-content/prototype?caseId=attach
 ## GitHub Actions 与发布
 
 - [`ci.yml`](../.github/workflows/ci.yml) 在 Pull Request 和 `main` push 时运行 `npm ci` 与 `npm run check`。
+- minusT 保留自己的 [`minust-ios.yml`](../.github/workflows/minust-ios.yml)，不引入上游的 PR ChatOps 构建工作流。同步上游 v0.9.7 时已人工核对并排除新增的 `pr-build.yml`，避免额外构建入口和 Secret 依赖；后续未知工作流仍由同步保护拦截。
+- 上游新增的双栏布局默认关闭。iOS 单栏继续使用原生评论半屏浮层；双栏当前使用自定义 pane 导航，不支持原生 `formSheet` 的半屏停靠，评论在详情 pane 内打开。需要半屏评论体验时保持双栏关闭。
 - [`build.yaml`](../.github/workflows/build.yaml) 手动构建四个 Android 单 ABI APK 和一个未签名 iOS IPA；`build_mode=build` 只保留 7 天的 artifact，`build_mode=release` 还会创建 Release。
 - Release 必须从 `main` 运行，且 `package.json`、`app.json` 版本一致，`v<version>` tag 尚不存在。`publish_release=false` 创建草稿，`true` 才直接公开。
 - 构建工作流的 Android job 需要 `EXPO_TOKEN` 加上 4 个 telemetry Secret，iOS job 需要其中 4 个 telemetry Secret；由于两个 job 总是一起运行，完整 workflow 需要配置 `EXPO_TOKEN`、`FIREBASE_ANDROID_JSON_B64`、`FIREBASE_IOS_PLIST_B64`、`EXPO_PUBLIC_SENTRY_DSN` 和 `SENTRY_AUTH_TOKEN`。详情见 [`docs/RELEASING.md`](./RELEASING.md) 和 [`docs/TELEMETRY.md`](./TELEMETRY.md)。

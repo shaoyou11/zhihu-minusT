@@ -10,7 +10,6 @@ import {
   View as NativeView,
   StyleSheet,
   type TextInputInstance,
-  useWindowDimensions,
 } from 'react-native';
 import Reanimated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,6 +40,7 @@ import { StableAvatar } from '@/components/StableAvatar';
 import { Text, useThemeColor, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { usePaneDimensions } from '@/features/adaptive-layout/PaneContext';
 import { useCommentKeyboardLayout } from '@/hooks/useCommentKeyboardLayout';
 import { useCommentListQuery } from '@/hooks/useCommentQueries';
 import {
@@ -85,9 +85,9 @@ export default function CommentScreen() {
   const surfaceColor = Colors[colorScheme].surface;
   const textColor = Colors[colorScheme].text;
   const tintColor = useThemeColor({}, 'link');
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: paneWidth } = usePaneDimensions();
   // 减去头像(32) + 间距(12) + 左右padding(30)
-  const contentWidth = screenWidth - 32 - 12 - 30;
+  const contentWidth = paneWidth - 32 - 12 - 30;
   const insets = _insets;
   const commentResourceType: CommentResourceType =
     type === 'question'

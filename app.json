@@ -204,7 +204,7 @@
       "package": "com.huamu013.ZhihuMinusMinus",
       "permissions": ["REQUEST_INSTALL_PACKAGES"],
       "predictiveBackGestureEnabled": false,
-      "versionCode": 905
+      "versionCode": 907
     },
     "experiments": {
       "typedRoutes": true
@@ -213,7 +213,7 @@
       "eas": {
         "projectId": "faa0f061-50e6-4ec4-bb6f-accda0dbd24f"
       },
-      "lastUpdated": "2026-10-24",
+      "lastUpdated": "2026-10-30",
       "releaseNotes": {
         "v0.0.12": [
           "基础稳定性优化: 修复了若干 UI 细节与已知的小概率崩溃问题。"
@@ -270,7 +270,7 @@
         ]
       },
       "router": {},
-      "status": "🚀 v0.9.5 - 功能完善中"
+      "status": "🚀 v0.9.7 - 功能完善中"
     },
     "icon": "./src/assets/images/icon.png",
     "ios": {
@@ -357,7 +357,7 @@
     "scheme": "zhihu--",
     "slug": "ZhihuMinusT",
     "userInterfaceStyle": "automatic",
-    "version": "0.9.5",
+    "version": "0.9.7",
     "web": {
       "bundler": "metro",
       "favicon": "./src/assets/images/favicon.png",

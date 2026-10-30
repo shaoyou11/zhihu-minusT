@@ -11,21 +11,30 @@ import android.text.style.MetricAffectingSpan
 import kotlin.math.ceil
 import kotlin.math.max
 
-/** Minimum line height: tall replacement spans retain their natural metrics. */
+/** Text keeps a minimum height; validated anchor-only paragraphs use an exact height. */
 internal class ParagraphHeightSpan(
   private val range: TextRange,
   private val minimumHeight: Int,
   private val marginTop: Int,
-  private val marginBottom: Int
+  private val marginBottom: Int,
+  private val exactHeight: Boolean = false
 ) : LineHeightSpan {
   override fun chooseHeight(
     text: CharSequence, start: Int, end: Int, spanstartv: Int, v: Int, fm: Paint.FontMetricsInt
   ) {
-    val extra = max(0, minimumHeight - (fm.descent - fm.ascent))
-    val above = ceil(extra / 2f).toInt()
-    fm.ascent -= above
-    fm.top = minOf(fm.top, fm.ascent)
-    fm.descent += extra - above
+    if (exactHeight) {
+      val height = max(1, minimumHeight)
+      fm.ascent = -ceil(height * 0.8f).toInt()
+      fm.descent = height + fm.ascent
+      fm.top = fm.ascent
+      fm.bottom = fm.descent
+    } else {
+      val extra = max(0, minimumHeight - (fm.descent - fm.ascent))
+      val above = ceil(extra / 2f).toInt()
+      fm.ascent -= above
+      fm.top = minOf(fm.top, fm.ascent)
+      fm.descent += extra - above
+    }
     if (start <= range.start) {
       fm.ascent -= marginTop
       fm.top -= marginTop

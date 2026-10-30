@@ -10,7 +10,6 @@ import {
   type NativeSyntheticEvent,
   View as RawView,
   type ScrollViewInstance,
-  useWindowDimensions,
 } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,6 +46,7 @@ import { StableAvatar } from '@/components/StableAvatar';
 import { Text, ThemedIcon, useThemeColor, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { usePaneDimensions } from '@/features/adaptive-layout/PaneContext';
 import { RICH_CONTENT_STALE_TIME, ZhihuContent } from '@/features/rich-content';
 import { useDoubleTapAction } from '@/hooks/useDoubleTapAction';
 import { useOptimisticToggle } from '@/hooks/useOptimisticToggle';
@@ -62,7 +62,7 @@ import { shouldRetryQuery } from '@/utils/query';
 const ARTICLE_ACTION_BAR_OFFSET = 0;
 
 export default function ArticleDetail() {
-  const dimensions = useWindowDimensions();
+  const dimensions = usePaneDimensions();
   const colorScheme = useColorScheme();
   const primaryColor = useThemeColor({}, 'primary');
   const linkColor = useThemeColor({}, 'link');
@@ -362,6 +362,7 @@ export default function ArticleDetail() {
             {isDaily ? (
               <View className="w-full h-[300px] relative">
                 <Image
+                  fadeDuration={0}
                   source={getCachedImageSource(dailyData?.image)}
                   className="w-full h-full"
                 />
@@ -387,7 +388,10 @@ export default function ArticleDetail() {
               </View>
             ) : (
               <View className="p-5 pt-[10px]">
-                <Text className="text-2xl font-bold leading-8 mb-5">
+                <Text
+                  className="font-bold mb-5"
+                  style={{ fontSize: 22, lineHeight: 32 }}
+                >
                   {data.title}
                 </Text>
                 <View className="flex-row items-center justify-between bg-transparent mt-2">
@@ -450,6 +454,7 @@ export default function ArticleDetail() {
                   }}
                 >
                   <Image
+                    fadeDuration={0}
                     source={getCachedImageSource(columnCard.image_url)}
                     className="w-12 h-12 rounded-lg"
                   />

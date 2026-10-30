@@ -26,4 +26,32 @@ class TextRangeValidationTest {
     assertNull(richTextSelectionText(text, 2, 4, slots))
     assertNull(richTextSelectionText(text, -1, 4, slots))
   }
+
+  @Test fun emptyLinesRequireACompleteMarkedAnchorParagraph() {
+    val text = "甲\u200b\n\u200b\n\ufffc\n\u200b"
+    assertEquals(3, richTextEmptyLineAnchor(3, 5, text, true))
+    assertEquals(7, richTextEmptyLineAnchor(7, 8, text, true))
+    for (flag in listOf<Any?>(null, false, 1, "true")) {
+      assertNull(richTextEmptyLineAnchor(3, 5, text, flag))
+    }
+    assertNull(richTextEmptyLineAnchor("3", 5, text, true))
+    assertNull(richTextEmptyLineAnchor(3, 4.5, text, true))
+    assertNull(richTextEmptyLineAnchor(0, 3, text, true))
+    assertNull(richTextEmptyLineAnchor(1, 3, text, true))
+    assertNull(richTextEmptyLineAnchor(3, 4, text, true))
+    assertNull(richTextEmptyLineAnchor(3, 8, text, true))
+    assertNull(richTextEmptyLineAnchor(0, 2, "\u200b\u200b", true))
+  }
+
+  @Test fun copyRemovesOnlyTrustedEmptyLineAnchorsAndPreservesNewlines() {
+    val text = "甲\u200b\n\u200b\n\ufffc\n\u200b"
+    val slots = listOf(RichTextCopySlot(TextRange(5, 6), "x²"))
+    val emptyLines = listOf(TextRange(3, 5), TextRange(7, 8), TextRange(1, 3))
+    assertEquals("甲\u200b\n\nx²\n", richTextSelectionText(text, 0, 8, slots, emptyLines))
+    assertEquals("", richTextSelectionText(text, 3, 4, slots, emptyLines))
+    assertEquals("\n", richTextSelectionText(text, 3, 5, slots, emptyLines))
+    assertEquals("\n", richTextSelectionText(text, 4, 5, slots, emptyLines))
+    assertEquals("\u200b", richTextSelectionText(text, 1, 2, slots, emptyLines))
+    assertEquals("\u200b", richTextSelectionText(text, 3, 4, slots))
+  }
 }

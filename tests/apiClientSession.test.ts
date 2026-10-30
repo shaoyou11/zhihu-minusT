@@ -25,6 +25,8 @@ import {
 import { useCollectionStore } from '../src/store/useCollectionStore';
 import { useVerificationStore } from '../src/store/useVerificationStore';
 import {
+  beginNativeLoginFlow,
+  finishNativeLoginFlow,
   NATIVE_SESSION_SYNC_TIMEOUT_MS,
   syncNativeSessionCookies,
 } from '../src/utils/authSession';
@@ -844,4 +846,216 @@ test('clears the active auth session when z_c0 is deleted but anonymous cookies 
   await apiClient.get('/test-session-deletion');
   expect(useAuthStore.getState().cookies).toBe('');
   expect(useAuthStore.getState().accounts[0].cookies).toBe('');
+});
+
+function riskControlled(config: InternalAxiosRequestConfig): AxiosError {
+  return new AxiosError(
+    'Synthetic risk control',
+    'ERR_BAD_REQUEST',
+    config,
+    undefined,
+    {
+      ...response(config, {
+        error: {
+          code: 40362,
+          message: '您当前请求存在异常，暂时限制本次访问。',
+        },
+      }),
+      status: 403,
+      statusText: 'Forbidden',
+    },
+  );
+}
+
+function nativeCookies(cookies: Record<string, string>) {
+  jest
+    .mocked(CookieManager.get)
+    .mockResolvedValue(
+      Object.fromEntries(
+        Object.entries(cookies).map(([name, value]) => [name, { name, value }]),
+      ),
+    );
+}
+
+describe('Zhihu risk control (40362)', () => {
+  const STORED = `${COOKIE_A}; d_c0=test-device|1`;
+
+  beforeEach(() => {
+    useAuthStore.getState().setCookies(STORED);
+  });
+  afterEach(() => {
+    jest.mocked(CookieManager.get).mockResolvedValue({});
+  });
+
+  test('retries once with the anti-crawl cookie from the WebView store and keeps it', async () => {
+    nativeCookies({
+      __zse_ck: 'test-anti-crawl',
+      z_c0: 'test-account-a',
+      extra: 'test-native-only',
+    });
+    const sent: string[] = [];
+    apiClient.defaults.adapter = async (config) => {
+      sent.push(String(config.headers.get('Cookie')));
+      if (sent.length === 1) throw riskControlled(config);
+      return response(config, { paging: {}, data: [] });
+    };
+
+    await expect(apiClient.get('/test-followers')).resolves.toMatchObject({
+      status: 200,
+    });
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).not.toContain('__zse_ck');
+    expect(sent[1]).toContain('__zse_ck=test-anti-crawl');
+    // Only that cookie is taken from the WebView store.
+    expect(sent[1]).toContain('z_c0=test-account-a');
+    expect(sent[1]).not.toContain('test-native-only');
+    expect(useAuthStore.getState().cookies).toContain(
+      '__zse_ck=test-anti-crawl',
+    );
+  });
+
+  test('gives up after the one retry', async () => {
+    nativeCookies({ __zse_ck: 'test-anti-crawl', z_c0: 'test-account-a' });
+    let attempts = 0;
+    apiClient.defaults.adapter = async (config) => {
+      attempts += 1;
+      throw riskControlled(config);
+    };
+
+    await expect(apiClient.get('/test-followers')).rejects.toMatchObject({
+      response: { status: 403, data: { error: { code: 40362 } } },
+    });
+    expect(attempts).toBe(2);
+  });
+
+  test.each([
+    ['the WebView store has no anti-crawl cookie', {}],
+    ['the request already carried it', { __zse_ck: 'test-anti-crawl' }],
+  ])('does not retry when %s', async (_case, native) => {
+    if ('__zse_ck' in native)
+      useAuthStore.getState().setCookies(`${STORED}; __zse_ck=test-anti-crawl`);
+    nativeCookies({ z_c0: 'test-account-a', ...native });
+    let attempts = 0;
+    apiClient.defaults.adapter = async (config) => {
+      attempts += 1;
+      throw riskControlled(config);
+    };
+
+    await expect(apiClient.get('/test-followers')).rejects.toMatchObject({
+      response: { status: 403 },
+    });
+    expect(attempts).toBe(1);
+  });
+  test.each([
+    ['another account', { z_c0: 'test-account-b', __zse_ck: 'test-other' }],
+    ['no authenticated account', { __zse_ck: 'test-other' }],
+  ])(
+    'does not import cookies from a native jar with %s',
+    async (_case, native) => {
+      nativeCookies(native);
+      let attempts = 0;
+      apiClient.defaults.adapter = async (config) => {
+        attempts += 1;
+        throw riskControlled(config);
+      };
+      await expect(apiClient.get('/test-followers')).rejects.toMatchObject({
+        response: { status: 403 },
+      });
+      expect(attempts).toBe(1);
+      expect(useAuthStore.getState().cookies).not.toContain('__zse_ck');
+    },
+  );
+
+  test('does not replay a mutation on risk control', async () => {
+    nativeCookies({ z_c0: 'test-account-a', __zse_ck: 'test-anti-crawl' });
+    let attempts = 0;
+    apiClient.defaults.adapter = async (config) => {
+      attempts += 1;
+      throw riskControlled(config);
+    };
+    await expect(apiClient.post('/test-write', {})).rejects.toMatchObject({
+      response: { status: 403 },
+    });
+    expect(attempts).toBe(1);
+    expect(useAuthStore.getState().cookies).not.toContain('__zse_ck');
+  });
+
+  test('does not import an in-flight native read after add-account starts', async () => {
+    let resolveRead: (
+      cookies: Awaited<ReturnType<typeof CookieManager.get>>,
+    ) => void = () => {};
+    let readStarted: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      readStarted = resolve;
+    });
+    jest.mocked(CookieManager.get).mockImplementationOnce(() => {
+      readStarted();
+      return new Promise((resolve) => {
+        resolveRead = resolve;
+      });
+    });
+    let attempts = 0;
+    apiClient.defaults.adapter = async (config) => {
+      attempts += 1;
+      throw riskControlled(config);
+    };
+    const request = apiClient.get('/test-followers');
+    await started;
+    beginNativeLoginFlow();
+    resolveRead({
+      z_c0: { name: 'z_c0', value: 'test-account-a' },
+      __zse_ck: { name: '__zse_ck', value: 'test-other' },
+    });
+    await expect(request).rejects.toMatchObject({ response: { status: 403 } });
+    expect(attempts).toBe(1);
+    expect(useAuthStore.getState().cookies).not.toContain('__zse_ck');
+    finishNativeLoginFlow();
+    await syncNativeSessionCookies(null);
+  });
+
+  test('does not overwrite a cookie refreshed while the request was in flight', async () => {
+    nativeCookies({ z_c0: 'test-account-a', __zse_ck: 'test-stale' });
+    let attempts = 0;
+    apiClient.defaults.adapter = async (config) => {
+      attempts += 1;
+      if (attempts === 1) {
+        useAuthStore
+          .getState()
+          .updateActiveAccountCookies(`${STORED}; __zse_ck=test-new`);
+        throw riskControlled(config);
+      }
+      expect(String(config.headers.get('Cookie'))).toContain(
+        '__zse_ck=test-new',
+      );
+      return response(config);
+    };
+    await expect(apiClient.get('/test-followers')).resolves.toMatchObject({
+      status: 200,
+    });
+    expect(attempts).toBe(2);
+    expect(useAuthStore.getState().cookies).toContain('__zse_ck=test-new');
+  });
+  test('does not read the WebView store while it still mirrors another session', async () => {
+    nativeCookies({ __zse_ck: 'test-previous-account' });
+    jest
+      .mocked(CookieManager.clearAllStores)
+      .mockRejectedValueOnce(new Error('synthetic native failure'));
+    await expect(syncNativeSessionCookies(null)).rejects.toThrow();
+    let attempts = 0;
+    apiClient.defaults.adapter = async (config) => {
+      attempts += 1;
+      throw riskControlled(config);
+    };
+
+    try {
+      await expect(apiClient.get('/test-followers')).rejects.toMatchObject({
+        response: { status: 403 },
+      });
+      expect(attempts).toBe(1);
+      expect(useAuthStore.getState().cookies).not.toContain('__zse_ck');
+    } finally {
+      // Later requests read the jar again once a synchronization succeeds.
+      await syncNativeSessionCookies(null);
+    }
+  });
 });

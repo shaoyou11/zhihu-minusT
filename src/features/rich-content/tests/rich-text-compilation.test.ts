@@ -20,6 +20,135 @@ const firstFlow = (html: string): RichTextFlow => {
 };
 
 describe('Text Flow Island compilation and source ranges', () => {
+  it('preserves blank paragraph counts and compacts only the first in each run', () => {
+    const flow = firstFlow(
+      '<p data-pid="before">前</p><p class="ztext-empty-paragraph"><br></p><p><br></p><p data-pid="after">后</p><p><br></p>',
+    );
+    expect(flow.paragraphs).toHaveLength(5);
+    expect(flow.paragraphs.map((paragraph) => !!paragraph.emptyLine)).toEqual([
+      false,
+      true,
+      true,
+      false,
+      true,
+    ]);
+    const [, first, following, , restarted] = flow.paragraphs;
+    expect(first.lineHeight).toBeLessThan(following.lineHeight ?? 0);
+    expect(first.marginTop).toBe(0);
+    expect(first.marginBottom).toBe(0);
+    expect(following.marginBottom).toBe(flow.paragraphs[0].marginBottom);
+    expect(restarted.lineHeight).toBe(first.lineHeight);
+    expect(restarted.marginBottom).toBe(0);
+    expect(getRichTextSelectionText(flow, 0, flow.text.length)).toBe(
+      '前\n\n\n后\n',
+    );
+    expect(mapRichTextSelection(flow, 0, flow.text.length)).toMatchObject({
+      text: '前\n\n\n后\n',
+      start: { paragraphId: 'before', offset: 0 },
+      end: { paragraphId: 'after', offset: 1 },
+    });
+  });
+
+  it('keeps leading, trailing and media-separated blanks as nonempty native ranges', () => {
+    const result = compile(
+      '<p><br></p><p><br></p><figure><img src="https://example.com/image.png"></figure><p><br></p><p><br></p>',
+    );
+    expect(result.parts.map((part) => part.type)).toEqual([
+      'flow',
+      'block',
+      'flow',
+    ]);
+    const flows = result.parts.flatMap((part) =>
+      part.type === 'flow' ? [part.flow] : [],
+    );
+    for (const flow of flows) {
+      expect(flow.paragraphs).toHaveLength(2);
+      expect(flow.paragraphs.every((paragraph) => paragraph.emptyLine)).toBe(
+        true,
+      );
+      expect(
+        flow.paragraphs.every((paragraph) => paragraph.end > paragraph.start),
+      ).toBe(true);
+      expect(flow.paragraphs[0].lineHeight).toBeLessThan(
+        flow.paragraphs[1].lineHeight ?? 0,
+      );
+      expect(getRichTextSelectionText(flow, 0, flow.text.length)).toBe('\n');
+      expect(mapRichTextSelection(flow, 0, flow.text.length)).toBeNull();
+    }
+  });
+
+  it('keeps visible list markers and real zero-width source characters', () => {
+    const flow = firstFlow(
+      '<ol><li><p><br></p></li><li>正文</li></ol><p>前\u200b后</p><p><br></p>',
+    );
+    expect(flow.paragraphs[0].emptyLine).toBeUndefined();
+    expect(getRichTextSelectionText(flow, 0, flow.text.length)).toBe(
+      '1. \n2. 正文\n前\u200b后\n',
+    );
+    const blank = flow.paragraphs.at(-1);
+    expect(blank?.emptyLine).toBe(true);
+    expect(
+      blank && getRichTextSelectionText(flow, blank.start, blank.start + 1),
+    ).toBe('');
+  });
+
+  it('does not strip an untrusted or non-blank range marked as empty', () => {
+    const flow = firstFlow('<p>前\u200b后</p>');
+    const malformed = {
+      ...flow,
+      paragraphs: flow.paragraphs.map((paragraph) => ({
+        ...paragraph,
+        emptyLine: true as const,
+      })),
+    };
+    expect(getRichTextSelectionText(malformed, 0, flow.text.length)).toBe(
+      '前\u200b后',
+    );
+  });
+
+  it('starts independent blank runs inside and outside quotes and list items', () => {
+    const flow = firstFlow(
+      '<p><br></p><blockquote><p><br></p><p><br></p></blockquote><p><br></p><ul><li><p><br></p></li><li><p><br></p></li></ul><p><br></p>',
+    );
+    const [
+      outside,
+      quoteFirst,
+      quoteNext,
+      afterQuote,
+      itemOne,
+      itemTwo,
+      afterList,
+    ] = flow.paragraphs;
+    expect(quoteFirst.kind).toBe('quote');
+    expect(quoteFirst.lineHeight).toBe(outside.lineHeight);
+    expect(quoteNext.lineHeight).toBeGreaterThan(quoteFirst.lineHeight ?? 0);
+    expect(afterQuote.lineHeight).toBe(outside.lineHeight);
+    expect(itemOne.emptyLine).toBeUndefined();
+    expect(itemTwo.emptyLine).toBeUndefined();
+    expect(afterList.lineHeight).toBe(outside.lineHeight);
+  });
+
+  it('continues a blank run when container children render in separate views', () => {
+    const { document } = normalizeZhihuDocument('<p><br></p>', {
+      documentId: 'cell',
+    });
+    const first = compileZhihuDocument(document, {
+      fontSize: 17,
+      lineHeight: 25.5,
+    }).parts[0];
+    const continued = compileZhihuDocument(document, {
+      fontSize: 17,
+      lineHeight: 25.5,
+      continuesEmptyParagraph: true,
+    }).parts[0];
+    if (first.type !== 'flow' || continued.type !== 'flow')
+      throw new Error('Expected empty flows');
+    expect(continued.flow.paragraphs[0].lineHeight).toBeGreaterThan(
+      first.flow.paragraphs[0].lineHeight ?? 0,
+    );
+    expect(continued.flow.paragraphs[0].marginBottom).toBeGreaterThan(0);
+  });
+
   it('combines headings, paragraphs, lists and quotes while keeping block code independent', () => {
     const compilation = compile(
       '<h2>标题</h2><p>第一段</p><ul><li>列表一</li><li>列表二</li></ul><blockquote><p>引用</p></blockquote><pre>one\n  two</pre>',

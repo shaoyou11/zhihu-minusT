@@ -333,8 +333,14 @@ export function CommentComposer({
         </BouncyButton>
         <TextInput
           ref={inputRef}
-          className="flex-1 min-h-[35px] max-h-[100px] px-2 pt-2.5 pb-2.5"
-          style={{ color: textColor, fontSize: 15 }}
+          className="flex-1 min-h-[40px] max-h-[100px] px-2 py-2.5"
+          style={{
+            color: textColor,
+            fontSize: 15,
+            lineHeight: 20,
+            includeFontPadding: false,
+            textAlignVertical: 'center',
+          }}
           placeholder={placeholder}
           placeholderTextColor={Colors[colorScheme].textTertiary}
           editable={!busy}

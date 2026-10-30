@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { FlashList } from '@shopify/flash-list';
 import { useQueryClient } from '@tanstack/react-query';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert } from 'react-native';
 import { hasAuthenticationCookie } from '@/api/client';
@@ -11,6 +11,7 @@ import { QueryErrorView } from '@/components/QueryErrorView';
 import { Text, useThemeColor, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { usePaneRouter as useRouter } from '@/features/adaptive-layout/usePaneRouter';
 import {
   READ_HISTORY_QUERY_KEY,
   useReadHistoryActions,

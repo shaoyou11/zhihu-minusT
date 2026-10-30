@@ -7,7 +7,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
-import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, {
   useCallback,
   useEffect,
@@ -21,7 +21,6 @@ import {
   ScrollView,
   type ScrollViewInstance,
   StyleSheet,
-  useWindowDimensions,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import PagerView, {
@@ -57,12 +56,20 @@ import { DetailGlassSurface } from '@/components/DetailGlassSurface';
 import { FeedCard } from '@/components/FeedCard';
 import { GuestBootstrap } from '@/components/GuestBootstrap';
 import { HotCard, type HotItem } from '@/components/HotCard';
+import {
+  getHomeNavigationMetrics,
+  ScrollableNavigationRow,
+} from '@/components/home/ScrollableNavigationRow';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { QueryErrorView } from '@/components/QueryErrorView';
 import { RecentMoments } from '@/components/RecentMoments';
 import { Text, useThemeColor, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import {
+  usePaneActive,
+  usePaneDimensions,
+} from '@/features/adaptive-layout/PaneContext';
 import { hasReusableAnswerDetail } from '@/features/rich-content';
 import { useCollapsibleChromeScroll } from '@/hooks/useCollapsibleChromeScroll';
 import { useFeedPageReadTouch } from '@/hooks/useFeedPageReadTouch';
@@ -81,7 +88,10 @@ import {
 } from '@/storage/feedExposureRepository';
 import { getAuthSessionVersion, useAuthStore } from '@/store/useAuthStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
-import { formatRelativeTime } from '@/utils/date';
+import {
+  actionTextNamesAuthor,
+  formatFeedActionText,
+} from '@/utils/feedActionText';
 import { supportsLocalFeedDedup } from '@/utils/feedDedup';
 import {
   applyFeedFilter,
@@ -168,11 +178,10 @@ const MIN_RENDERABLE_ITEMS = 8;
 const MAX_AUTO_FETCH_ROUNDS = 3;
 
 export default function HomeScreen() {
-  const { width: windowWidth } = useWindowDimensions();
-  const containerWidth = Math.min(windowWidth - 40, 500);
+  const { width: paneWidth } = usePaneDimensions();
 
   const insets = useSafeAreaInsets();
-  const isFocused = useIsFocused();
+  const isFocused = usePaneActive();
   const colorScheme = useColorScheme();
   const router = useRouter();
   const params = useLocalSearchParams<{ tab?: string }>();
@@ -197,13 +206,18 @@ export default function HomeScreen() {
   }, [currentTabs]);
   const homeTabsCount = homeTabs.length;
 
-  const bottomCapsuleWidth = useMemo(() => {
-    const hasPublish = currentTabs.includes('publish');
-    const hasProfile = currentTabs.includes('profile');
-    const totalBottomIcons =
-      (homeTabsCount > 0 ? 1 : 0) + (hasPublish ? 1 : 0) + (hasProfile ? 1 : 0);
-    return containerWidth / (totalBottomIcons || 1) - 20;
-  }, [currentTabs, homeTabsCount, containerWidth]);
+  const bottomIconsCount =
+    (homeTabsCount > 0 ? 1 : 0) +
+    (currentTabs.includes('publish') ? 1 : 0) +
+    (currentTabs.includes('profile') ? 1 : 0);
+  const {
+    topInset,
+    topPadding,
+    bottomViewportWidth: containerWidth,
+    bottomContentWidth,
+    bottomItemWidth,
+    bottomButtonWidth: bottomCapsuleWidth,
+  } = getHomeNavigationMetrics(paneWidth, bottomIconsCount);
 
   // 计算初始页码
   const initialPageIndex = useMemo(() => {
@@ -213,7 +227,7 @@ export default function HomeScreen() {
       if (idx >= 0) return idx;
     }
     const idx = currentTabs.indexOf(defaultTab);
-    return idx >= 0 ? idx : 0;
+    return Math.max(idx, 0);
   }, [currentTabs, defaultTab, params.tab]);
 
   // 核心状态：共享滚动位置
@@ -260,13 +274,21 @@ export default function HomeScreen() {
         0,
         Math.min(
           currentPage * 58 + 27 - tabStripWidth / 2,
-          homeTabsCount * 58 - tabStripWidth,
+          homeTabsCount * 58 + 40 - tabStripWidth,
         ),
       ),
       animated: true,
     });
   }, [currentPage, homeTabsCount, tabStripWidth]);
 
+  const bottomActiveIndex =
+    currentTabs[currentPage] === 'profile'
+      ? (homeTabsCount > 0 ? 1 : 0) + (currentTabs.includes('publish') ? 1 : 0)
+      : currentTabs[currentPage] === 'publish'
+        ? homeTabsCount > 0
+          ? 1
+          : 0
+        : 0;
   const { ready: guestCookieReady, attempt: guestBootstrapAttempt } =
     useGuestBootstrap(!cookies);
 
@@ -451,7 +473,7 @@ export default function HomeScreen() {
     // 底部导航栏总图标数 (首页算一个)
     const totalBottomIcons =
       (homeTabsCount > 0 ? 1 : 0) + (hasPublish ? 1 : 0) + (hasProfile ? 1 : 0);
-    const iconWidth = containerWidth / (totalBottomIcons || 1);
+    const iconWidth = bottomContentWidth / (totalBottomIcons || 1);
 
     // 构建插值映射表
     const inputRange: number[] = [];
@@ -581,20 +603,29 @@ export default function HomeScreen() {
 
       {/* 2. 顶部 Tab 导航 (Home 专属) */}
       <Animated.View
-        style={[styles.topNavContainer, { top: insets.top }, topNavAnimStyle]}
+        style={[
+          styles.topNavContainer,
+          { top: insets.top, paddingHorizontal: topInset },
+          topNavAnimStyle,
+        ]}
       >
         <View style={styles.topNavSurface}>
-          <View style={styles.topNav}>
+          <View style={[styles.topNav, { paddingHorizontal: topPadding }]}>
             <ScrollView
               ref={tabStripRef}
+              testID="home-top-navigation"
               horizontal
+              directionalLockEnabled
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
               showsHorizontalScrollIndicator={false}
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 0 }}
               onLayout={(event) =>
                 setTabStripWidth(event.nativeEvent.layout.width)
               }
               contentContainerStyle={{
-                flexGrow: 1,
+                flexDirection: 'row',
+                width: Math.max(homeTabsCount * 58 + 40, tabStripWidth),
                 justifyContent: 'center',
                 alignItems: 'center',
               }}
@@ -626,6 +657,9 @@ export default function HomeScreen() {
                     return (
                       <BouncyButton
                         key={tab}
+                        accessibilityRole="tab"
+                        accessibilityLabel={labels[tab]}
+                        accessibilityState={{ selected: currentPage === index }}
                         onPress={() => handleTabPress(index)}
                         style={[
                           styles.navItem,
@@ -643,13 +677,15 @@ export default function HomeScreen() {
                     );
                   })}
               </View>
+              <BouncyButton
+                accessibilityRole="button"
+                accessibilityLabel="搜索"
+                onPress={() => router.push('/search')}
+                style={styles.searchBtn}
+              >
+                <Ionicons name="search" size={22} color={textColor} />
+              </BouncyButton>
             </ScrollView>
-            <BouncyButton
-              onPress={() => router.push('/search')}
-              style={styles.searchBtn}
-            >
-              <Ionicons name="search" size={22} color={textColor} />
-            </BouncyButton>
           </View>
         </View>
       </Animated.View>
@@ -677,7 +713,15 @@ export default function HomeScreen() {
               },
             ]}
           >
-            <View style={styles.bottomNavItems}>
+            <ScrollableNavigationRow
+              testID="home-bottom-navigation"
+              contentWidth={bottomContentWidth}
+              activeStart={bottomActiveIndex * bottomItemWidth + 10}
+              activeEnd={
+                bottomActiveIndex * bottomItemWidth + 10 + bottomCapsuleWidth
+              }
+              contentStyle={styles.bottomNavItems}
+            >
               {/* 联动指示器 */}
               <Animated.View
                 style={[
@@ -692,6 +736,7 @@ export default function HomeScreen() {
 
               {currentTabs.some((t) => !['publish', 'profile'].includes(t)) && (
                 <BottomTabIcon
+                  label="首页"
                   // 判断逻辑：当前在首页区域且当前子 Tab 有滚动
                   isScrollTop={
                     currentPage <
@@ -728,6 +773,7 @@ export default function HomeScreen() {
 
               {currentTabs.includes('publish') && (
                 <BottomTabIcon
+                  label="发布"
                   icon={
                     currentTabs[currentPage] === 'publish'
                       ? 'add-circle'
@@ -747,6 +793,7 @@ export default function HomeScreen() {
 
               {currentTabs.includes('profile') && (
                 <BottomTabIcon
+                  label="我的"
                   icon={
                     currentTabs[currentPage] === 'profile'
                       ? 'person'
@@ -762,7 +809,7 @@ export default function HomeScreen() {
                   width={bottomCapsuleWidth}
                 />
               )}
-            </View>
+            </ScrollableNavigationRow>
           </BlurView>
         </Animated.View>
       )}
@@ -810,6 +857,7 @@ function TopTabLabel({
 const _AnimatedIcon = Animated.createAnimatedComponent(Ionicons);
 
 function BottomTabIcon({
+  label,
   icon,
   onPress,
   color,
@@ -817,6 +865,7 @@ function BottomTabIcon({
   isScrollTop,
   width,
 }: {
+  label: string;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   onPress: () => void;
   color: string;
@@ -845,6 +894,8 @@ function BottomTabIcon({
   return (
     <View style={styles.bottomTabItem} className="bg-transparent">
       <BouncyButton
+        accessibilityRole="button"
+        accessibilityLabel={label}
         onPress={onPress}
         style={{
           width: width || 44,
@@ -1544,11 +1595,17 @@ function parseFollowingData(item: RawFeedItem): FeedItem | null {
       target.question?.id?.toString() ||
       (type === 'question' ? target.id?.toString() : ''),
     // 时间戳
-    actionText: item.action_text
-      ? `${item.action_text}${
-          item.updated_time ? `·${formatRelativeTime(item.updated_time)}` : ''
-        }`
-      : undefined,
+    actionText: formatFeedActionText(
+      item.action_text,
+      item.actors?.[0]?.name,
+      item.updated_time,
+    ),
+    // The action line already names the author of their own activity.
+    hideAuthor: actionTextNamesAuthor(
+      item.action_text,
+      item.actors?.[0],
+      target.author?.id,
+    ),
     author: {
       id: target.author?.id || '',
       url_token: target.author?.url_token || '',
@@ -1700,7 +1757,7 @@ const styles = StyleSheet.create({
   bottomBlur: { borderRadius: 32, overflow: 'hidden', height: 64 },
   bottomNavItems: {
     flexDirection: 'row',
-    flex: 1,
+    height: BOTTOM_NAV_HEIGHT,
     alignItems: 'center',
     position: 'relative',
   },

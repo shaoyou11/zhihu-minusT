@@ -207,7 +207,7 @@ function blockHtml(
 ): string {
   switch (block.type) {
     case 'paragraph':
-      return `<p${attribute('data-pid', paragraphs.has(block) ? block.paragraphId : undefined)} style="white-space:pre-wrap">${inlineHtml(block.children, paragraphs.has(block) ? block.paragraphId : undefined)}</p>`;
+      return `<p${attribute('data-pid', paragraphs.has(block) ? block.paragraphId : undefined)} style="white-space:pre-wrap">${block.empty ? '<br>' : inlineHtml(block.children, paragraphs.has(block) ? block.paragraphId : undefined)}</p>`;
     case 'heading':
       return `<h${block.level} style="white-space:pre-wrap">${inlineHtml(block.children)}</h${block.level}>`;
     case 'image': {

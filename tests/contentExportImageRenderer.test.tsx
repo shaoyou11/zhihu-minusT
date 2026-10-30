@@ -2,6 +2,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Dimensions, Platform } from 'react-native';
 import { captureRef, releaseCapture } from 'react-native-view-shot';
 import type { WebViewMessageEvent, WebViewProps } from 'react-native-webview';
+import { PaneContext } from '../src/features/adaptive-layout/PaneContext';
 import { useImageExport } from '../src/features/content-export/ImageExportRenderer';
 import type { ExportTaskContext } from '../src/features/content-export/types';
 
@@ -234,6 +235,36 @@ test('an abort between scheduling capture and mounting the surface rejects immed
   });
   expect(rejected).toHaveBeenCalledTimes(1);
   expect(captureRef).not.toHaveBeenCalled();
+});
+
+test('hiding the originating pane cancels capture and releases a late native result', async () => {
+  const frame = deferred<string>();
+  jest.mocked(captureRef).mockReturnValue(frame.promise);
+  const view = (visible: boolean) => (
+    <PaneContext.Provider value={{ width: 320, height: 800, visible }}>
+      <Host />
+    </PaneContext.Provider>
+  );
+  const host = await render(view(true));
+  const resolved = jest.fn();
+  const rejected = jest.fn();
+  await act(async () => {
+    void startCapture('<html></html>', context()).then(resolved, rejected);
+  });
+  await message({ type: 'measured', height: 450, boundaries: [] });
+  await layout(host, 450);
+  await waitFor(() => expect(mockInjectJavaScript).toHaveBeenCalled());
+  await message({ type: 'positioned', index: 0 });
+  expect(captureRef).toHaveBeenCalledTimes(1);
+
+  await host.rerender(view(false));
+  expect(rejected).toHaveBeenCalledWith(
+    expect.objectContaining({ message: '页面已切换，长图生成已取消' }),
+  );
+  expect(host.queryByTestId('export-webview')).toBeNull();
+  await act(async () => frame.resolve('file:///hidden-pane.png'));
+  expect(releaseCapture).toHaveBeenCalledWith('file:///hidden-pane.png');
+  expect(resolved).not.toHaveBeenCalled();
 });
 
 test('stale positioned messages cannot capture the next page', async () => {

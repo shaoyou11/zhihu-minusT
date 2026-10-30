@@ -34,6 +34,8 @@ export interface RichTextParagraph extends ZhihuTextRange {
   readonly level?: number;
   readonly fontSize?: number;
   readonly lineHeight?: number;
+  /** A synthetic U+200B anchor represents one blank line, never copied as text. */
+  readonly emptyLine?: true;
   readonly indent?: number;
   readonly marginTop?: number;
   readonly marginBottom?: number;

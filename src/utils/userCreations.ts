@@ -93,6 +93,8 @@ export function toUserCreationFeedItem(
     id: String(id),
     title: target.question?.title || target.title || '',
     actionText: activity.source?.action_text,
+    // Every card on a member's page names them; only show other authors.
+    hideAuthor: !author?.id || author.id === member.id,
     questionId:
       target.question?.id !== undefined
         ? String(target.question.id)

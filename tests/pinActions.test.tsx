@@ -9,6 +9,7 @@ import { isPinOwner } from '../src/utils/pinOwnership';
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
+const mockDispatch = jest.fn();
 let mockSession = 0;
 let mockAuthState: {
   me: { id: string; url_token: string } | null;
@@ -17,6 +18,10 @@ let mockAuthState: {
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: mockBack }),
+  useNavigation: () => ({
+    dispatch: mockDispatch,
+    getState: () => ({ key: 'pin-stack' }),
+  }),
 }));
 jest.mock('../src/api/zhihu/pin', () => ({ deletePin: jest.fn() }));
 jest.mock('../src/store/useAuthStore', () => ({
@@ -160,7 +165,12 @@ test('deletion waits for confirmation, blocks duplicate confirmation and invalid
     alert.mock.calls.filter((args) => args[0] === '删除想法？'),
   ).toHaveLength(1);
   await act(() => request.resolve());
-  await waitFor(() => expect(mockBack).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
+  expect(mockDispatch).toHaveBeenCalledWith({
+    type: 'GO_BACK',
+    target: 'pin-stack',
+  });
+  expect(mockBack).not.toHaveBeenCalled();
   expect(invalidate.mock.calls.map((args) => args[0]?.queryKey)).toEqual([
     ['pin-detail'],
     ['zhihu-feed'],
@@ -182,10 +192,11 @@ test('failed deletion retains the page and permits a confirmed retry', async () 
     expect(alert).toHaveBeenCalledWith('删除失败', '合成删除失败'),
   );
   expect(mockBack).not.toHaveBeenCalled();
+  expect(mockDispatch).not.toHaveBeenCalled();
   expect(invalidate).not.toHaveBeenCalled();
   await act(() => action('delete-pin').onPress());
   await act(() => confirm());
-  await waitFor(() => expect(mockBack).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
   expect(deletePin).toHaveBeenCalledTimes(2);
   await host.unmount();
   client.clear();
@@ -202,6 +213,7 @@ test('an old confirmation cannot delete after an account change even before the 
   await act(() => confirm());
   expect(deletePin).not.toHaveBeenCalled();
   expect(mockBack).not.toHaveBeenCalled();
+  expect(mockDispatch).not.toHaveBeenCalled();
   await host.unmount();
   client.clear();
 });
@@ -226,6 +238,7 @@ test.each(['success', 'failure'])(
       else request.reject(new Error('synthetic late failure'));
     });
     expect(mockBack).not.toHaveBeenCalled();
+    expect(mockDispatch).not.toHaveBeenCalled();
     expect(invalidate).not.toHaveBeenCalled();
     expect(
       alert.mock.calls.filter((args) => args[0] === '删除成功'),

@@ -128,6 +128,28 @@ class SyncTests(unittest.TestCase):
         self.assertFalse(probe.in_backoff([failure], 'same', '3', now + datetime.timedelta(hours=3)))
 
 
+    def test_new_upstream_workflow_requires_review_before_publication(self):
+        root = self.repository()
+        workflow = '.github/workflows/pr-build.yml'
+        (root / workflow).parent.mkdir(parents=True)
+        (root / workflow).write_text(
+            'name: Unreviewed preview\non: [push]\njobs:\n'
+            '  preview:\n    runs-on: ubuntu-latest\n    steps:\n'
+            '      - run: touch unreviewed-workflow-executed\n')
+        self.git(root, 'add', '.')
+        self.git(root, 'commit', '-m', '测试：新增未审阅上游工作流')
+        self.git(root, 'checkout', 'main')
+        original_head = self.git(root, 'rev-parse', 'HEAD')
+        with self.assertRaisesRegex(ValueError, '上游新增工作流'):
+            merge_release('upstream', 'v1.0.1', root)
+        self.assertEqual(self.git(root, 'rev-parse', 'HEAD'), original_head)
+        self.assertEqual(self.git(root, 'ls-tree', 'HEAD', '--', workflow), '')
+        self.assertFalse((root / 'unreviewed-workflow-executed').exists())
+        # The uncommitted merge remains available for manual review, not publication.
+        self.assertEqual(self.git(root, 'rev-parse', 'MERGE_HEAD'),
+                         self.git(root, 'rev-parse', 'upstream'))
+
+
     def test_personal_workflow_is_retained_without_requiring_a_cloud_user_token(self):
         root = self.repository()
         self.git(root, 'commit', '-am', '测试：上游新版')

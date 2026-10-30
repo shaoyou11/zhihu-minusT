@@ -985,3 +985,65 @@ test('keeps prose through bad annotations and textual unknown blocks without ena
     }),
   ]);
 });
+
+test('loads the watermark-free upload of images unless the reader opts out', () => {
+  const watermarked = 'v2-00000000000000000000000000000000';
+  const token = 'v2-11111111111111111111111111111111';
+  const source = content([
+    {
+      ...imageSegment(),
+      image: {
+        ...imageSegment().image,
+        original_token: token,
+        urls: [`https://pic1.zhimg.com/${watermarked}_720w.jpg`],
+        original_urls: [`https://pic1.zhimg.com/${watermarked}_r.jpg`],
+      },
+    },
+  ]);
+  const imageOf = (removeImageWatermark?: boolean) => {
+    const [block] = normalizeZhihuStructuredContent(source, {
+      removeImageWatermark,
+    }).blocks;
+    if (block?.type !== 'image') throw new Error('expected an image block');
+    return { url: block.resource.url, originalUrl: block.resource.originalUrl };
+  };
+
+  expect(imageOf()).toEqual({
+    url: `https://pic1.zhimg.com/${token}_720w.jpg`,
+    originalUrl: `https://pic1.zhimg.com/${token}_r.jpg`,
+  });
+  expect(imageOf(false)).toEqual({
+    url: `https://pic1.zhimg.com/${watermarked}_720w.jpg`,
+    originalUrl: `https://pic1.zhimg.com/${watermarked}_r.jpg`,
+  });
+});
+
+test('a watermark-free URL keeps the local resource mapped to its source URL', () => {
+  const watermarked = 'v2-00000000000000000000000000000000';
+  const token = 'v2-11111111111111111111111111111111';
+  const sourceUrl = `https://pic1.zhimg.com/${watermarked}_720w.jpg`;
+  const source = content([
+    {
+      ...imageSegment(),
+      image: {
+        ...imageSegment().image,
+        original_token: token,
+        urls: [sourceUrl],
+        original_urls: [],
+      },
+    },
+  ]);
+  const resources: Readonly<Record<string, ZhihuImageResource>> = {
+    [sourceUrl]: {
+      mediaType: 'image',
+      url: sourceUrl,
+      offlineUri: LOCAL_IMAGE,
+    },
+  };
+  const [block] = normalizeZhihuStructuredContent(source, { resources }).blocks;
+  if (block?.type !== 'image') throw new Error('expected an image block');
+  expect(block.resource).toMatchObject({
+    url: `https://pic1.zhimg.com/${token}_720w.jpg`,
+    offlineUri: LOCAL_IMAGE,
+  });
+});
