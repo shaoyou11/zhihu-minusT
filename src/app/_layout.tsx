@@ -179,8 +179,7 @@ function RootLayout() {
   // throw new Error('test')
   return (
     <GestureHandlerRootView
-      // Native fade transitions make both screens translucent. Keep an opaque,
-      // live-themed backdrop so they cannot reveal a stale native window color.
+      // Keep the live-themed backdrop opaque while native screens transition.
       style={[
         { flex: 1, backgroundColor: appThemeColors.background },
         vars(themeVariables(appThemeColors)),
@@ -295,12 +294,12 @@ function RootLayout() {
                   }}
                 />
 
-                {/* 问题详情页 */}
+                {/* 内容详情沿用系统推入/返回转场，避免淡入打断阅读层级。 */}
                 <Stack.Screen
                   name="question/[id]/index"
                   options={{
                     headerShown: false,
-                    animation: 'fade',
+                    animation: 'default',
                   }}
                 />
 
@@ -319,7 +318,7 @@ function RootLayout() {
                   name="answer/[id]"
                   options={{
                     headerShown: false,
-                    animation: 'fade',
+                    animation: 'default',
                   }}
                 />
 
@@ -328,7 +327,7 @@ function RootLayout() {
                   name="guest/detail"
                   options={{
                     headerShown: false,
-                    animation: 'slide_from_right',
+                    animation: 'default',
                   }}
                 />
               </Stack>
