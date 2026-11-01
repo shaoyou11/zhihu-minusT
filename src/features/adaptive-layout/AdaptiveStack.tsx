@@ -45,6 +45,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GlassNavigationButton } from '@/components/navigation/GlassNavigationButton';
+import { useIsLiquidGlassActive } from '@/components/surfaces/FloatingSurface';
 import { useRuntimeThemeColors } from '@/components/Themed';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import {
@@ -56,7 +58,10 @@ import { PaneContext, usePaneDimensions } from './PaneContext';
 import { PaneDivider } from './PaneDivider';
 import { PaneStackRouter } from './PaneStackRouter';
 import { resolvePaneDetailHref } from './selection';
-import { TitleTransitionProvider } from './TitleTransition';
+import {
+  TitleTransitionProvider,
+  useTitleTransitionActiveForRoute,
+} from './TitleTransition';
 import { PaneSelectionContext } from './usePaneRouter';
 
 type StackEvents = {
@@ -273,8 +278,11 @@ function RoutePane({
   transitionSequence: number;
   children: ReactNode;
 }) {
+  const hasTitleTransition = useTitleTransitionActiveForRoute(routeKey);
+  const useGlass = useIsLiquidGlassActive();
   const focused = useRef(false);
-  const progress = useRef(new Animated.Value(1)).current;
+  const isEntering = visible && active && transitionSequence > 0;
+  const progress = useRef(new Animated.Value(isEntering ? 0 : 1)).current;
   const lastTransition = useRef(0);
   const reduceMotion = useRef(false);
   useEffect(() => {
@@ -369,11 +377,14 @@ function RoutePane({
         style={[
           StyleSheet.absoluteFill,
           {
-            opacity: progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0.15, 1],
-            }),
-            ...(expand
+            opacity:
+              hasTitleTransition || useGlass
+                ? 1
+                : progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.15, 1],
+                  }),
+            ...(expand && !hasTitleTransition
               ? {
                   transform: [
                     {
@@ -412,9 +423,13 @@ function AdaptiveScreen({
   const insets = useSafeAreaInsets();
   const dimensions = usePaneDimensions();
   const colors = useRuntimeThemeColors();
+  const useGlass = useIsLiquidGlassActive();
   const [headerHeight, setHeaderHeight] = useState(56 + insets.top);
   const shown = options.headerShown !== false;
-  const tintColor = options.headerTintColor ?? colors.primary;
+  const tintColor =
+    typeof options.headerTintColor === 'string'
+      ? options.headerTintColor
+      : colors.primary;
   const itemProps = { tintColor, canGoBack };
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -435,14 +450,23 @@ function AdaptiveScreen({
                 ? () =>
                     options.headerLeft?.({ ...itemProps, label: previousTitle })
                 : canGoBack
-                  ? () => (
-                      <HeaderBackButton
-                        onPress={onBack}
-                        tintColor={tintColor}
-                        displayMode="minimal"
-                        accessibilityLabel="返回"
-                      />
-                    )
+                  ? () =>
+                      useGlass ? (
+                        <GlassNavigationButton
+                          icon="back"
+                          onPress={onBack}
+                          color={tintColor}
+                          accessibilityLabel="返回"
+                          style={styles.headerBackBtn}
+                        />
+                      ) : (
+                        <HeaderBackButton
+                          onPress={onBack}
+                          tintColor={tintColor}
+                          displayMode="minimal"
+                          accessibilityLabel="返回"
+                        />
+                      )
                   : undefined
             }
             headerRight={
@@ -503,6 +527,7 @@ export const AdaptiveStack = Object.assign(AdaptiveStackHost, {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  headerBackBtn: { marginLeft: 8 },
   route: { position: 'absolute', top: 0, overflow: 'hidden' },
   empty: {
     position: 'absolute',

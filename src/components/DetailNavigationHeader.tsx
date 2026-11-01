@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, {
   type SharedValue,
@@ -10,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BouncyButton } from '@/components/BouncyButton';
 import { DetailGlassSurface } from '@/components/DetailGlassSurface';
 import { MoreActionsButton } from '@/components/MoreActionsButton';
+import { GlassNavigationButton } from '@/components/navigation/GlassNavigationButton';
 import { StableAvatar } from '@/components/StableAvatar';
 import { Text, useThemeColor, View } from '@/components/Themed';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -127,14 +127,13 @@ export function DetailNavigationHeader({
         pointerEvents="box-none"
         style={[styles.row, { height: navigationHeight }]}
       >
-        <BouncyButton
-          accessibilityRole="button"
+        <GlassNavigationButton
+          icon="back"
           accessibilityLabel="返回"
           onPress={onBack}
-          style={styles.iconButton}
-        >
-          <Ionicons name="chevron-back" size={26} color={foreground} />
-        </BouncyButton>
+          size={40}
+          color={foreground}
+        />
         <Animated.View
           pointerEvents={collapsed ? 'box-none' : 'none'}
           accessibilityElementsHidden={!collapsed}

@@ -4,6 +4,16 @@ import type { SharedValue } from 'react-native-reanimated';
 import { ContentActionBar } from '../src/components/ContentActionBar';
 import { PaneContext } from '../src/features/adaptive-layout/PaneContext';
 
+let mockLiquidGlassActive = false;
+jest.mock('expo-glass-effect', () => ({
+  isLiquidGlassAvailable: () => false,
+  isGlassEffectAPIAvailable: () => false,
+  GlassContainer: jest.requireActual('react-native').View,
+}));
+jest.mock('../src/components/surfaces/FloatingSurface', () => ({
+  FloatingSurface: jest.requireActual('react-native').View,
+  useIsLiquidGlassActive: () => mockLiquidGlassActive,
+}));
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
 jest.mock('expo-blur', () => ({
   BlurView: jest.requireActual('react-native').View,
@@ -52,183 +62,234 @@ jest.mock('react-native-reanimated', () => {
   };
 });
 
-test('collapsed controls expose one expand action and preserve the mounted content actions', async () => {
-  const onExpand = jest.fn();
-  const progress = { value: 0 } as SharedValue<number>;
-  const content = (visible = true) => (
-    <ContentActionBar
-      bottomInset={34}
-      visible={visible}
-      collapseProgress={progress}
-      onExpand={onExpand}
-      leading={
-        <Pressable accessibilityLabel="赞同">
-          <Text>1</Text>
-        </Pressable>
-      }
-    />
-  );
-  const host = await render(content());
-  expect(host.queryByLabelText('赞同')).not.toBeNull();
-  expect(host.queryByLabelText('展开阅读操作栏')).toBeNull();
-  progress.value = 1;
-  await host.rerender(content());
-  expect(host.queryByLabelText('赞同')).toBeNull();
-  await fireEvent.press(host.getByLabelText('展开阅读操作栏'));
-  expect(onExpand).toHaveBeenCalledTimes(1);
-  expect(host.queryByText('1', { includeHiddenElements: true })).not.toBeNull();
-  await host.rerender(content(false));
-  expect(host.queryByLabelText('展开阅读操作栏')).toBeNull();
-});
+describe.each([false, true])(
+  'reading controls with Liquid Glass=%s',
+  (useGlass) => {
+    beforeEach(() => {
+      mockLiquidGlassActive = useGlass;
+    });
+    test('collapsed controls expose one expand action and preserve the mounted content actions', async () => {
+      const onExpand = jest.fn();
+      const progress = { value: 0 } as SharedValue<number>;
+      const content = (visible = true) => (
+        <ContentActionBar
+          bottomInset={34}
+          visible={visible}
+          collapseProgress={progress}
+          onExpand={onExpand}
+          leading={
+            <Pressable accessibilityLabel="赞同">
+              <Text>1</Text>
+            </Pressable>
+          }
+        />
+      );
+      const host = await render(content());
+      expect(host.queryByLabelText('赞同')).not.toBeNull();
+      expect(host.queryByLabelText('展开阅读操作栏')).toBeNull();
+      progress.value = 1;
+      await host.rerender(content());
+      expect(host.queryByLabelText('赞同')).toBeNull();
+      await fireEvent.press(host.getByLabelText('展开阅读操作栏'));
+      expect(onExpand).toHaveBeenCalledTimes(1);
+      expect(
+        host.queryByText('1', { includeHiddenElements: true }),
+      ).not.toBeNull();
+      await host.rerender(content(false));
+      expect(host.queryByLabelText('展开阅读操作栏')).toBeNull();
+    });
 
-test('interaction expands without swallowing the content action', async () => {
-  const onExpand = jest.fn();
-  const onVote = jest.fn();
-  const host = await render(
-    <ContentActionBar
-      bottomInset={34}
-      collapseProgress={{ value: 0 } as SharedValue<number>}
-      onExpand={onExpand}
-      leading={
-        <Pressable accessibilityLabel="赞同 1116" onPress={onVote}>
+    test('interaction expands without swallowing the content action', async () => {
+      const onExpand = jest.fn();
+      const onVote = jest.fn();
+      const host = await render(
+        <ContentActionBar
+          bottomInset={34}
+          collapseProgress={{ value: 0 } as SharedValue<number>}
+          onExpand={onExpand}
+          leading={
+            <Pressable accessibilityLabel="赞同 1116" onPress={onVote}>
+              <Text>1116</Text>
+            </Pressable>
+          }
+        />,
+      );
+      await fireEvent(host.getByTestId('content-action-bar'), 'touchStart', {});
+      await fireEvent.press(host.getByLabelText('赞同 1116'));
+      expect(onExpand).toHaveBeenCalledTimes(1);
+      expect(onVote).toHaveBeenCalledTimes(1);
+    });
+
+    test('oversized counts stay mounted and all actions can be reached by scrolling', async () => {
+      const progress = { value: 0 } as SharedValue<number>;
+      const content = () => (
+        <ContentActionBar
+          bottomInset={34}
+          collapseProgress={progress}
+          onExpand={jest.fn()}
+          leading={<Text>123456789</Text>}
+          trailing={
+            <Pressable accessibilityLabel="更多">
+              <Text>更多</Text>
+            </Pressable>
+          }
+        />
+      );
+      const host = await render(content());
+      await fireEvent(
+        host.getByTestId('content-action-bar-intrinsic'),
+        'layout',
+        {
+          nativeEvent: { layout: { width: 2000, height: 48 } },
+        },
+      );
+      expect(
+        host.getByTestId('content-action-bar-actions').props.scrollEnabled,
+      ).toBe(true);
+      expect(host.getByText('123456789')).toBeTruthy();
+      expect(host.getByLabelText('更多')).toBeTruthy();
+      await host.rerender(content());
+      const viewport = host.getByTestId('content-action-bar-viewport');
+      const width = StyleSheet.flatten(viewport.props.style).width;
+      expect(typeof width).toBe('number');
+      expect(width).toBeGreaterThan(48);
+      progress.value = 1;
+      await host.rerender(content());
+      const hiddenViewport = host.getByTestId('content-action-bar-viewport', {
+        includeHiddenElements: true,
+      });
+      expect(StyleSheet.flatten(hiddenViewport.props.style).width).toBe(width);
+    });
+
+    test('measuring a wider count updates the expanded width without a collapse feedback loop', async () => {
+      const progress = { value: 0 } as SharedValue<number>;
+      const content = () => (
+        <ContentActionBar
+          bottomInset={34}
+          collapseProgress={progress}
+          onExpand={jest.fn()}
+        >
           <Text>1116</Text>
-        </Pressable>
+        </ContentActionBar>
+      );
+      const host = await render(content());
+      const measure = async (width: number) => {
+        await fireEvent(
+          host.getByTestId('content-action-bar-intrinsic'),
+          'layout',
+          {
+            nativeEvent: { layout: { width, height: 48 } },
+          },
+        );
+        await host.rerender(content());
+      };
+      await measure(220);
+      expect(
+        StyleSheet.flatten(host.getByTestId('content-action-bar').props.style)
+          .width,
+      ).toBe(220);
+      await measure(280);
+      expect(
+        StyleSheet.flatten(host.getByTestId('content-action-bar').props.style)
+          .width,
+      ).toBe(280);
+      progress.value = 1;
+      await host.rerender(content());
+      progress.value = 0;
+      await host.rerender(content());
+      expect(
+        StyleSheet.flatten(host.getByTestId('content-action-bar').props.style)
+          .width,
+      ).toBe(280);
+    });
+
+    test('pane resize keeps expanded actions and the collapsed expand button within the reading pane', async () => {
+      const onExpand = jest.fn();
+      const onMore = jest.fn();
+      const progress = { value: 0 } as SharedValue<number>;
+      const content = (width: number) => (
+        <PaneContext.Provider value={{ width, height: 800, visible: true }}>
+          <ContentActionBar
+            bottomInset={34}
+            collapseProgress={progress}
+            onExpand={onExpand}
+            trailing={
+              <Pressable accessibilityLabel="更多操作" onPress={onMore}>
+                <Text>更多操作</Text>
+              </Pressable>
+            }
+          />
+        </PaneContext.Provider>
+      );
+      const host = await render(content(320));
+      await fireEvent(
+        host.getByTestId('content-action-bar-intrinsic'),
+        'layout',
+        {
+          nativeEvent: { layout: { width: 600, height: 48 } },
+        },
+      );
+      for (const paneWidth of [320, 125, 480]) {
+        progress.value = 0;
+        await host.rerender(content(paneWidth));
+        const expanded = StyleSheet.flatten(
+          host.getByTestId('content-action-bar').props.style,
+        );
+        expect(expanded.width).toBeLessThanOrEqual(paneWidth);
+        expect(
+          host.getByTestId('content-action-bar-actions').props.scrollEnabled,
+        ).toBe(true);
+        await fireEvent.press(host.getByLabelText('更多操作'));
+
+        progress.value = 1;
+        await host.rerender(content(paneWidth));
+        const collapsed = StyleSheet.flatten(
+          host.getByTestId('content-action-bar').props.style,
+        );
+        const width = Number(collapsed.width);
+        const translation = collapsed.transform?.find(
+          (transform: object) => 'translateX' in transform,
+        ) as { translateX: number };
+        const left = (paneWidth - width) / 2 + translation.translateX;
+        expect(left).toBeGreaterThanOrEqual(0);
+        expect(left + width).toBeLessThanOrEqual(paneWidth);
+        await fireEvent.press(host.getByLabelText('展开阅读操作栏'));
       }
-    />,
-  );
-  await fireEvent(host.getByTestId('content-action-bar'), 'touchStart', {});
-  await fireEvent.press(host.getByLabelText('赞同 1116'));
-  expect(onExpand).toHaveBeenCalledTimes(1);
-  expect(onVote).toHaveBeenCalledTimes(1);
-});
+      expect(onMore).toHaveBeenCalledTimes(3);
+      expect(onExpand).toHaveBeenCalledTimes(3);
+    });
+  },
+);
 
-test('oversized counts stay mounted and all actions can be reached by scrolling', async () => {
-  const progress = { value: 0 } as SharedValue<number>;
-  const content = () => (
-    <ContentActionBar
-      bottomInset={34}
-      collapseProgress={progress}
-      onExpand={jest.fn()}
-      leading={<Text>123456789</Text>}
-      trailing={
-        <Pressable accessibilityLabel="更多">
-          <Text>更多</Text>
-        </Pressable>
-      }
-    />
-  );
-  const host = await render(content());
-  await fireEvent(host.getByTestId('content-action-bar-intrinsic'), 'layout', {
-    nativeEvent: { layout: { width: 2000, height: 48 } },
-  });
-  expect(
-    host.getByTestId('content-action-bar-actions').props.scrollEnabled,
-  ).toBe(true);
-  expect(host.getByText('123456789')).toBeTruthy();
-  expect(host.getByLabelText('更多')).toBeTruthy();
-  await host.rerender(content());
-  const viewport = host.getByTestId('content-action-bar-viewport');
-  const width = StyleSheet.flatten(viewport.props.style).width;
-  expect(typeof width).toBe('number');
-  expect(width).toBeGreaterThan(48);
-  progress.value = 1;
-  await host.rerender(content());
-  const hiddenViewport = host.getByTestId('content-action-bar-viewport', {
-    includeHiddenElements: true,
-  });
-  expect(StyleSheet.flatten(hiddenViewport.props.style).width).toBe(width);
-});
-
-test('measuring a wider count updates the expanded width without a collapse feedback loop', async () => {
-  const progress = { value: 0 } as SharedValue<number>;
-  const content = () => (
-    <ContentActionBar
-      bottomInset={34}
-      collapseProgress={progress}
-      onExpand={jest.fn()}
-    >
-      <Text>1116</Text>
-    </ContentActionBar>
-  );
-  const host = await render(content());
-  const measure = async (width: number) => {
-    await fireEvent(
-      host.getByTestId('content-action-bar-intrinsic'),
-      'layout',
-      {
-        nativeEvent: { layout: { width, height: 48 } },
-      },
-    );
-    await host.rerender(content());
-  };
-  await measure(220);
-  expect(
-    StyleSheet.flatten(host.getByTestId('content-action-bar').props.style)
-      .width,
-  ).toBe(220);
-  await measure(280);
-  expect(
-    StyleSheet.flatten(host.getByTestId('content-action-bar').props.style)
-      .width,
-  ).toBe(280);
-  progress.value = 1;
-  await host.rerender(content());
-  progress.value = 0;
-  await host.rerender(content());
-  expect(
-    StyleSheet.flatten(host.getByTestId('content-action-bar').props.style)
-      .width,
-  ).toBe(280);
-});
-
-test('pane resize keeps expanded actions and the collapsed expand button within the reading pane', async () => {
-  const onExpand = jest.fn();
-  const onMore = jest.fn();
-  const progress = { value: 0 } as SharedValue<number>;
-  const content = (width: number) => (
-    <PaneContext.Provider value={{ width, height: 800, visible: true }}>
+test('hidden Liquid Glass bar stays offscreen while its collapse transform is active', async () => {
+  mockLiquidGlassActive = true;
+  try {
+    const host = await render(
       <ContentActionBar
         bottomInset={34}
-        collapseProgress={progress}
-        onExpand={onExpand}
-        trailing={
-          <Pressable accessibilityLabel="更多操作" onPress={onMore}>
-            <Text>更多操作</Text>
-          </Pressable>
-        }
-      />
-    </PaneContext.Provider>
-  );
-  const host = await render(content(320));
-  await fireEvent(host.getByTestId('content-action-bar-intrinsic'), 'layout', {
-    nativeEvent: { layout: { width: 600, height: 48 } },
-  });
-  for (const paneWidth of [320, 125, 480]) {
-    progress.value = 0;
-    await host.rerender(content(paneWidth));
-    const expanded = StyleSheet.flatten(
-      host.getByTestId('content-action-bar').props.style,
+        visible={false}
+        collapseProgress={{ value: 1 } as SharedValue<number>}
+        onExpand={() => {}}
+      >
+        <Text>action</Text>
+      </ContentActionBar>,
     );
-    expect(expanded.width).toBeLessThanOrEqual(paneWidth);
+    const container = host.getByTestId('content-action-bar', {
+      includeHiddenElements: true,
+    });
+    const style = StyleSheet.flatten(container.props.style);
+    expect(style.transform).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ translateY: expect.any(Number) }),
+      ]),
+    );
     expect(
-      host.getByTestId('content-action-bar-actions').props.scrollEnabled,
-    ).toBe(true);
-    await fireEvent.press(host.getByLabelText('更多操作'));
-
-    progress.value = 1;
-    await host.rerender(content(paneWidth));
-    const collapsed = StyleSheet.flatten(
-      host.getByTestId('content-action-bar').props.style,
-    );
-    const width = Number(collapsed.width);
-    const translation = collapsed.transform?.find(
-      (transform: object) => 'translateX' in transform,
-    ) as { translateX: number };
-    const left = (paneWidth - width) / 2 + translation.translateX;
-    expect(left).toBeGreaterThanOrEqual(0);
-    expect(left + width).toBeLessThanOrEqual(paneWidth);
-    await fireEvent.press(host.getByLabelText('展开阅读操作栏'));
+      style.transform.find(
+        (item: { translateY?: number }) => item.translateY !== undefined,
+      ).translateY,
+    ).toBeGreaterThan(34 + 48);
+    expect(host.queryByLabelText('展开阅读操作栏')).toBeNull();
+  } finally {
+    mockLiquidGlassActive = false;
   }
-  expect(onMore).toHaveBeenCalledTimes(3);
-  expect(onExpand).toHaveBeenCalledTimes(3);
 });

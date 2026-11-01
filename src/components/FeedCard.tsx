@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View as RNView, type ViewInstance } from 'react-native';
-import Animated, { SharedTransition } from 'react-native-reanimated';
+import { Platform, View as RNView, type ViewInstance } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { hasAuthenticationCookie } from '@/api/client';
 import { type FeedItem, getVoteSuccessMessage, voteContent } from '@/api/zhihu';
 import { FeedCardActionRow } from '@/components/FeedCardActionRow';
@@ -35,8 +35,6 @@ import { FeedCardPreview } from './FeedCardPreview';
 import { FeedExcerpt } from './FeedExcerpt';
 import { type ShareContentType, ShareMenu } from './ShareMenu';
 import { Text, View } from './Themed';
-
-const slowTransition = SharedTransition.duration(600);
 
 interface FeedCardProps {
   item: FeedItem;
@@ -156,12 +154,6 @@ const FeedCardComponent = ({
   currentIdentityRef.current = identity;
   const pendingVotesRef = useRef(new Set<string>());
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: FlashList identity changes must reset local reactions even when initial values match the previous item.
-  useEffect(() => {
-    setVoted(item.voted || 0);
-    setVoteCount(item.voteCount || 0);
-  }, [item.id, item.type, item.voted, item.voteCount]);
-
   const itemIdStr = item.id != null ? item.id.toString() : '';
   const storeCollected = useCollectionStore((state) =>
     itemIdStr ? state.collectedStatusMap[itemIdStr] : undefined,
@@ -264,6 +256,31 @@ const FeedCardComponent = ({
     width: number;
     height: number;
   } | null>(null);
+
+  // A recycled FlashList cell gets another item: reset local reactions and
+  // overlays while rendering, not in an effect. An effect commits the old
+  // item first and schedules one more update per recycled card; during a
+  // large page append those updates chain with FlashList's layout updates
+  // until React aborts with "Maximum update depth exceeded".
+  const [syncedItem, setSyncedItem] = useState({
+    identity,
+    voted: item.voted,
+    voteCount: item.voteCount,
+  });
+  if (
+    syncedItem.identity !== identity ||
+    syncedItem.voted !== item.voted ||
+    syncedItem.voteCount !== item.voteCount
+  ) {
+    setSyncedItem({ identity, voted: item.voted, voteCount: item.voteCount });
+    setVoted(item.voted || 0);
+    setVoteCount(item.voteCount || 0);
+    if (syncedItem.identity !== identity) {
+      setMenuVisible(false);
+      setPreviewVisible(false);
+      setOriginLayout(null);
+    }
+  }
   const shareType: ShareContentType =
     item.type === 'answers'
       ? 'answer'
@@ -301,14 +318,6 @@ const FeedCardComponent = ({
       additionalOptions: feedbackOptions,
     }),
   });
-
-  // Recycled cells must not retain another item's preview or share sheet.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: resetting overlays is keyed to the recycled content identity.
-  useEffect(() => {
-    setMenuVisible(false);
-    setPreviewVisible(false);
-    setOriginLayout(null);
-  }, [identity]);
 
   const menuOptions: MenuOption[] = [
     ...(engagementType
@@ -414,7 +423,10 @@ const FeedCardComponent = ({
           );
         }}
         onPress={() => {
-          if (item.type === 'answers' || item.type === 'questions') {
+          if (
+            Platform.OS === 'android' &&
+            (item.type === 'answers' || item.type === 'questions')
+          ) {
             transitionTitle(
               titleRef,
               String(item.questionId || item.id),
@@ -493,7 +505,6 @@ const FeedCardComponent = ({
               fadeDuration={0}
               source={authorAvatarSource}
               className="w-[22px] h-[22px] rounded-full"
-              sharedTransitionTag={`avatar-${item.author.url_token || item.author.id}`}
             />
             <Text type="secondary" className="ml-2 text-[13px]">
               {item.author.name}
@@ -530,36 +541,47 @@ const FeedCardComponent = ({
             onPress={() => {
               if (item.type === 'answers' && item.questionId) {
                 const questionId = String(item.questionId);
-                transitionTitle(
-                  titleRef,
-                  questionId,
-                  cleanTitle,
-                  () => {
-                    if (currentIdentityRef.current !== identity) return;
-                    router.push({
-                      pathname: '/question/[id]',
-                      params: { id: questionId, title: cleanTitle },
-                    });
-                  },
-                  () => currentIdentityRef.current === identity,
-                  titleSource.onSourceHiddenChange,
-                  sourceTitle,
-                );
+                if (Platform.OS === 'android') {
+                  transitionTitle(
+                    titleRef,
+                    questionId,
+                    cleanTitle,
+                    () => {
+                      if (currentIdentityRef.current !== identity) return;
+                      router.push({
+                        pathname: '/question/[id]',
+                        params: { id: questionId, title: cleanTitle },
+                      });
+                    },
+                    () => currentIdentityRef.current === identity,
+                    titleSource.onSourceHiddenChange,
+                    sourceTitle,
+                  );
+                } else {
+                  router.push({
+                    pathname: '/question/[id]',
+                    params: { id: questionId, title: cleanTitle },
+                  });
+                }
                 return;
               }
-              if (item.type === 'questions')
-                transitionTitle(
-                  titleRef,
-                  String(item.questionId || item.id),
-                  cleanTitle,
-                  () => {
-                    if (currentIdentityRef.current === identity) openDetail();
-                  },
-                  () => currentIdentityRef.current === identity,
-                  titleSource.onSourceHiddenChange,
-                  sourceTitle,
-                );
-              else openDetail();
+              if (item.type === 'questions') {
+                if (Platform.OS === 'android') {
+                  transitionTitle(
+                    titleRef,
+                    String(item.questionId || item.id),
+                    cleanTitle,
+                    () => {
+                      if (currentIdentityRef.current === identity) openDetail();
+                    },
+                    () => currentIdentityRef.current === identity,
+                    titleSource.onSourceHiddenChange,
+                    sourceTitle,
+                  );
+                } else {
+                  openDetail();
+                }
+              } else openDetail();
             }}
           >
             <RNView
@@ -567,12 +589,7 @@ const FeedCardComponent = ({
               collapsable={false}
               style={titleSource.hidden ? { opacity: 0 } : undefined}
             >
-              <Animated.View
-                sharedTransitionTag={`title-${item.questionId || item.id}`}
-                sharedTransitionStyle={slowTransition}
-              >
-                {sourceTitle}
-              </Animated.View>
+              {sourceTitle}
             </RNView>
           </BouncyButton>
         ) : null}
@@ -591,7 +608,6 @@ const FeedCardComponent = ({
               fadeDuration={0}
               source={thumbnailSource}
               className="w-[100px] h-[75px] rounded-md ml-2.5 mt-1"
-              sharedTransitionTag={`image-${item.id}`}
             />
           )}
         </View>

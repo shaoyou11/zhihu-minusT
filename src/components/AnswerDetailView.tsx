@@ -12,7 +12,6 @@ import {
 import { GestureDetector } from 'react-native-gesture-handler';
 import Reanimated, {
   runOnJS,
-  SharedTransition,
   type SharedValue,
   useAnimatedScrollHandler,
   useSharedValue,
@@ -73,8 +72,6 @@ import { getAnswerEndorsementsKey } from '@/utils/answerEndorsements';
 import { formatDate } from '@/utils/date';
 import { calculateDetailHeaderAppearance } from '@/utils/detailHeaderAppearance';
 import { getZhihuErrorMessage, getZhihuErrorStatus } from '@/utils/zhihuError';
-
-const slowTransition = SharedTransition.duration(600);
 
 export interface AnswerEndorsementSource {
   answerId: string;
@@ -256,7 +253,9 @@ export const AnswerDetailView = ({
     typeof contentLayoutSource | null
   >(null);
   const latestLayoutSource = useRef(contentLayoutSource);
-  latestLayoutSource.current = contentLayoutSource;
+  React.useLayoutEffect(() => {
+    latestLayoutSource.current = contentLayoutSource;
+  }, [contentLayoutSource]);
   const handleContentLayoutReady = React.useCallback(() => {
     if (latestLayoutSource.current === contentLayoutSource)
       setReadyLayoutSource(contentLayoutSource);
@@ -608,11 +607,9 @@ export const AnswerDetailView = ({
                 </View>
                 <TitleTransitionTarget
                   id={String(questionId || answer?.question?.id || id)}
+                  enabled={isFocused}
                 >
-                  <Reanimated.View
-                    sharedTransitionTag={`title-${questionId || answer?.question?.id || id}`}
-                    sharedTransitionStyle={slowTransition}
-                  >
+                  <View>
                     <Text
                       style={{
                         fontSize: 21,
@@ -622,7 +619,7 @@ export const AnswerDetailView = ({
                     >
                       {answer?.question?.title || initialTitle || '加载中...'}
                     </Text>
-                  </Reanimated.View>
+                  </View>
                 </TitleTransitionTarget>
               </BouncyButton>
               <View className="flex-row items-center pt-4 pb-5 justify-between gap-3 bg-transparent">

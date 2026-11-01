@@ -33,7 +33,7 @@ import { themeVariables } from '@/utils/themeVariables';
 import { isExpoInternalUrl, parseZhihuUrl } from '@/utils/url';
 import '../global.css';
 import * as Clipboard from 'expo-clipboard';
-import { AppState, type AppStateStatus, Linking } from 'react-native';
+import { AppState, type AppStateStatus, Linking, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { consumeAppClipboardText } from '@/utils/clipboard';
 import { createAppQueryClient } from '@/utils/queryClient';
@@ -52,6 +52,7 @@ const queryClient = createAppQueryClient();
 
 export const unstable_settings = {
   anchor: '(tabs)',
+  initialRouteName: '(tabs)',
 };
 
 function RootLayout() {
@@ -223,7 +224,11 @@ function RootLayout() {
                 {/* 底部 Tab 主框架 */}
                 <Stack.Screen
                   name="(tabs)"
-                  options={{ headerShown: false, title: '知乎' }}
+                  options={{
+                    headerShown: false,
+                    title: '知乎',
+                    gestureEnabled: false,
+                  }}
                 />
 
                 {/* 评论保留正文背景，以系统半屏浮层展示；楼中楼也沿用浮层。 */}
@@ -299,7 +304,7 @@ function RootLayout() {
                   name="question/[id]/index"
                   options={{
                     headerShown: false,
-                    animation: 'default',
+                    animation: Platform.OS === 'android' ? 'fade' : 'default',
                   }}
                 />
 
@@ -318,7 +323,7 @@ function RootLayout() {
                   name="answer/[id]"
                   options={{
                     headerShown: false,
-                    animation: 'default',
+                    animation: Platform.OS === 'android' ? 'fade' : 'default',
                   }}
                 />
 
@@ -327,7 +332,10 @@ function RootLayout() {
                   name="guest/detail"
                   options={{
                     headerShown: false,
-                    animation: 'default',
+                    animation:
+                      Platform.OS === 'android'
+                        ? 'slide_from_right'
+                        : 'default',
                   }}
                 />
               </Stack>

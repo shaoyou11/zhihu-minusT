@@ -29,7 +29,11 @@ export default function NativeTabLayout() {
       }}
     >
       {/* Home already manages its safe-area padding and scroll-edge glass. */}
-      <NativeTabs.Trigger name="index" disableAutomaticContentInsets>
+      <NativeTabs.Trigger
+        name="index"
+        disableAutomaticContentInsets
+        disableScrollToTop
+      >
         <NativeTabs.Trigger.Label>首页</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
           sf={{ default: 'house', selected: 'house.fill' }}

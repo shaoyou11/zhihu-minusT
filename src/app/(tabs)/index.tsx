@@ -7,7 +7,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, {
   useCallback,
   useEffect,
@@ -16,7 +16,6 @@ import React, {
   useState,
 } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   ScrollView,
   type ScrollViewInstance,
@@ -29,7 +28,6 @@ import PagerView, {
 import Animated, {
   Extrapolate,
   interpolate,
-  interpolateColor,
   type SharedValue,
   useAnimatedStyle,
   useEvent,
@@ -60,10 +58,12 @@ import {
   getHomeNavigationMetrics,
   ScrollableNavigationRow,
 } from '@/components/home/ScrollableNavigationRow';
+import { TopTabLabel } from '@/components/home/TopTabLabel';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { QueryErrorView } from '@/components/QueryErrorView';
 import { RecentMoments } from '@/components/RecentMoments';
 import { Text, useThemeColor, View } from '@/components/Themed';
+import { ThemedLoadingIndicator } from '@/components/ThemedLoadingIndicator';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import {
@@ -72,6 +72,7 @@ import {
 } from '@/features/adaptive-layout/PaneContext';
 import { hasReusableAnswerDetail } from '@/features/rich-content';
 import { useCollapsibleChromeScroll } from '@/hooks/useCollapsibleChromeScroll';
+import { useEndReachedPagination } from '@/hooks/useEndReachedPagination';
 import { useFeedPageReadTouch } from '@/hooks/useFeedPageReadTouch';
 import { useGuestBootstrap } from '@/hooks/useGuestBootstrap';
 import { useRecommendFeedback } from '@/hooks/useRecommendFeedback';
@@ -184,6 +185,7 @@ export default function HomeScreen() {
   const isFocused = usePaneActive();
   const colorScheme = useColorScheme();
   const router = useRouter();
+  const navigation = useNavigation();
   const params = useLocalSearchParams<{ tab?: string }>();
   const { visibleTabs, defaultTab, localCityName, useNativeIOSBottomTabs } =
     useSettingsStore();
@@ -356,7 +358,7 @@ export default function HomeScreen() {
     [],
   );
 
-  const handleHomeTabPress = () => {
+  const handleHomeTabPress = useCallback(() => {
     const isAtHome = currentPage < homeTabsCount;
 
     if (isAtHome) {
@@ -379,9 +381,31 @@ export default function HomeScreen() {
       );
       pagerRef.current?.setPage(targetPage);
     }
-  };
+  }, [currentPage, homeTabsCount, scrolledTabs]);
+
+  // 监听原生底栏 tabPress 事件：在首页处于激活状态时重复点击底部 Tab 触发滚动置顶或刷新
+  useEffect(() => {
+    if (!nativeIOSBottomTabs) return;
+    const nav = navigation as unknown as {
+      addListener: (
+        event: 'tabPress',
+        callback: (e: { preventDefault: () => void }) => void,
+      ) => () => void;
+    };
+    const unsubscribe = nav.addListener?.('tabPress', () => {
+      // 仅在首页处于当前焦点状态时（即重复点击当前已处于前台的“首页”Tab）才触发滚动置顶或刷新；
+      // 从底栏其他 Tab（如“我的”）切换回首页时，isFocused 为 false，保持既有阅读位置不变。
+      if (!isFocused) return;
+      handleHomeTabPress();
+    });
+    return unsubscribe;
+  }, [navigation, nativeIOSBottomTabs, isFocused, handleHomeTabPress]);
 
   const handleTabPress = (index: number) => {
+    if (currentPage === index) {
+      handleHomeTabPress();
+      return;
+    }
     pagerRef.current?.setPage(index);
   };
 
@@ -449,7 +473,7 @@ export default function HomeScreen() {
     };
   });
 
-  // 顶部 Tab 指示器动画
+  // 底部导航栏指示器动画
   const topIndicatorStyle = useAnimatedStyle(() => {
     if (homeTabsCount <= 1) return { transform: [{ translateX: 0 }] };
     const tabWidth = 58;
@@ -823,37 +847,6 @@ export default function HomeScreen() {
   );
 }
 
-function TopTabLabel({
-  index,
-  label,
-  scrollX,
-  activeColor,
-  inactiveColor,
-}: {
-  index: number;
-  label: string;
-  scrollX: SharedValue<number>;
-  activeColor: string;
-  inactiveColor: string;
-}) {
-  const animatedStyle = useAnimatedStyle(() => {
-    const distanceFromSelection = Math.min(1, Math.abs(scrollX.value - index));
-    return {
-      color: interpolateColor(
-        distanceFromSelection,
-        [0, 1],
-        [activeColor, inactiveColor],
-      ),
-    };
-  });
-
-  return (
-    <Animated.Text style={[styles.navText, animatedStyle]}>
-      {label}
-    </Animated.Text>
-  );
-}
-
 const _AnimatedIcon = Animated.createAnimatedComponent(Ionicons);
 
 function BottomTabIcon({
@@ -1166,6 +1159,7 @@ const FeedList = React.forwardRef<
         ['zhihu-feed', queryAccountKey, tab, recommendationRequestKey] as const,
       [queryAccountKey, recommendationRequestKey, tab],
     );
+    const cancelPendingIntentRef = useRef<() => void>(() => {});
     const {
       refresh: handleRefresh,
       refreshing: isRefreshing,
@@ -1173,6 +1167,7 @@ const FeedList = React.forwardRef<
     } = useScopedRefreshAction(
       feedQueryKey,
       async () => {
+        cancelPendingIntentRef.current();
         setExpandedCollapsedKeys(new Set());
         autoFetchRounds.current = 0;
         setAutoFetchExhausted(false);
@@ -1362,6 +1357,26 @@ const FeedList = React.forwardRef<
 
     const flashListRef = useRef<FlashListRef<FeedListItem>>(null);
 
+    const currentCursor =
+      data?.pages.at(-1)?.nextUrl ?? (data?.pages.length || 0);
+    const isBusy = isFetching || isRefreshing || isRefreshingNow();
+    const { handleEndReached, isPendingIntent, cancelPendingIntent } =
+      useEndReachedPagination({
+        isActive,
+        hasNextPage: Boolean(hasNextPage),
+        isFetchNextPageError,
+        isBusy,
+        cursor: currentCursor,
+        onFetchNextPage: fetchNextPage,
+        itemCount: flattenedData.length,
+        isAutoFetching:
+          (filterEnabled || localDedupEnabled) &&
+          flattenedData.length < MIN_RENDERABLE_ITEMS,
+        listRef: flashListRef,
+        endReachedThreshold: 0.5,
+      });
+    cancelPendingIntentRef.current = cancelPendingIntent;
+
     const scrollHandler = useCollapsibleChromeScroll({
       enabled: isActive && AUTO_HIDE_NAV_TABS.includes(tab),
       topOffset: topNavOffset,
@@ -1436,25 +1451,14 @@ const FeedList = React.forwardRef<
             const key = getInMemoryFeedKey(item);
             return `feed-${key || index}`;
           }}
-          onEndReached={() => {
-            if (
-              isActive &&
-              hasNextPage &&
-              !isFetching &&
-              !isRefreshingNow() &&
-              !isFetchNextPageError &&
-              (!(filterEnabled || localDedupEnabled) ||
-                flattenedData.length >= MIN_RENDERABLE_ITEMS)
-            )
-              void fetchNextPage();
-          }}
+          onEndReached={handleEndReached}
           onEndReachedThreshold={0.5}
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
           onScroll={scrollHandler}
           scrollEventThrottle={16}
           contentContainerStyle={{
-            paddingTop: insets.top + 70,
+            paddingTop: insets.top + 60,
             paddingBottom: 120,
           }}
           renderItem={({ item }: { item: FeedListItem }) => {
@@ -1509,13 +1513,15 @@ const FeedList = React.forwardRef<
             ) : null
           }
           ListFooterComponent={
-            isFetchingNextPage ? (
-              <ActivityIndicator style={{ margin: 20 }} />
-            ) : isFetchNextPageError ? (
+            isFetchNextPageError ? (
               <QueryErrorView
                 compact
                 message="更多内容加载失败"
-                onRetry={() => void fetchNextPage()}
+                error={feedError}
+                onRetry={() => {
+                  cancelPendingIntent();
+                  void fetchNextPage();
+                }}
               />
             ) : isPaused && !isRefreshing && flattenedData.length > 0 ? (
               <QueryErrorView
@@ -1529,6 +1535,14 @@ const FeedList = React.forwardRef<
                 message="刷新失败，已保留原有内容"
                 onRetry={() => void handleRefresh()}
               />
+            ) : isFetchingNextPage || isPendingIntent ? (
+              <View style={styles.footerContainer}>
+                <ThemedLoadingIndicator
+                  size={22}
+                  color={tintColor}
+                  trackColor={indicatorTrackColor}
+                />
+              </View>
             ) : (filterEnabled || localDedupEnabled) &&
               !isError &&
               !isRefreshing &&
@@ -1538,7 +1552,10 @@ const FeedList = React.forwardRef<
               (!hasNextPage || autoFetchExhausted) ? (
               hasNextPage ? (
                 <BouncyButton
-                  onPress={() => void fetchNextPage()}
+                  onPress={() => {
+                    cancelPendingIntent();
+                    void fetchNextPage();
+                  }}
                   className="items-center p-5"
                 >
                   <Text type="primary">过滤后内容偏少，点击继续加载</Text>
@@ -1551,12 +1568,27 @@ const FeedList = React.forwardRef<
                   过滤后内容偏少，已无更多可加载
                 </Text>
               )
+            ) : isError ||
+              (isLoading && flattenedData.length === 0) ||
+              (flattenedData.length === 0 &&
+                !(filterEnabled || localDedupEnabled)) ? null : !hasNextPage ? (
+              <View style={styles.footerContainer}>
+                <Text type="secondary" style={styles.footerText}>
+                  暂时没有更多内容
+                </Text>
+              </View>
+            ) : hasNextPage ? (
+              <View style={styles.footerContainer}>
+                <Text type="secondary" style={styles.footerText}>
+                  继续上滑加载
+                </Text>
+              </View>
             ) : null
           }
           ListEmptyComponent={
             isRefreshing ? null : isLoading || isRefetching ? (
               <View className="flex-1 items-center justify-center mt-[100px] bg-transparent">
-                <ActivityIndicator size="large" color={tintColor} />
+                <ThemedLoadingIndicator size={36} color={tintColor} />
               </View>
             ) : isError ? (
               <QueryErrorView
@@ -1772,5 +1804,19 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     left: 10,
+  },
+  footerContainer: {
+    height: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerText: {
+    marginLeft: 8,
+    fontSize: 13,
+  },
+  footerActionText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
 });
