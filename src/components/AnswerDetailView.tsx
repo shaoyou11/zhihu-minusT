@@ -24,6 +24,7 @@ import {
 } from '@/api/zhihu';
 import { getAllContentCollectionStatus } from '@/api/zhihu/collection';
 import { followMember, unfollowMember } from '@/api/zhihu/member';
+import { ActionIconCount } from '@/components/ActionIconCount';
 import { AnswerEndorsements } from '@/components/AnswerEndorsements';
 import { AnswerLoadingPlaceholder } from '@/components/AnswerLoadingPlaceholder';
 import { BouncyButton } from '@/components/BouncyButton';
@@ -44,7 +45,7 @@ import { ReadingProgressNotice } from '@/components/ReadingProgressNotice';
 import { ReadingScrollIndicator } from '@/components/ReadingScrollIndicator';
 import { SegmentedVoteCapsule } from '@/components/SegmentedVoteCapsule';
 import { ShareMenu } from '@/components/ShareMenu';
-import { StableAvatar } from '@/components/StableAvatar';
+import { RetainedAvatar } from '@/components/StableAvatar';
 import { Text, ThemedIcon, useThemeColor, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
@@ -626,9 +627,12 @@ export const AnswerDetailView = ({
                 <BouncyButton
                   onPress={goToProfile}
                   className="flex-row items-center flex-1 bg-transparent"
+                  style={{ minHeight: 40 }}
                 >
-                  <StableAvatar
+                  <RetainedAvatar
+                    key={`${sessionVersion}:${id}`}
                     uri={authorAvatarUrl}
+                    ownerId={answer?.author?.id}
                     className="w-9 h-9 rounded-full"
                   />
                   <View className="ml-2.5 flex-1 bg-transparent">
@@ -816,29 +820,39 @@ export const AnswerDetailView = ({
               type="answer"
               isCollected={activeCollected}
               count={getContentCollectionMetadata(answer).favlistsCount}
-              compact={dimensions.width / dimensions.fontScale < 360}
+              countDisplay="corner"
               disabled={!answer || !isFocused}
             />
             <ContentActionButton
               accessibilityRole="button"
               accessibilityLabel="评论"
+              accessibilityValue={
+                answer
+                  ? { text: `${answer.comment_count ?? 0} 条评论` }
+                  : undefined
+              }
               disabled={!answer}
-              className="items-center justify-center px-2 py-1.5 flex-row bg-transparent"
+              style={{
+                width: 44,
+                height: 44,
+                paddingHorizontal: 0,
+                paddingVertical: 0,
+              }}
               onPress={() => router.push(`/comments/${id}?type=answer`)}
             >
-              <ThemedIcon
-                name="chatbubble-outline"
-                size={20}
-                colorType="secondary"
-              />
-              {(answer?.comment_count ?? 0) > 0 && (
-                <Text
-                  type="secondary"
-                  className="ml-1 text-[13px] font-semibold"
-                >
-                  {answer?.comment_count}
-                </Text>
-              )}
+              <ActionIconCount
+                count={
+                  (answer?.comment_count ?? 0) > 0
+                    ? answer?.comment_count
+                    : undefined
+                }
+              >
+                <ThemedIcon
+                  name="chatbubble-outline"
+                  size={20}
+                  colorType="secondary"
+                />
+              </ActionIconCount>
             </ContentActionButton>
             <MoreActionsButton
               disabled={!answer}

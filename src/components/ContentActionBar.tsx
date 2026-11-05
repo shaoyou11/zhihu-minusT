@@ -21,6 +21,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { BouncyButton } from '@/components/BouncyButton';
 import {
+  ContentActionBarColorContext,
+  glassActionColor,
+} from '@/components/ContentActionBarColor';
+import {
   FloatingSurface,
   useIsLiquidGlassActive,
 } from '@/components/surfaces/FloatingSurface';
@@ -44,6 +48,7 @@ export interface ContentActionBarProps {
   style?: ComponentProps<typeof Animated.View>['style'];
   visible?: boolean;
   shrinkLeading?: boolean;
+  interactiveGlass?: boolean;
 }
 
 /** Align with the home bar while preserving home-indicator clearance. */
@@ -68,6 +73,7 @@ export function ContentActionBar({
   style,
   visible = true,
   shrinkLeading = false,
+  interactiveGlass = false,
 }: ContentActionBarProps) {
   const colors = useRuntimeThemeColors();
   const colorScheme = useColorScheme();
@@ -191,117 +197,128 @@ export function ContentActionBar({
           style,
         ]}
       >
-        <IslandsContainer
-          {...(useGlass ? { spacing: 8 } : {})}
-          style={styles.islandsInnerRow}
+        <ContentActionBarColorContext.Provider
+          value={useGlass ? glassActionColor : null}
         >
-          {leading ? (
-            <View
-              style={[
-                styles.islandShadow,
-                shrinkLeading && styles.shrinkableLeading,
-                !useGlass && {
-                  backgroundColor: glassColor,
-                  ...(colorScheme === 'light'
-                    ? { shadowColor: colors.shadow, ...styles.shadow }
-                    : {}),
-                },
-              ]}
-            >
-              <FloatingSurface
-                glassStyle="regular"
-                colorScheme={colorScheme}
-                intensity={reduceTransparency ? 0 : 24}
-                tint={glassTint}
+          <IslandsContainer
+            {...(useGlass ? { spacing: 8 } : {})}
+            style={styles.islandsInnerRow}
+          >
+            {leading ? (
+              <View
                 style={[
-                  styles.surface,
-                  styles.islandLeading,
-                  {
-                    height: CONTENT_ACTION_BAR_HEIGHT,
-                    borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
-                    borderWidth: useGlass ? 0 : StyleSheet.hairlineWidth,
-                    borderColor: useGlass ? undefined : colors.contentBorder,
-                    backgroundColor: useGlass ? undefined : glassColor,
+                  styles.islandShadow,
+                  shrinkLeading && styles.shrinkableLeading,
+                  !useGlass && {
+                    backgroundColor: glassColor,
+                    ...(colorScheme === 'light'
+                      ? { shadowColor: colors.shadow, ...styles.shadow }
+                      : {}),
                   },
                 ]}
               >
-                {leading}
-              </FloatingSurface>
+                <FloatingSurface
+                  glassStyle="regular"
+                  isInteractive={interactiveGlass && visible}
+                  colorScheme={useGlass ? 'auto' : colorScheme}
+                  intensity={reduceTransparency ? 0 : 24}
+                  tint={glassTint}
+                  style={[
+                    (!useGlass || !interactiveGlass) && styles.surface,
+                    styles.islandLeading,
+                    {
+                      height: CONTENT_ACTION_BAR_HEIGHT,
+                      borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
+                      borderWidth: useGlass ? 0 : StyleSheet.hairlineWidth,
+                      borderColor: useGlass ? undefined : colors.contentBorder,
+                      backgroundColor: useGlass ? undefined : glassColor,
+                    },
+                  ]}
+                >
+                  {leading}
+                </FloatingSurface>
+              </View>
+            ) : null}
+
+            <View style={styles.islandRightGroup}>
+              {trailing ? (
+                <View
+                  style={[
+                    styles.islandShadow,
+                    !useGlass && {
+                      backgroundColor: glassColor,
+                      ...(colorScheme === 'light'
+                        ? { shadowColor: colors.shadow, ...styles.shadow }
+                        : {}),
+                    },
+                  ]}
+                >
+                  <FloatingSurface
+                    glassStyle="regular"
+                    isInteractive={interactiveGlass && visible}
+                    colorScheme={useGlass ? 'auto' : colorScheme}
+                    intensity={reduceTransparency ? 0 : 24}
+                    tint={glassTint}
+                    style={[
+                      (!useGlass || !interactiveGlass) && styles.surface,
+                      styles.islandTrailing,
+                      {
+                        height: CONTENT_ACTION_BAR_HEIGHT,
+                        borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
+                        borderWidth: useGlass ? 0 : StyleSheet.hairlineWidth,
+                        borderColor: useGlass
+                          ? undefined
+                          : colors.contentBorder,
+                        backgroundColor: useGlass ? undefined : glassColor,
+                      },
+                    ]}
+                  >
+                    {trailing}
+                  </FloatingSurface>
+                </View>
+              ) : null}
+
+              {accessory ? (
+                <View
+                  style={[
+                    styles.islandShadow,
+                    styles.islandAccessoryContainer,
+                    !useGlass && {
+                      backgroundColor: glassColor,
+                      ...(colorScheme === 'light'
+                        ? { shadowColor: colors.shadow, ...styles.shadow }
+                        : {}),
+                    },
+                  ]}
+                >
+                  <FloatingSurface
+                    glassStyle="regular"
+                    isInteractive={interactiveGlass && visible}
+                    colorScheme={useGlass ? 'auto' : colorScheme}
+                    intensity={reduceTransparency ? 0 : 24}
+                    tint={glassTint}
+                    style={[
+                      (!useGlass || !interactiveGlass) && styles.surface,
+                      styles.islandAccessory,
+                      {
+                        width: CONTENT_ACTION_BAR_HEIGHT,
+                        height: CONTENT_ACTION_BAR_HEIGHT,
+                        borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
+                        borderWidth: useGlass ? 0 : StyleSheet.hairlineWidth,
+                        borderColor: useGlass
+                          ? undefined
+                          : colors.contentBorder,
+                        backgroundColor: useGlass ? undefined : glassColor,
+                      },
+                    ]}
+                  >
+                    {accessory}
+                  </FloatingSurface>
+                </View>
+              ) : null}
             </View>
-          ) : null}
-
-          <View style={styles.islandRightGroup}>
-            {trailing ? (
-              <View
-                style={[
-                  styles.islandShadow,
-                  !useGlass && {
-                    backgroundColor: glassColor,
-                    ...(colorScheme === 'light'
-                      ? { shadowColor: colors.shadow, ...styles.shadow }
-                      : {}),
-                  },
-                ]}
-              >
-                <FloatingSurface
-                  glassStyle="regular"
-                  colorScheme={colorScheme}
-                  intensity={reduceTransparency ? 0 : 24}
-                  tint={glassTint}
-                  style={[
-                    styles.surface,
-                    styles.islandTrailing,
-                    {
-                      height: CONTENT_ACTION_BAR_HEIGHT,
-                      borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
-                      borderWidth: useGlass ? 0 : StyleSheet.hairlineWidth,
-                      borderColor: useGlass ? undefined : colors.contentBorder,
-                      backgroundColor: useGlass ? undefined : glassColor,
-                    },
-                  ]}
-                >
-                  {trailing}
-                </FloatingSurface>
-              </View>
-            ) : null}
-
-            {accessory ? (
-              <View
-                style={[
-                  styles.islandShadow,
-                  styles.islandAccessoryContainer,
-                  !useGlass && {
-                    backgroundColor: glassColor,
-                    ...(colorScheme === 'light'
-                      ? { shadowColor: colors.shadow, ...styles.shadow }
-                      : {}),
-                  },
-                ]}
-              >
-                <FloatingSurface
-                  glassStyle="regular"
-                  colorScheme={colorScheme}
-                  intensity={reduceTransparency ? 0 : 24}
-                  tint={glassTint}
-                  style={[
-                    styles.surface,
-                    styles.islandAccessory,
-                    {
-                      width: CONTENT_ACTION_BAR_HEIGHT,
-                      height: CONTENT_ACTION_BAR_HEIGHT,
-                      borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
-                      borderWidth: useGlass ? 0 : StyleSheet.hairlineWidth,
-                      borderColor: useGlass ? undefined : colors.contentBorder,
-                      backgroundColor: useGlass ? undefined : glassColor,
-                    },
-                  ]}
-                >
-                  {accessory}
-                </FloatingSurface>
-              </View>
-            ) : null}
-          </View>
-        </IslandsContainer>
+          </IslandsContainer>
+        </ContentActionBarColorContext.Provider>
       </Animated.View>
     );
   }
@@ -335,90 +352,98 @@ export function ContentActionBar({
         surfaceStyle,
       ]}
     >
-      <FloatingSurface
-        glassStyle="regular"
-        colorScheme={colorScheme}
-        intensity={reduceTransparency ? 0 : 24}
-        tint={glassTint}
-        style={[
-          styles.surface,
-          {
-            height: CONTENT_ACTION_BAR_HEIGHT,
-            borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
-            borderWidth: useGlass ? 0 : StyleSheet.hairlineWidth,
-            backgroundColor: useGlass ? undefined : glassColor,
-            borderColor: useGlass ? undefined : colors.contentBorder,
-          },
-        ]}
+      <ContentActionBarColorContext.Provider
+        value={useGlass ? glassActionColor : null}
       >
-        <Animated.View
-          testID="content-action-bar-viewport"
-          accessibilityElementsHidden={collapsed}
-          importantForAccessibility={collapsed ? 'no-hide-descendants' : 'auto'}
-          style={[styles.expandedContent, expandedStyle]}
+        <FloatingSurface
+          glassStyle="regular"
+          colorScheme={useGlass ? 'auto' : colorScheme}
+          intensity={reduceTransparency ? 0 : 24}
+          tint={glassTint}
+          style={[
+            styles.surface,
+            {
+              height: CONTENT_ACTION_BAR_HEIGHT,
+              borderRadius: CONTENT_ACTION_BAR_HEIGHT / 2,
+              borderWidth: useGlass ? 0 : StyleSheet.hairlineWidth,
+              backgroundColor: useGlass ? undefined : glassColor,
+              borderColor: useGlass ? undefined : colors.contentBorder,
+            },
+          ]}
         >
-          <ScrollView
-            testID="content-action-bar-actions"
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            scrollEnabled={contentWidth > availableWidth}
-            bounces={false}
-            contentContainerStyle={styles.scrollContent}
-          >
-            <View
-              testID="content-action-bar-intrinsic"
-              style={styles.intrinsicContent}
-              onLayout={(event) => {
-                const width = event.nativeEvent.layout.width;
-                if (width > 0) setContentWidth(width);
-              }}
-            >
-              {leading || trailing || accessory ? (
-                <View style={styles.barRow}>
-                  {leading ? (
-                    <View style={styles.leadingSlot}>{leading}</View>
-                  ) : null}
-                  <View style={styles.trailingSlot}>
-                    {trailing}
-                    {accessory ? (
-                      <View style={styles.accessorySlot}>{accessory}</View>
-                    ) : null}
-                  </View>
-                </View>
-              ) : (
-                children
-              )}
-            </View>
-          </ScrollView>
-        </Animated.View>
-        {morphs && (
           <Animated.View
-            pointerEvents={visible && collapsed ? 'auto' : 'none'}
-            accessibilityElementsHidden={!collapsed}
+            testID="content-action-bar-viewport"
+            accessibilityElementsHidden={collapsed}
             importantForAccessibility={
-              collapsed ? 'auto' : 'no-hide-descendants'
+              collapsed ? 'no-hide-descendants' : 'auto'
             }
-            style={[StyleSheet.absoluteFill, iconStyle]}
+            style={[styles.expandedContent, expandedStyle]}
           >
-            <BouncyButton
-              accessibilityRole="button"
-              accessibilityLabel="展开阅读操作栏"
-              onPress={expandForInteraction}
-              style={{
-                flex: 1,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+            <ScrollView
+              testID="content-action-bar-actions"
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              scrollEnabled={contentWidth > availableWidth}
+              bounces={false}
+              contentContainerStyle={styles.scrollContent}
             >
-              <Ionicons
-                name="ellipsis-horizontal"
-                size={24}
-                color={colors.text}
-              />
-            </BouncyButton>
+              <View
+                testID="content-action-bar-intrinsic"
+                style={styles.intrinsicContent}
+                onLayout={(event) => {
+                  const width = event.nativeEvent.layout.width;
+                  if (width > 0) setContentWidth(width);
+                }}
+              >
+                {leading || trailing || accessory ? (
+                  <View style={styles.barRow}>
+                    {leading ? (
+                      <View style={styles.leadingSlot}>{leading}</View>
+                    ) : null}
+                    <View style={styles.trailingSlot}>
+                      {trailing}
+                      {accessory ? (
+                        <View style={styles.accessorySlot}>{accessory}</View>
+                      ) : null}
+                    </View>
+                  </View>
+                ) : (
+                  children
+                )}
+              </View>
+            </ScrollView>
           </Animated.View>
-        )}
-      </FloatingSurface>
+          {morphs && (
+            <Animated.View
+              pointerEvents={visible && collapsed ? 'auto' : 'none'}
+              accessibilityElementsHidden={!collapsed}
+              importantForAccessibility={
+                collapsed ? 'auto' : 'no-hide-descendants'
+              }
+              style={[StyleSheet.absoluteFill, iconStyle]}
+            >
+              <BouncyButton
+                accessibilityRole="button"
+                accessibilityLabel="展开阅读操作栏"
+                onPress={expandForInteraction}
+                style={{
+                  flex: 1,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Ionicons
+                  name="ellipsis-horizontal"
+                  size={24}
+                  color={
+                    useGlass ? (glassActionColor ?? colors.text) : colors.text
+                  }
+                />
+              </BouncyButton>
+            </Animated.View>
+          )}
+        </FloatingSurface>
+      </ContentActionBarColorContext.Provider>
     </Animated.View>
   );
 }
