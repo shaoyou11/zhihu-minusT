@@ -270,7 +270,7 @@
         ]
       },
       "router": {},
-      "status": "🚀 v0.9.9 - 功能完善中"
+      "status": "🚀 v0.9.10 - 功能完善中"
     },
     "icon": "./src/assets/images/icon.png",
     "ios": {
@@ -357,7 +357,7 @@
     "scheme": "zhihu--",
     "slug": "ZhihuMinusT",
     "userInterfaceStyle": "automatic",
-    "version": "0.9.9",
+    "version": "0.9.10",
     "web": {
       "bundler": "metro",
       "favicon": "./src/assets/images/favicon.png",

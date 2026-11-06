@@ -264,6 +264,7 @@ export default function HomeScreen() {
   const tintColor = useThemeColor({}, 'primary');
   const textColor = useThemeColor({}, 'text');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
+  const navigationBorderColor = useThemeColor({}, 'contentBorder');
   const indicatorBgColor = useThemeColor({}, 'primary_26');
   const topIndicatorBgColor = useThemeColor({}, 'primary_14');
   const [currentPage, setCurrentPage] = useState(initialPageIndex);
@@ -719,7 +720,6 @@ export default function HomeScreen() {
         <Animated.View
           style={[
             styles.bottomBarContainer,
-            colorScheme === 'light' && styles.lightTranslucentShadow,
             { bottom: insets.bottom, width: containerWidth },
             bottomNavAnimStyle,
           ]}
@@ -734,6 +734,8 @@ export default function HomeScreen() {
                   colorScheme === 'dark'
                     ? 'rgba(0,0,0,0.7)'
                     : 'rgba(255,255,255,0.85)',
+                borderColor: navigationBorderColor,
+                borderWidth: StyleSheet.hairlineWidth,
               },
             ]}
           >
@@ -1645,6 +1647,7 @@ function parseFollowingData(item: RawFeedItem): FeedItem | null {
       avatar:
         target.author?.avatar_url ||
         'https://picx.zhimg.com/v2-abed1a8c04700ba7d72b45195223e0ff_l.jpg',
+      headline: target.author?.headline || '',
     },
     excerpt:
       target.excerpt ||
@@ -1782,9 +1785,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignSelf: 'center',
     zIndex: 1001,
-  },
-  lightTranslucentShadow: {
-    shadowColor: Colors.light.shadow,
   },
   bottomBlur: { borderRadius: 32, overflow: 'hidden', height: 64 },
   bottomNavItems: {

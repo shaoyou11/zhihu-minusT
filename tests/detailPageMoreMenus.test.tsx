@@ -96,6 +96,9 @@ const mockCollectionButton = jest.fn(
   (_props: React.ComponentProps<typeof CollectionButton>) => {},
 );
 const mockRichContent = jest.fn((_props: ZhihuContentProps) => {});
+const mockReveal = jest.fn((_props: { ready: boolean }) => {});
+let mockRichContentRenderer: 'native-v2' | 'webview' = 'webview';
+let mockNativeAvailable = false;
 const mockQuestionRead = jest.fn();
 let mockSessionVersion = 1;
 const mockQueryKeys: Array<readonly unknown[]> = [];
@@ -166,7 +169,11 @@ jest.mock('@tanstack/react-query', () => ({
     mockMutationOptions = options;
     return { mutate: mockMutate, isPending: false };
   },
-  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
+  useQueryClient: () => ({
+    invalidateQueries: mockInvalidateQueries,
+    getQueryData: (queryKey: readonly unknown[]) =>
+      mockQueryData[queryKey.join(':')],
+  }),
 }));
 jest.mock('@shopify/flash-list', () => {
   const react = jest.requireActual<typeof import('react')>('react');
@@ -296,11 +303,11 @@ jest.mock('../src/components/DetailNavigationHeader', () => {
       moreAlwaysVisible,
       collapsed,
     }: {
-      onMore: () => void;
+      onMore?: () => void;
       moreAlwaysVisible?: boolean;
       collapsed?: boolean;
     }) =>
-      moreAlwaysVisible || collapsed
+      onMore && (moreAlwaysVisible || collapsed)
         ? react.createElement(native.Pressable, {
             accessibilityRole: 'button',
             accessibilityLabel: moreAlwaysVisible ? '问题更多操作' : '更多操作',
@@ -339,7 +346,18 @@ jest.mock('../src/components/ShareMenu', () => {
 });
 jest.mock('../src/components/StableAvatar', () => ({
   StableAvatar: () => null,
-  RetainedAvatar: () => null,
+  RetainedAvatar: jest.requireActual<
+    typeof import('../src/components/StableAvatar')
+  >('../src/components/StableAvatar').RetainedAvatar,
+}));
+jest.mock('../src/components/InitialContentReveal', () => ({
+  InitialContentReveal: (props: {
+    ready: boolean;
+    children: React.ReactNode;
+  }) => {
+    mockReveal(props);
+    return props.children;
+  },
 }));
 jest.mock('../src/components/FollowButton', () => ({
   FollowButton: () => null,
@@ -375,6 +393,7 @@ jest.mock('../src/components/VoterListModal', () => ({
 jest.mock('../src/components/PinPollCard', () => ({ PinPollCard: () => null }));
 jest.mock('../src/features/rich-content', () => ({
   RICH_CONTENT_STALE_TIME: 60_000,
+  isRichTextNativeAvailable: () => mockNativeAvailable,
   ZhihuContent: (props: ZhihuContentProps) => {
     mockRichContent(props);
     const react = jest.requireActual<typeof import('react')>('react');
@@ -439,6 +458,9 @@ jest.mock('../src/store/useCollectionStore', () => ({
 jest.mock('../src/store/useSettingsStore', () => {
   const state = {
     enableBrowseHistory: false,
+    get richContentRenderer() {
+      return mockRichContentRenderer;
+    },
     fontSizeScale: 1,
     lineHeightScale: 1.5,
     primaryColor: null,
@@ -494,6 +516,8 @@ const pressButton = (button: Parameters<typeof fireEvent.press>[0]) =>
 beforeEach(() => {
   jest.clearAllMocks();
   mockSessionVersion = 1;
+  mockRichContentRenderer = 'webview';
+  mockNativeAvailable = false;
   mockQueryKeys.length = 0;
   mockOptimisticQueryKeys.length = 0;
   mockParams = { id: '7' };
@@ -641,6 +665,104 @@ test.each([
     await host.rerender(<Screen />);
     expect(host.queryByText(loadingMessage)).toBeNull();
     expect(host.getByTestId('detail-body')).toBeOnTheScreen();
+  },
+);
+
+test('a long article preview stays scrollable while the detail request is pending', async () => {
+  mockQueryData['zhihu-article'] = undefined;
+  mockPausedQueries.add('zhihu-article');
+  mockQueryData['content-detail-preview:1:article:7'] = {
+    id: '7',
+    title: '合成标题'.repeat(100),
+    author: { id: 'author', name: '合成作者' },
+  };
+  const host = await render(<ArticleDetail />);
+  const scrollView = host.getByTestId('content-detail-preview-scroll');
+  expect(scrollView).toBeOnTheScreen();
+  await fireEvent.scroll(scrollView, {
+    nativeEvent: { contentOffset: { x: 0, y: 500 } },
+  });
+  await fireEvent.press(host.getByText('合成作者'));
+  expect(mockPush).toHaveBeenCalledWith('/user/author');
+});
+
+test('pin preview discards an avatar when the returned author cannot be identified', async () => {
+  mockQueryData['pin-detail'] = undefined;
+  mockPausedQueries.add('pin-detail');
+  mockQueryData['content-detail-preview:1:pin:7'] = {
+    id: '7',
+    author: { name: '卡片作者', avatarUrl: 'https://example.test/preview.jpg' },
+  };
+  const host = await render(<PinDetailScreen />);
+  const images = () => host.container.queryAll((node) => node.type === 'Image');
+  expect(images().map((image) => image.props.source?.uri)).toContain(
+    'https://example.test/preview.jpg',
+  );
+  mockQueryData['pin-detail'] = {
+    id: '7',
+    author: { name: '详情作者' },
+    content: [],
+    comment_count: 0,
+  };
+  await host.rerender(<PinDetailScreen />);
+  expect(host.getByText('详情作者')).toBeOnTheScreen();
+  expect(images().map((image) => image.props.source?.uri)).not.toContain(
+    'https://example.test/preview.jpg',
+  );
+});
+
+test('pin keeps a matching preview avatar until the detail avatar loads', async () => {
+  mockQueryData['pin-detail'] = undefined;
+  mockPausedQueries.add('pin-detail');
+  mockQueryData['content-detail-preview:1:pin:7'] = {
+    id: '7',
+    author: {
+      id: 'author',
+      name: '合成作者',
+      avatarUrl: 'https://example.test/preview.jpg',
+    },
+  };
+  const host = await render(<PinDetailScreen />);
+  const images = () => host.container.queryAll((node) => node.type === 'Image');
+  mockQueryData['pin-detail'] = {
+    id: '7',
+    author: {
+      id: 'author',
+      name: '合成作者',
+      avatar_url: 'https://example.test/detail.jpg',
+    },
+    content: [],
+    comment_count: 0,
+  };
+  await host.rerender(<PinDetailScreen />);
+  expect(images().map((image) => image.props.source?.uri)).toEqual([
+    'https://example.test/preview.jpg',
+    'https://example.test/detail.jpg',
+  ]);
+  await fireEvent(images()[1], 'load');
+  expect(images().map((image) => image.props.source?.uri)).toEqual([
+    'https://example.test/detail.jpg',
+  ]);
+});
+
+test.each([
+  { renderer: 'webview' as const, native: true, waits: false },
+  { renderer: 'native-v2' as const, native: false, waits: false },
+  { renderer: 'native-v2' as const, native: true, waits: true },
+])(
+  'pin reveal only waits for native layout: $renderer, native=$native',
+  async ({ renderer, native, waits }) => {
+    mockRichContentRenderer = renderer;
+    mockNativeAvailable = native;
+    const host = await render(<PinDetailScreen />);
+    expect(mockReveal).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ready: !waits }),
+    );
+    await act(() => mockRichContent.mock.lastCall?.[0].onLayoutReady?.());
+    expect(mockReveal).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ready: true }),
+    );
+    await host.unmount();
   },
 );
 
@@ -1006,3 +1128,35 @@ test('a daily story never wires double-tap voting to article endpoints', async (
     expect.objectContaining({ enabled: false }),
   );
 });
+
+test.each([
+  { type: 'article', query: 'zhihu-article', Screen: ArticleDetail },
+  { type: 'pin', query: 'pin-detail', Screen: PinDetailScreen },
+])(
+  '$type preview exposes reading actions only after detail arrives and retains the expandable bar',
+  async ({ type, query, Screen }) => {
+    const detail = mockQueryData[query];
+    mockQueryData[query] = undefined;
+    mockPausedQueries.add(query);
+    mockQueryData[`content-detail-preview:1:${type}:7`] = {
+      id: '7',
+      title: '合成预览标题',
+      author: { id: 'author', name: '合成预览作者' },
+    };
+    const host = await render(<Screen />);
+    expect(host.queryByRole('button', { name: '评论' })).toBeNull();
+    expect(host.queryByRole('button', { name: '更多操作' })).toBeNull();
+    expect(host.queryByTestId('content-action-bar')).toBeNull();
+
+    mockQueryData[query] = { ...(detail as object), comment_count: 12345 };
+    await host.rerender(<Screen />);
+    expect(host.getByTestId('content-action-bar')).toBeOnTheScreen();
+    expect(
+      host.getByLabelText('展开阅读操作栏', { includeHiddenElements: true }),
+    ).toBeTruthy();
+    const comments = host.getByRole('button', { name: '评论' });
+    expect(comments.props.accessibilityValue).toEqual({ text: '12345 条评论' });
+    await pressButton(comments);
+    expect(mockPush).toHaveBeenCalledWith(`/comments/7?type=${type}`);
+  },
+);
