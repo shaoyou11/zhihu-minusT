@@ -82,6 +82,8 @@ export default function AppearanceSettings() {
     surfaceStyle,
     richContentRenderer,
     removeImageWatermark,
+    imageLoadingMode,
+    enableSegmentTap,
     answerReadingMode,
     unreadBadgeStyle,
     updateSettings,
@@ -201,6 +203,22 @@ export default function AppearanceSettings() {
             );
           })}
           <SettingItem
+            label="无图模式"
+            icon="image-outline"
+            colorScheme={colorScheme}
+          >
+            <ThemedSwitch
+              accessibilityLabel="无图模式"
+              accessibilityHint="列表缩略图和正文配图在点击后加载"
+              value={imageLoadingMode === 'manual'}
+              onValueChange={(enabled) =>
+                updateSettings({
+                  imageLoadingMode: enabled ? 'manual' : 'auto',
+                })
+              }
+            />
+          </SettingItem>
+          <SettingItem
             label="去除图片水印"
             icon="image-outline"
             colorScheme={colorScheme}
@@ -211,6 +229,20 @@ export default function AppearanceSettings() {
               value={removeImageWatermark}
               onValueChange={(value) =>
                 updateSettings({ removeImageWatermark: value })
+              }
+            />
+          </SettingItem>
+          <SettingItem
+            label="点击划线查看评论"
+            icon="comment-bubble"
+            colorScheme={colorScheme}
+          >
+            <ThemedSwitch
+              accessibilityLabel="点击划线查看评论"
+              accessibilityHint="控制单击回答划线时是否打开段落菜单，长按仍可选字"
+              value={enableSegmentTap}
+              onValueChange={(value) =>
+                updateSettings({ enableSegmentTap: value })
               }
             />
           </SettingItem>

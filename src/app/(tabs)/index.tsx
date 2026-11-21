@@ -24,6 +24,7 @@ import {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import PagerView, {
   type PagerViewOnPageScrollEvent,
+  type PagerViewRef,
 } from 'react-native-pager-view';
 import Animated, {
   Extrapolate,
@@ -236,7 +237,7 @@ export default function HomeScreen() {
   const scrollX = useSharedValue(initialPageIndex);
   const topNavOffset = useSharedValue(0);
   const bottomNavOffset = useSharedValue(0);
-  const pagerRef = useRef<PagerView>(null);
+  const pagerRef = useRef<PagerViewRef>(null);
   const pagerGesture = useMemo(() => Gesture.Native(), []);
   const [recentMomentsInteracting, setRecentMomentsInteracting] =
     useState(false);
@@ -284,6 +285,7 @@ export default function HomeScreen() {
     });
   }, [currentPage, homeTabsCount, tabStripWidth]);
 
+  const [pagerSettled, setPagerSettled] = useState(true);
   const bottomActiveIndex =
     currentTabs[currentPage] === 'profile'
       ? (homeTabsCount > 0 ? 1 : 0) + (currentTabs.includes('publish') ? 1 : 0)
@@ -553,6 +555,9 @@ export default function HomeScreen() {
           initialPage={initialPageIndex}
           scrollEnabled={!recentMomentsInteracting}
           onPageScroll={pageScrollHandler}
+          onPageScrollStateChanged={(event) =>
+            setPagerSettled(event.nativeEvent.pageScrollState === 'idle')
+          }
           onPageSelected={(e) => {
             showChrome();
             setCurrentPage(e.nativeEvent.position);
@@ -587,7 +592,10 @@ export default function HomeScreen() {
                 ) : tab === 'publish' ? (
                   <PublishScreen />
                 ) : tab === 'profile' ? (
-                  <ProfileScreen isActive={isFocused && currentPage === idx} />
+                  <ProfileScreen
+                    isActive={isFocused && currentPage === idx}
+                    pagerSettled={pagerSettled}
+                  />
                 ) : (
                   <FeedList
                     ref={(element) => {
@@ -1445,6 +1453,7 @@ const FeedList = React.forwardRef<
           showsVerticalScrollIndicator={false}
           bounces
           alwaysBounceVertical
+          nestedScrollEnabled
           overScrollMode="never"
           data={flattenedData}
           extraData={listExtraData}

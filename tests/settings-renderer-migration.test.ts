@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import {
   type AppSettings,
   type RichContentRenderer,
+  useInitialSettingsReady,
   useSettingsStore,
 } from '../src/store/useSettingsStore';
 
@@ -30,7 +31,7 @@ beforeEach(() => {
   jest.mocked(SecureStore.getItemAsync).mockResolvedValue(null);
 });
 
-test('defaults to tiqian-super-mini with visual feedback and filtering enabled in settings version 21', () => {
+test('defaults to tiqian-super-mini with visual feedback and filtering enabled in settings version 23', () => {
   expect(useSettingsStore.getState().richContentRenderer).toBe('native-v2');
   expect(useSettingsStore.getState().enablePressFeedback).toBe(true);
   expect(useSettingsStore.getState().enableLocalFeedFilter).toBe(true);
@@ -39,7 +40,20 @@ test('defaults to tiqian-super-mini with visual feedback and filtering enabled i
   expect(useSettingsStore.getState().filterEnableQuality).toBe(false);
   expect(useSettingsStore.getState().filterBlockLabeled).toBe(false);
   expect(useSettingsStore.getState().filterRegexPatterns).toEqual([]);
-  expect(useSettingsStore.persist.getOptions().version).toBe(21);
+  expect(useSettingsStore.persist.getOptions().version).toBe(23);
+});
+
+test('allows opting out of segment taps and keeps previous installs enabled', async () => {
+  expect(useSettingsStore.getState().enableSegmentTap).toBe(true);
+  expect((await migrate({}, 21)).enableSegmentTap).toBe(true);
+  expect(
+    (await migrate({ enableSegmentTap: false }, 21)).enableSegmentTap,
+  ).toBe(false);
+  useSettingsStore.getState().updateSettings({ enableSegmentTap: false });
+  const persisted = jest
+    .mocked(SecureStore.setItemAsync)
+    .mock.calls.at(-1)?.[1];
+  expect(persisted && JSON.parse(persisted).state.enableSegmentTap).toBe(false);
 });
 
 test('leaves the double-tap action unset until the user picks one', () => {
@@ -169,7 +183,7 @@ test('hydrates legacy settings and writes back only the new renderer field', asy
       fontSizeScale: 1.3,
       enablePressFeedback: true,
     },
-    version: 21,
+    version: 23,
   });
   expect(JSON.parse(persistedJson).state).not.toHaveProperty('useWebView');
 });
@@ -322,7 +336,7 @@ test('persists and restores sanitized custom regex rules together with a disable
       enableLocalFeedFilter: false,
       filterRegexPatterns: expectedPatterns,
     },
-    version: 21,
+    version: 23,
   });
   useSettingsStore.setState({
     enableLocalFeedFilter: true,
@@ -461,7 +475,7 @@ test('upgrades minusT v19 settings without losing custom filtering or saved upst
   ).toMatchObject({
     filterHideAdPlaceholders: false,
     filterMode: 'hide',
-    enableLargeScreenLayout: true,
+    largeScreenLayoutMode: 'dual',
     largeScreenListRatio: 0.4,
     removeImageWatermark: false,
     unreadBadgeStyle: 'count',
@@ -477,4 +491,29 @@ test('v20 turns watermark removal on for older settings and keeps a saved choice
     (await migrate({ removeImageWatermark: 'off' }, 19)).removeImageWatermark,
   ).toBe(true);
   expect(useSettingsStore.getInitialState().removeImageWatermark).toBe(true);
+});
+
+test('loads images automatically on upgrade and remembers manual loading after restart', async () => {
+  expect((await migrate({}, 22)).imageLoadingMode).toBe('auto');
+  expect(
+    (await migrate({ imageLoadingMode: 'unknown' }, 22)).imageLoadingMode,
+  ).toBe('auto');
+  useSettingsStore.getState().updateSettings({ imageLoadingMode: 'manual' });
+  const saved = jest.mocked(SecureStore.setItemAsync).mock.calls.at(-1)?.[1];
+  if (!saved) throw new Error('Image loading preference must be persisted');
+  useSettingsStore.setState({ imageLoadingMode: 'auto' });
+  jest.mocked(SecureStore.getItemAsync).mockResolvedValue(saved);
+  await useSettingsStore.persist.rehydrate();
+  expect(useSettingsStore.getState().imageLoadingMode).toBe('manual');
+});
+
+test('releases startup readiness if the saved settings cannot be read', async () => {
+  useInitialSettingsReady.setState(false);
+  jest
+    .mocked(SecureStore.getItemAsync)
+    .mockRejectedValueOnce(new Error('unavailable'));
+  await useSettingsStore.persist.rehydrate();
+  expect(useInitialSettingsReady.getState()).toBe(true);
+  expect(useSettingsStore.getState().imageLoadingMode).toBe('auto');
+  expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
 });

@@ -19,6 +19,11 @@ import {
   RICH_CONTENT_LIST_ITEM_SPACING,
   RICH_CONTENT_PARAGRAPH_SPACING,
 } from '../presentation';
+import {
+  segmentCommentIcon,
+  segmentCommentMaskUrl,
+  segmentUnderlineOffset,
+} from '../segmentCommentIcon';
 import type { RichContentTypographyOptions } from '../types';
 import { videoPlaybackHtml } from '../videoHtml';
 import {
@@ -26,13 +31,17 @@ import {
   sanitizeRichContentHtml,
   serializeInlineScriptValue,
 } from '../webviewSecurity';
+import type { WebViewSegmentParagraphs } from '../webviewSegments';
 
 export type { TextSelectionInfo } from '../bridge';
 
 export interface ZhihuDOMContentProps {
   htmlContent: string;
   contentArray?: readonly ZhihuContentSegment[];
-  segmentInfosStr?: string;
+  segmentParagraphs?: WebViewSegmentParagraphs;
+  /** JSON-encoded [pid, sourceText] pairs from answer segment metadata. */
+  segmentSourceTexts?: string;
+  segmentTapEnabled?: boolean;
   linkCardInfoStr?: string;
   colorScheme: 'light' | 'dark';
   onImagePress: (src: string) => void;
@@ -110,7 +119,9 @@ function contentSegmentsToHtml(
 export default React.memo(function ZhihuDOMContent({
   htmlContent,
   contentArray,
-  segmentInfosStr,
+  segmentParagraphs,
+  segmentSourceTexts = '[]',
+  segmentTapEnabled = true,
   linkCardInfoStr,
   onImagePress,
   onImageLongPress,
@@ -149,8 +160,9 @@ export default React.memo(function ZhihuDOMContent({
     () =>
       sanitizeRichContentHtml(
         contentArray ? contentSegmentsToHtml(contentArray) : htmlContent,
+        segmentParagraphs,
       ),
-    [contentArray, htmlContent],
+    [contentArray, htmlContent, segmentParagraphs],
   );
 
   const themeColors = useRuntimeThemeColors();
@@ -159,6 +171,7 @@ export default React.memo(function ZhihuDOMContent({
   const fontSizeScale = fontSizeOverride ?? settings.fontSizeScale;
   const lineHeightScale = lineHeightOverride ?? settings.lineHeightScale;
   const removeImageWatermark = settings.removeImageWatermark;
+  const manualImages = settings.imageLoadingMode === 'manual';
   const metrics = useMemo(
     () => createRichContentMetrics(fontSizeScale, lineHeightScale),
     [fontSizeScale, lineHeightScale],
@@ -291,6 +304,26 @@ export default React.memo(function ZhihuDOMContent({
           margin: 10px 0;
           cursor: pointer;
         }
+        .zhihu-content .zhihu-load-image {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          vertical-align: middle;
+          box-sizing: border-box;
+          max-width: 100%;
+          width: 100%;
+          height: 3em;
+          margin: 10px 0;
+          padding: 0;
+          border: 0;
+          border-radius: 12px;
+          background-color: ${themeColors.backgroundSecondary};
+          color: ${themeColors.textSecondary};
+          font: inherit;
+          cursor: pointer;
+          overflow: hidden;
+        }
+        .zhihu-load-image::after { content: '点击加载图片'; }
         .zhihu-content figure {
           margin: 15px 0;
           text-align: center;
@@ -421,7 +454,19 @@ export default React.memo(function ZhihuDOMContent({
           text-decoration: underline dashed;
           text-decoration-style: dashed;
           text-decoration-color: ${primaryColor}40;
-          cursor: pointer;
+          cursor: ${segmentTapEnabled ? 'pointer' : 'auto'};
+        }
+        .segment-comment-icon {
+          display: inline-block;
+          width: ${segmentCommentIcon.size}px;
+          height: ${segmentCommentIcon.size}px;
+          margin-inline-start: -${segmentCommentIcon.size + segmentCommentIcon.insetX}px;
+          margin-inline-end: ${segmentCommentIcon.insetX}px;
+          vertical-align: baseline;
+          transform: translateY(${segmentUnderlineOffset + segmentCommentIcon.size + segmentCommentIcon.offsetY}px);
+          background: ${primaryColor};
+          -webkit-mask: url("${segmentCommentMaskUrl}") center / contain no-repeat;
+          mask: url("${segmentCommentMaskUrl}") center / contain no-repeat;
         }
         .segment-liked {
           text-decoration: underline dashed;
@@ -451,11 +496,84 @@ export default React.memo(function ZhihuDOMContent({
           ));
         }
         const htmlContent = ${serializeInlineScriptValue(safeHtmlContent)};
-        const segmentInfosStr = ${serializeInlineScriptValue(segmentInfosStr || '[]')};
         const linkCardInfoStr = ${serializeInlineScriptValue(linkCardInfoStr || '{}')};
 
         const container = document.getElementById('content');
-        container.innerHTML = htmlContent;
+        const manualImages = ${manualImages};
+        const deferredSources = new WeakMap();
+        if (manualImages) {
+          // Template contents stay inert. The sanitizer already excludes srcset;
+          // defer each body's src before it reaches the live document.
+          const template = document.createElement('template');
+          template.innerHTML = htmlContent;
+          template.content.querySelectorAll('img').forEach(img => {
+            if (img.matches('.zhihu-video-cover, .zhihu-link-card-image')) {
+              img.remove();
+              return;
+            }
+            const src = img.getAttribute('src') || '';
+            const eeimg = img.getAttribute('eeimg');
+            const isAvatar = ${variant === 'daily'} && img.classList.contains('avatar');
+            if (isAvatar || src.includes('zhihu.com/equation') || eeimg === '1' || eeimg === '2') return;
+            deferredSources.set(img, src);
+            img.removeAttribute('src');
+            img.removeAttribute('srcset');
+          });
+          container.appendChild(template.content);
+        } else {
+          container.innerHTML = htmlContent;
+        }
+        // Give the icon its own hit target without adding characters to the
+        // source range. Text inside an enclosing link keeps its normal action.
+        const commentMarkers = new WeakMap();
+        container.querySelectorAll('.segment-comments').forEach(function(owner) {
+          const icon = document.createElement('span');
+          icon.className = 'segment-comment-icon';
+          icon.setAttribute('aria-hidden', 'true');
+          owner.appendChild(icon);
+          commentMarkers.set(icon, owner);
+        });
+
+        // Index the source before references, link cards and KaTeX rewrite the DOM.
+        // A null entry is a boundary that a server-addressable selection cannot cross.
+        const selectionSources = [];
+        const sourceIndex = new Map();
+        const pidCounts = new Map();
+        const apiSources = new Map();
+        for (const [pid, text] of JSON.parse(${serializeInlineScriptValue(segmentSourceTexts)})) {
+          apiSources.set(pid, apiSources.has(pid) ? null : text);
+        }
+        const nonSourceInline = ':not(a,abbr,b,code,del,em,i,kbd,mark,s,small,span,strong,sub,sup,u),[hidden],[data-draft-type="reference"],sup[data-numero],sup[data-text],[data-draft-type="link-card"],.LinkCard,.zhihu-link-card,.zhihu-video,.katex,.katex-error';
+        function hiddenSource(el) {
+          return el.hidden || (el.style.display && window.getComputedStyle(el).display.toLowerCase() === 'none');
+        }
+        function invalidSourceContent(el) {
+          return el.querySelector(nonSourceInline) || Array.from(el.querySelectorAll('[style]')).some(hiddenSource);
+        }
+        container.querySelectorAll('p[data-pid],h1[data-pid],h2[data-pid],h3[data-pid],h4[data-pid],h5[data-pid],h6[data-pid]').forEach(function(el) {
+          const pid = el.getAttribute('data-pid');
+          pidCounts.set(pid, (pidCounts.get(pid) || 0) + 1);
+        });
+        function recordSelectionSources(parent) {
+          for (const el of parent.childNodes) {
+            if (el.nodeType === 3 && !el.textContent.trim()) continue;
+            if (el.tagName === 'P') {
+              const pid = el.getAttribute('data-pid');
+              if (pid && pid === pid.trim() && pidCounts.get(pid) === 1 &&
+                  (!apiSources.has(pid) || apiSources.get(pid) === el.textContent) &&
+                  !hiddenSource(el) && !invalidSourceContent(el)) {
+                sourceIndex.set(el, selectionSources.length);
+                selectionSources.push({ el, pid, text: el.textContent });
+                continue;
+              }
+            } else if (['BLOCKQUOTE', 'DIV', 'SECTION'].includes(el.tagName) && !hiddenSource(el)) {
+              recordSelectionSources(el);
+              continue;
+            }
+            selectionSources.push(null);
+          }
+        }
+        if (pidCounts.size) recordSelectionSources(container);
 
         function getLinkCardInfo(href) {
           let info;
@@ -530,7 +648,7 @@ export default React.memo(function ZhihuDOMContent({
           }
 
           const image = getLinkCardImage(display) || getImageUrl(anchor.getAttribute('data-draft-cover'));
-          if (image) {
+          if (image && !manualImages) {
             const imageNode = document.createElement('img');
             imageNode.className = 'zhihu-link-card-image';
             imageNode.src = image;
@@ -543,7 +661,7 @@ export default React.memo(function ZhihuDOMContent({
         // Process images
         const images = container.querySelectorAll('img');
         images.forEach((img) => {
-          const src = img.getAttribute('src') || '';
+          const src = deferredSources.get(img) || img.getAttribute('src') || '';
           const eeimg = img.getAttribute('eeimg');
           const isFormula = src.includes('zhihu.com/equation') || eeimg === '1' || eeimg === '2';
           const alt = img.getAttribute('alt') || '';
@@ -555,7 +673,7 @@ export default React.memo(function ZhihuDOMContent({
             img.parentNode?.replaceChild(textNode, img);
           } else if (!isFormula) {
             const originalToken = img.getAttribute('data-original-token');
-            let actualSrc = img.getAttribute('data-actualsrc') || img.getAttribute('data-original') || src;
+            let actualSrc = img.getAttribute('data-actualsrc') || img.getAttribute('data-original') || img.getAttribute('data-original-src') || src;
 
             if (${removeImageWatermark ? 'true' : 'false'} && actualSrc && originalToken) {
               const cleanToken = originalToken.trim();
@@ -565,12 +683,6 @@ export default React.memo(function ZhihuDOMContent({
               }
             }
 
-            if (actualSrc) {
-              actualSrc = actualSrc.trim();
-              if (actualSrc.startsWith('//')) actualSrc = 'https:' + actualSrc;
-              img.setAttribute('src', actualSrc);
-            }
-
             const rawwidth = img.getAttribute('data-rawwidth');
             const rawheight = img.getAttribute('data-rawheight');
             if (rawwidth && rawheight) {
@@ -578,54 +690,38 @@ export default React.memo(function ZhihuDOMContent({
               img.setAttribute('height', rawheight);
               img.style.aspectRatio = rawwidth + ' / ' + rawheight;
             }
+            if (actualSrc) {
+              actualSrc = actualSrc.trim();
+              if (actualSrc.startsWith('//')) actualSrc = 'https:' + actualSrc;
+              if (deferredSources.has(img)) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'zhihu-load-image';
+                button.setAttribute('aria-label', alt ? '点击加载图片：' + alt : '点击加载图片');
+                const width = Number(img.getAttribute('width'));
+                const height = Number(img.getAttribute('height'));
+                if (width > 0 && height > 0) {
+                  button.style.width = width + 'px';
+                  button.style.height = 'auto';
+                  button.style.aspectRatio = width + ' / ' + height;
+                }
+                button.addEventListener('click', event => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  img.setAttribute('src', actualSrc);
+                  button.replaceWith(img);
+                }, { once: true });
+                img.replaceWith(button);
+              } else {
+                img.setAttribute('src', actualSrc);
+              }
+            }
           }
         });
 
-        // Process segments
-        try {
-          const segmentInfos = JSON.parse(segmentInfosStr);
-          if (segmentInfos && segmentInfos.length > 0) {
-            const paragraphs = container.querySelectorAll('p[data-pid]');
-            paragraphs.forEach((p) => {
-              const pid = p.getAttribute('data-pid');
-              if (!pid) return;
-              // Semantic documents already mark the precise ranges. Avoid
-              // decorating the whole paragraph or dispatching a guessed mark.
-              if (p.querySelector('[data-segment-node-id]')) return;
-
-              const segment = segmentInfos.find(s => s.pid === pid);
-              if (!segment) return;
-
-              const marks = segment.marks;
-              if (!marks || marks.length === 0) return;
-
-              let interaction = null;
-              for (const mark of marks) {
-                if (mark.seg_info?.is_like) { interaction = mark.seg_info; break; }
-                if (mark.master_seg_info?.is_like) { interaction = mark.master_seg_info; break; }
-              }
-              if (!interaction) {
-                interaction = marks[0].seg_info || marks[0].master_seg_info;
-              }
-
-              if (
-                interaction &&
-                (interaction.like_count > 0 || interaction.comment_count > 0 || interaction.is_like)
-              ) {
-                p.classList.add('segment-interactable');
-                if (interaction.is_like) {
-                  p.classList.add('segment-liked');
-                }
-              }
-            });
-          }
-        } catch (_) {
-          // Invalid optional metadata cannot block layout or reveal its contents.
-        }
-
         // Process footnotes
         try {
-          const footnotes = container.querySelectorAll('sup[data-text]');
+          const footnotes = container.querySelectorAll('sup[data-numero], sup[data-text]');
           if (footnotes.length > 0) {
             const footnoteList = document.createElement('div');
             footnoteList.style.marginTop = '40px';
@@ -640,16 +736,29 @@ export default React.memo(function ZhihuDOMContent({
             title.style.color = '${textColor}';
             footnoteList.appendChild(title);
 
-            footnotes.forEach((sup) => {
-              const text = sup.getAttribute('data-text');
+            const definitions = new Map();
+            footnotes.forEach((sup, index) => {
               const numero = sup.getAttribute('data-numero') || sup.innerText.replace('[', '').replace(']', '');
+              if (!numero) return;
+              const url = sup.getAttribute('data-url');
+              const text = (sup.getAttribute('data-text') || '').trim() || url;
+              let definition = definitions.get(numero);
+              if (!definition) {
+                definition = { id: 'footnote-' + (definitions.size + 1), refId: 'ref-' + (index + 1) };
+                definitions.set(numero, definition);
+              }
+              if (text && !definition.text) Object.assign(definition, { text, url });
+              sup.id = 'ref-' + (index + 1);
+              const reference = document.createElement('a');
+              reference.href = '#' + definition.id;
+              reference.style.color = '${primaryColor}';
+              reference.textContent = '[' + numero + ']';
+              sup.replaceChildren(reference);
+            });
 
-              const footnoteId = 'footnote-' + numero;
-              const refId = 'ref-' + numero;
-              sup.id = refId;
-
+            definitions.forEach(({ id, refId, text, url }, numero) => {
               const item = document.createElement('div');
-              item.id = footnoteId;
+              item.id = id;
               item.style.marginBottom = '8px';
               item.style.lineHeight = '1.5';
               item.style.color = '${themeColors.textSecondary}';
@@ -660,15 +769,16 @@ export default React.memo(function ZhihuDOMContent({
               backlink.style.fontWeight = 'bold';
               backlink.textContent = '[' + numero + ']';
               item.appendChild(backlink);
-              item.appendChild(document.createTextNode(' ' + (text || '')));
-
+              if (url) {
+                const source = document.createElement('a');
+                source.href = url;
+                source.textContent = text;
+                item.appendChild(document.createTextNode(' '));
+                item.appendChild(source);
+              } else {
+                item.appendChild(document.createTextNode(' ' + (text || '[脚注 ' + numero + ' 暂无定义]')));
+              }
               footnoteList.appendChild(item);
-
-              const reference = document.createElement('a');
-              reference.href = '#' + footnoteId;
-              reference.style.color = '${primaryColor}';
-              reference.textContent = '[' + numero + ']';
-              sup.replaceChildren(reference);
             });
 
             container.appendChild(footnoteList);
@@ -821,6 +931,16 @@ export default React.memo(function ZhihuDOMContent({
             return;
           }
           let target = e.target;
+          const marker = commentMarkers.get(target);
+          if (marker) {
+            e.preventDefault();
+            const pid = marker.getAttribute('data-pid');
+            const nodeId = marker.getAttribute('data-segment-node-id');
+            if (${segmentTapEnabled} && pid && nodeId) {
+              postBridgeMessage({ type: 'segment', pid, nodeId });
+            }
+            return;
+          }
           const videoTarget = findVideoTarget(target);
           if (videoTarget) {
             e.preventDefault();
@@ -852,30 +972,21 @@ export default React.memo(function ZhihuDOMContent({
               }
             }
             if (target.tagName === 'A') {
-              e.preventDefault();
               const href = target.getAttribute('href');
+              if (href && href.startsWith('#') && document.getElementById(href.slice(1))) return;
+              e.preventDefault();
               if (href) {
                 postBridgeMessage({ type: 'link', href });
                 return;
               }
-            }
-            if ((target.tagName === 'P' || target.tagName === 'SPAN') && target.classList.contains('segment-interactable')) {
-              // A tap reads; only a stationary long press opens paragraph actions.
-              return;
             }
             target = target.parentElement;
           }
         });
 
         // Text selection detection
-        function findParagraph(node) {
-          while (node && node !== container) {
-            if (node.nodeType === 1 && node.getAttribute && node.getAttribute('data-pid') && !node.getAttribute('data-segment-node-id')) {
-              return node;
-            }
-            node = node.parentElement || node.parentNode;
-          }
-          return null;
+        function paragraphAt(node) {
+          return (node.nodeType === 1 ? node : node.parentElement)?.closest('p');
         }
 
         function getTextOffset(paragraph, targetNode, targetOffset) {
@@ -885,6 +996,25 @@ export default React.memo(function ZhihuDOMContent({
           prefix.selectNodeContents(paragraph);
           prefix.setEnd(targetNode, targetOffset);
           return prefix.toString().length;
+        }
+
+        function readSourceSelection(range) {
+          const startP = paragraphAt(range.startContainer);
+          const endP = paragraphAt(range.endContainer);
+          const first = sourceIndex.get(startP);
+          const last = sourceIndex.get(endP);
+          if (first === undefined || last === undefined || first > last) return null;
+          const startOffset = getTextOffset(startP, range.startContainer, range.startOffset);
+          const endOffset = getTextOffset(endP, range.endContainer, range.endOffset);
+          const parts = [];
+          for (let i = first; i <= last; i++) {
+            const source = selectionSources[i];
+            if (!source || source.text !== source.el.textContent || invalidSourceContent(source.el)) return null;
+            parts.push(source.text.slice(i === first ? startOffset : 0, i === last ? endOffset : undefined));
+          }
+          const text = parts.join('\\n');
+          if (!text.trim() || /[\\uD800-\\uDFFF\\uFFFC]/u.test(text)) return null;
+          return { text, startParagraphId: selectionSources[first].pid, endParagraphId: selectionSources[last].pid, startOffset, endOffset };
         }
 
         var selectionTimeout;
@@ -898,28 +1028,7 @@ export default React.memo(function ZhihuDOMContent({
               postBridgeMessage({ type: 'selection', info: null });
               return;
             }
-            var text = selection.toString();
-            var range = selection.getRangeAt(0);
-            var startP = findParagraph(range.startContainer);
-            var endP = findParagraph(range.endContainer);
-            if (startP && endP) {
-              var startPid = startP.getAttribute('data-pid');
-              var endPid = endP.getAttribute('data-pid');
-              var sOff = getTextOffset(startP, range.startContainer, range.startOffset);
-              var eOff = getTextOffset(endP, range.endContainer, range.endOffset);
-              postBridgeMessage({
-                type: 'selection',
-                info: {
-                  text: text,
-                  startParagraphId: startPid,
-                  endParagraphId: endPid,
-                  startOffset: sOff,
-                  endOffset: eOff
-                }
-              });
-            } else {
-              postBridgeMessage({ type: 'selection', info: null });
-            }
+            postBridgeMessage({ type: 'selection', info: readSourceSelection(selection.getRangeAt(0)) });
           }, 300);
         });
 
@@ -980,14 +1089,17 @@ export default React.memo(function ZhihuDOMContent({
     return { documentIdentity, source: { html } };
   }, [
     safeHtmlContent,
+    manualImages,
     removeImageWatermark,
-    segmentInfosStr,
+    segmentTapEnabled,
+    segmentSourceTexts,
     linkCardInfoStr,
     textColor,
     primaryColor,
     metrics,
     headingStyles,
     dailyStyles,
+    variant,
     typographyOptions?.lineBreak,
     typographyOptions?.justify,
     typographyOptions?.autoSpacing,
@@ -1095,7 +1207,8 @@ export default React.memo(function ZhihuDOMContent({
               }
               break;
             case 'segment':
-              onSegmentPress?.(data.pid, data.nodeId);
+              if (segmentTapEnabled && data.nodeId)
+                onSegmentPress?.(data.pid, data.nodeId);
               break;
             case 'selection':
               {

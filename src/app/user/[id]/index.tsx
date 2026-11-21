@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import PagerView, {
   type PagerViewOnPageScrollEvent,
+  type PagerViewRef,
 } from 'react-native-pager-view';
 import Reanimated, {
   interpolate,
@@ -82,6 +83,7 @@ import {
 import { refreshInfiniteQuery } from '@/utils/query';
 import { parseZhihuUrl } from '@/utils/url';
 import {
+  flattenUniquePages,
   getNextPageOffset,
   isOwnMemberProfile,
   normalizeUserFeedType,
@@ -251,7 +253,7 @@ function UserProfileScreen({ params }: { params: ProfileRouteParams }) {
   const [compactHeader, setCompactHeader] = useState(false);
   const [profileTabViewportWidth, setProfileTabViewportWidth] = useState(0);
   const [tabLayoutVersion, setTabLayoutVersion] = useState(0);
-  const pagerRef = useRef<PagerView>(null);
+  const pagerRef = useRef<PagerViewRef>(null);
   const profileTabsScrollRef = useRef<ScrollViewInstance>(null);
   const profileTabLayoutsRef = useRef<
     Array<{ x: number; width: number } | undefined>
@@ -556,9 +558,7 @@ function UserProfileScreen({ params }: { params: ProfileRouteParams }) {
       case 'activities':
         return {
           queryKey: ['user-activities', id] as const,
-          data:
-            activitiesQuery.data?.pages.flatMap((page) => page.data || []) ||
-            [],
+          data: flattenUniquePages(activitiesQuery.data?.pages),
           pageCount: activitiesQuery.data?.pages.length ?? 0,
           isLoading: activitiesQuery.isLoading,
           isError: activitiesQuery.isError,
@@ -586,8 +586,7 @@ function UserProfileScreen({ params }: { params: ProfileRouteParams }) {
       case 'answers':
         return {
           queryKey: ['user-answers', id, sortBy] as const,
-          data:
-            answersQuery.data?.pages.flatMap((page) => page.data || []) || [],
+          data: flattenUniquePages(answersQuery.data?.pages),
           pageCount: answersQuery.data?.pages.length ?? 0,
           isLoading: answersQuery.isLoading,
           isError: answersQuery.isError,
@@ -601,8 +600,7 @@ function UserProfileScreen({ params }: { params: ProfileRouteParams }) {
       case 'articles':
         return {
           queryKey: ['user-articles', id] as const,
-          data:
-            articlesQuery.data?.pages.flatMap((page) => page.data || []) || [],
+          data: flattenUniquePages(articlesQuery.data?.pages),
           pageCount: articlesQuery.data?.pages.length ?? 0,
           isLoading: articlesQuery.isLoading,
           isError: articlesQuery.isError,
@@ -616,8 +614,7 @@ function UserProfileScreen({ params }: { params: ProfileRouteParams }) {
       case 'questions':
         return {
           queryKey: ['user-questions', id] as const,
-          data:
-            questionsQuery.data?.pages.flatMap((page) => page.data || []) || [],
+          data: flattenUniquePages(questionsQuery.data?.pages),
           pageCount: questionsQuery.data?.pages.length ?? 0,
           isLoading: questionsQuery.isLoading,
           isError: questionsQuery.isError,
@@ -645,7 +642,7 @@ function UserProfileScreen({ params }: { params: ProfileRouteParams }) {
       case 'pins':
         return {
           queryKey: ['user-pins', id] as const,
-          data: pinsQuery.data?.pages.flatMap((page) => page.data || []) || [],
+          data: flattenUniquePages(pinsQuery.data?.pages),
           pageCount: pinsQuery.data?.pages.length ?? 0,
           isLoading: pinsQuery.isLoading,
           isError: pinsQuery.isError,

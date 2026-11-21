@@ -1,19 +1,17 @@
-import CookieManager from '@preeternal/react-native-cookie-manager';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet } from 'react-native';
-import {
-  WebView,
-  type WebViewMessageEvent,
-  type WebViewNavigation,
-  type WebViewProps,
-} from 'react-native-webview';
+import { Platform } from 'react-native';
 import { getMe } from '@/api/zhihu';
 import { BouncyButton } from '@/components/BouncyButton';
-import { Text, useThemeColor, View } from '@/components/Themed';
+import {
+  type LoginMode,
+  OfficialLoginWebView,
+} from '@/components/OfficialLoginWebView';
+import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { useLoginCookieCapture } from '@/hooks/useLoginCookieCapture';
 import {
   getAuthSessionVersion,
   saveAuthState,
@@ -26,18 +24,16 @@ import {
   syncNativeSessionCookies,
 } from '@/utils/authSession';
 import { showToast } from '@/utils/toast';
-import { sanitizeNavigationUrlForLog } from '@/utils/url';
 
 export default function LoginScreen() {
   const colorScheme = useColorScheme();
-  const primaryColor = useThemeColor({}, 'primary');
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [loading, setLoading] = useState(true);
+  const [loginMode, setLoginMode] = useState<LoginMode>('mobile');
+  const [capturing, setCapturing] = useState(false);
   const [saveFailedVersion, setSaveFailedVersion] = useState<number | null>(
     null,
   );
-  const webViewRef = useRef<WebView<WebViewProps>>(null);
   const borderColor = Colors[colorScheme].border;
   const capturingSessionRef = useRef(false);
   const abandonedRef = useRef(false);
@@ -71,7 +67,8 @@ export default function LoginScreen() {
     queryClient.clear(); // 清理缓存，强制重新拉取数据 (解决 feed 不更新问题)
     console.log('✅ 登录会话已保存');
 
-    // 成功后跳转，确保存储生效
+    // Ignore late WebView navigation events while the screen is closing.
+    abandonedRef.current = true;
     if (router.canGoBack()) {
       router.back();
     } else {
@@ -110,105 +107,62 @@ export default function LoginScreen() {
     }
   };
 
-  const handleCookies = async (web_cookie: string) => {
-    if (abandonedRef.current || capturingSessionRef.current) return;
+  const acceptLoginCookies = async (cookieString: string) => {
+    if (
+      abandonedRef.current ||
+      capturingSessionRef.current ||
+      saveFailedVersion !== null
+    )
+      return;
     capturingSessionRef.current = true;
-    // 关键：只有当包含 z_c0 (登录 Token) 时才认为是有效的登录 Cookie
-    // 获取 httpOnly cookie，webview 注入 js 是不行的，需要原生支持
-    const capturingVersion = getAuthSessionVersion();
+    setCapturing(true);
     try {
-      const cookies = await CookieManager.get('https://www.zhihu.com', true);
-
-      if (abandonedRef.current || getAuthSessionVersion() !== capturingVersion)
+      useAuthStore.getState().setCookies(cookieString);
+      const loginSessionVersion = getAuthSessionVersion();
+      // Native writes are serialized and stop when this session changes.
+      try {
+        await syncNativeSessionCookies(cookieString);
+      } catch {
+        console.warn('⚠️ 无法同步原生登录会话');
+      }
+      if (
+        abandonedRef.current ||
+        getAuthSessionVersion() !== loginSessionVersion
+      )
         return;
 
-      // 合并 web_cookie (来自 document.cookie) 和 CookieManager 的结果
-      const mergedCookies: Record<string, string> = {};
-
-      // 1. 解析 web_cookie (document.cookie)
-      if (web_cookie) {
-        web_cookie.split(';').forEach((pair) => {
-          const [name, ...valueParts] = pair.trim().split('=');
-          if (name) {
-            mergedCookies[name] = valueParts.join('=');
-          }
-        });
-      }
-
-      // 2. 合并 CookieManager 的结果 (优先级更高)
-      if (cookies) {
-        Object.values(cookies).forEach((c) => {
-          mergedCookies[c.name] = c.value;
-        });
-      }
-
-      // 只有当包含 z_c0 (登录 Token) 时且不为空时才认为是有效的登录 Cookie
-      // 额外检查 __zse_ck 以确保环境验证成功 (知乎反爬字段)
-      const hasZc0 = !!mergedCookies.z_c0;
-      // const hasZseCk = !!mergedCookies['__zse_ck'];
-      const hasZseCk = true;
-      const hasDc0 = !!mergedCookies.d_c0;
-
-      console.log(
-        `📊 Cookie 状态: d_c0=${hasDc0}, z_c0=${hasZc0}, __zse_ck=${hasZseCk}`,
-      );
-
-      if (hasZc0 && hasZseCk) {
-        console.log('🍪 捕获到完整且合规的 Cookie');
-
-        // 生成最终的 Cookie 字符串
-        const cookieString = Object.entries(mergedCookies)
-          .map(([name, value]) => `${name}=${value}`)
-          .join('; ');
-
-        useAuthStore.getState().setCookies(cookieString);
-        const loginSessionVersion = getAuthSessionVersion();
-        // Native writes are serialized and stop when this session changes.
-        try {
-          await syncNativeSessionCookies(cookieString);
-        } catch {
-          console.warn('⚠️ 无法同步原生登录会话');
-        }
+      try {
+        const me = await getMe();
         if (
           abandonedRef.current ||
           getAuthSessionVersion() !== loginSessionVersion
         )
           return;
-
-        // 🟢 预抓取用户信息，确保账号列表立即完整
-        try {
-          const me = await getMe();
-          if (
-            abandonedRef.current ||
-            getAuthSessionVersion() !== loginSessionVersion
-          )
-            return;
-          if (me) {
-            const authState = useAuthStore.getState();
-            authState.addAccount(authState.cookies || cookieString, me);
-          }
-        } catch {
-          if (
-            abandonedRef.current ||
-            getAuthSessionVersion() !== loginSessionVersion
-          )
-            return;
-          console.error('⚠️ 预抓取用户信息失败（不影响登录）');
+        if (me) {
+          const authState = useAuthStore.getState();
+          authState.addAccount(authState.cookies || cookieString, me);
         }
-
-        await persistAndFinishLogin(getAuthSessionVersion());
-      } else if (hasZc0 && !hasZseCk) {
-        console.log('⚠️ 捕获到 z_c0 但缺失 __zse_ck，请在验证页面稍候...');
+      } catch {
+        if (
+          abandonedRef.current ||
+          getAuthSessionVersion() !== loginSessionVersion
+        )
+          return;
+        console.error('⚠️ 预抓取用户信息失败（不影响登录）');
       }
+
+      await persistAndFinishLogin(getAuthSessionVersion());
     } catch {
       if (!abandonedRef.current) {
-        console.error('❌ 获取 Cookie 失败');
         showToast('登录状态未更新，请先恢复已保存账号或稍后重试');
       }
     } finally {
       capturingSessionRef.current = false;
+      if (!abandonedRef.current) setCapturing(false);
     }
   };
+
+  const cookieCapture = useLoginCookieCapture(acceptLoginCookies);
 
   return (
     <View className="flex-1">
@@ -228,6 +182,7 @@ export default function LoginScreen() {
           className="p-2 rounded-full"
           onPress={() => {
             abandonedRef.current = true;
+            cookieCapture.cancel();
             if (router.canGoBack()) {
               router.back();
             } else {
@@ -240,45 +195,41 @@ export default function LoginScreen() {
           </Text>
         </BouncyButton>
         <Text className="text-base font-bold">登录知乎</Text>
-        <View className="w-10 bg-transparent" />
+        <BouncyButton
+          accessibilityRole="button"
+          disabled={capturing || saveFailedVersion !== null}
+          onPress={() => {
+            if (!capturingSessionRef.current) {
+              cookieCapture.cancel();
+              setLoginMode(loginMode === 'mobile' ? 'qr' : 'mobile');
+            }
+          }}
+          className="p-2"
+        >
+          <Text type="primary" className="text-base">
+            {loginMode === 'mobile' ? '扫码登录' : '手机登录'}
+          </Text>
+        </BouncyButton>
       </View>
 
-      <WebView<WebViewProps>
-        ref={webViewRef}
-        source={{ uri: 'https://www.zhihu.com/signin' }}
-        sharedCookiesEnabled={true}
-        incognito={false}
-        onMessage={(event: WebViewMessageEvent) => {
-          handleCookies(event.nativeEvent.data);
-        }}
-        onNavigationStateChange={(navState: WebViewNavigation) => {
-          const { url } = navState;
-          console.log('🌐 导航至:', sanitizeNavigationUrlForLog(url));
+      {loginMode === 'qr' && (
+        <Text className="px-4 py-2">
+          用另一台设备上的知乎 App 扫描网页二维码，可双指放大。
+        </Text>
+      )}
+      <OfficialLoginWebView
+        key={loginMode}
+        mode={loginMode}
+        onLoginRedirect={() => {
           if (
-            url === 'https://www.zhihu.com/' ||
-            url === 'https://www.zhihu.com'
+            !abandonedRef.current &&
+            !capturingSessionRef.current &&
+            saveFailedVersion === null
           ) {
-            webViewRef.current?.injectJavaScript(
-              `window.ReactNativeWebView.postMessage(document.cookie); true;`,
-            );
+            cookieCapture.start();
           }
         }}
-        onLoadStart={() => setLoading(true)}
-        onLoadEnd={() => setLoading(false)}
       />
-
-      {loading && (
-        <View
-          pointerEvents="none"
-          className="justify-center items-center"
-          style={{
-            ...StyleSheet.absoluteFill,
-            backgroundColor: 'rgba(0,0,0,0.3)',
-          }}
-        >
-          <ActivityIndicator size="large" color={primaryColor} />
-        </View>
-      )}
     </View>
   );
 }

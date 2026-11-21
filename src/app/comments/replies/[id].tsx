@@ -45,7 +45,10 @@ import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { usePaneDimensions } from '@/features/adaptive-layout/PaneContext';
 import { useCommentKeyboardLayout } from '@/hooks/useCommentKeyboardLayout';
-import { useCommentRepliesQuery } from '@/hooks/useCommentQueries';
+import {
+  useCommentRepliesQuery,
+  useCommentStickers,
+} from '@/hooks/useCommentQueries';
 import { useParentComment } from '@/hooks/useParentComment';
 import {
   KeyboardAnchorNativeView,
@@ -125,6 +128,8 @@ export default function ReplyDetailScreen() {
     hasNextPage,
     fetchNextPage,
   } = useCommentRepliesQuery(id);
+
+  const stickers = useCommentStickers(replies, parentComment);
 
   const totalCount =
     repliesData?.pages?.[0]?.counts?.total_counts ??
@@ -287,7 +292,11 @@ export default function ReplyDetailScreen() {
               )}
             </Text>
             <View className="mt-1 bg-transparent">
-              <CommentContent htmlContent={item.content} width={contentWidth} />
+              <CommentContent
+                stickers={stickers}
+                htmlContent={item.content}
+                width={contentWidth}
+              />
             </View>
 
             <View className="flex-row justify-between items-center bg-transparent">
@@ -398,6 +407,7 @@ export default function ReplyDetailScreen() {
             </View>
             <View className="mt-1 bg-transparent">
               <CommentContent
+                stickers={stickers}
                 htmlContent={parentComment.content}
                 width={contentWidth}
               />

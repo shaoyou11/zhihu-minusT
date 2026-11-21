@@ -2,6 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -60,6 +61,11 @@ import {
 import { flowLayoutIdentity } from '../flowLayout';
 import { DAILY_AVATAR_SIZE, type RichContentVariant } from '../imagePolicy';
 import {
+  type NativePartBatch,
+  prepareNativeParts,
+  shouldPrepareNativePartsProgressively,
+} from '../nativePartPreparation';
+import {
   normalizeZhihuContentSegments,
   normalizeZhihuDocument,
 } from '../normalization/normalizeZhihuDocument';
@@ -71,8 +77,10 @@ import {
 import type {
   RichTextDecoration,
   RichTextFlow,
+  RichTextPart,
   RichTextSelectionMapping,
 } from '../richText';
+import { segmentCommentIcon } from '../segmentCommentIcon';
 import type { RichContentLoadingPhase, RichContentObjectType } from '../types';
 import { NativeTable } from './NativeTable';
 
@@ -140,6 +148,13 @@ export interface ZhihuNativeContentProps {
   renderFallback: () => React.ReactNode;
   /** Keep the host's preview visible until the native layout is measured. */
   renderPlaceholder?: (phase: RichContentLoadingPhase) => React.ReactNode;
+  /** Stage long documents at their existing native selection boundaries. */
+  progressive?: boolean;
+  /** Keep an adjacent pager page warm without compiling its offscreen tail. */
+  pauseProgressiveTail?: boolean;
+  /** Read immediately before each tail batch. Hosts stop expanding after the first reader interaction. */
+  canExpandProgressiveTail?: () => boolean;
+  onFirstContentLayout?: () => void;
   onLayoutReady?: () => void;
   /** Exact inner width already known by the host, before the first onLayout. */
   initialContentWidth?: number;
@@ -212,8 +227,11 @@ function blockText(block: ZhihuBlock): string {
   }
 }
 
+const defaultTypography: ZhihuNativeTypographyOptions = {};
+
 interface FlowViewProps {
   flow: RichTextFlow;
+  manualImages: boolean;
   contentWidth: number;
   configJson: string;
   fontSize: number;
@@ -225,6 +243,7 @@ interface FlowViewProps {
   onSelection: (event: FlowEvent, flow: RichTextFlow) => void;
   onAction: (event: ActionEvent, flow: RichTextFlow) => void;
   onMeasured?: (flow: RichTextFlow) => void;
+  pendingNested?: Set<RichTextFlow>;
 }
 
 const measuredFlowHeights = new Map<string, number>();
@@ -239,6 +258,7 @@ function flowMeasureKey(
 
 const NativeFlow = React.memo(function NativeFlow({
   flow,
+  manualImages,
   contentWidth,
   configJson,
   fontSize,
@@ -250,7 +270,25 @@ const NativeFlow = React.memo(function NativeFlow({
   onSelection,
   onAction,
   onMeasured,
+  pendingNested,
 }: FlowViewProps) {
+  const [requested, setRequested] = useState<{
+    flow: RichTextFlow;
+    ids: ReadonlySet<string>;
+  } | null>(null);
+  const attachments = useMemo(
+    () =>
+      manualImages
+        ? flow.attachments.map((item) =>
+            item.kind === 'image' &&
+            item.role !== 'avatar' &&
+            !(requested?.flow === flow && requested.ids.has(item.id))
+              ? { ...item, url: undefined }
+              : item,
+          )
+        : flow.attachments,
+    [flow, manualImages, requested],
+  );
   const flowJson = useMemo(
     () =>
       JSON.stringify({
@@ -259,7 +297,7 @@ const NativeFlow = React.memo(function NativeFlow({
         text: flow.text,
         spans: flow.spans,
         paragraphs: flow.paragraphs,
-        attachments: flow.attachments,
+        attachments,
         // Source mapping remains in JS; neither native backend consumes it.
         decorations:
           options.decorations === false
@@ -270,7 +308,7 @@ const NativeFlow = React.memo(function NativeFlow({
                 kind: options.decorationKind || decoration.kind,
               })),
       }),
-    [flow, linkColor, options.decorationKind, options.decorations],
+    [attachments, flow, linkColor, options.decorationKind, options.decorations],
   );
   const measureKey = flowMeasureKey(flow, contentWidth, configJson);
   const geometryKey = useMemo(
@@ -288,10 +326,22 @@ const NativeFlow = React.memo(function NativeFlow({
       ? { key: measureKey, geometryKey, height, verified: false }
       : null;
   });
-  const currentInput = useRef({ flow, measureKey });
-  currentInput.current = { flow, measureKey };
+  const verifiedGeometry =
+    measuredHeight?.verified === true &&
+    measuredHeight.geometryKey === geometryKey;
+  const currentInput = useRef({ flow, measureKey, onMeasured, pendingNested });
+  useLayoutEffect(() => {
+    currentInput.current = { flow, measureKey, onMeasured, pendingNested };
+    // These views are discovered as the block renders, with its actual cell or
+    // caption width. Register at commit, before any native layout event arrives.
+    if (!pendingNested || verifiedGeometry) return;
+    pendingNested.add(flow);
+    return () => {
+      pendingNested.delete(flow);
+    };
+  }, [flow, measureKey, onMeasured, pendingNested, verifiedGeometry]);
   const mounted = useRef(true);
-  useEffect(() => {
+  useLayoutEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
@@ -344,7 +394,9 @@ const NativeFlow = React.memo(function NativeFlow({
               measuredFlowHeights.keys().next().value || '',
             );
           measuredFlowHeights.set(measureKey, event.height);
-          onMeasured?.(flow);
+          const current = currentInput.current;
+          current.pendingNested?.delete(current.flow);
+          current.onMeasured?.(current.flow);
         }
       }}
       onSelectionChange={(raw) => {
@@ -352,8 +404,30 @@ const NativeFlow = React.memo(function NativeFlow({
           onSelection(eventPayload(raw), flow);
       }}
       onAction={(raw) => {
-        if (mounted.current && currentInput.current.flow === flow)
-          onAction(eventPayload(raw), flow);
+        if (!mounted.current || currentInput.current.flow !== flow) return;
+        const event = eventPayload(raw);
+        if (event.flowId !== flow.id || event.textVersion !== flow.textVersion)
+          return;
+        if (
+          manualImages &&
+          (event.kind === 'attachment' ||
+            event.kind === 'attachmentLongPress') &&
+          attachments.some(
+            (item) =>
+              item.id === event.id && item.kind === 'image' && !item.url,
+          )
+        ) {
+          if (event.kind === 'attachment') {
+            setRequested((previous) => ({
+              flow,
+              ids: new Set(previous?.flow === flow ? previous.ids : []).add(
+                event.id,
+              ),
+            }));
+          }
+          return;
+        }
+        onAction(event, flow);
       }}
     />
   );
@@ -401,6 +475,8 @@ function FormulaBlock({
 }
 
 interface BlockViewProps {
+  manualImages: boolean;
+  enableSegmentTap?: boolean;
   block: ZhihuBlock;
   width: number;
   fontSize: number;
@@ -422,6 +498,8 @@ interface BlockViewProps {
   renderLinkCard?: (card: ZhihuLinkCardBlock) => React.ReactNode;
   textAlign?: 'left' | 'center' | 'right';
   followsEmptyParagraph?: boolean;
+  pendingNested?: Set<RichTextFlow>;
+  onNestedMeasured?: () => void;
 }
 
 function isEmptyParagraph(block: ZhihuBlock | undefined): boolean {
@@ -429,7 +507,13 @@ function isEmptyParagraph(block: ZhihuBlock | undefined): boolean {
 }
 
 function NativeParagraph(props: BlockViewProps) {
-  const { block, fontSize, lineHeight, followsEmptyParagraph } = props;
+  const {
+    block,
+    fontSize,
+    lineHeight,
+    followsEmptyParagraph,
+    enableSegmentTap,
+  } = props;
   const compiled = useMemo(
     () =>
       compileZhihuDocument(
@@ -439,9 +523,10 @@ function NativeParagraph(props: BlockViewProps) {
           lineHeight,
           paragraphSpacing: 0,
           continuesEmptyParagraph: followsEmptyParagraph,
+          enableSegmentTap,
         },
       ),
-    [block, fontSize, lineHeight, followsEmptyParagraph],
+    [block, fontSize, lineHeight, followsEmptyParagraph, enableSegmentTap],
   );
   const configJson = useMemo(() => {
     const config: unknown = JSON.parse(props.configJson);
@@ -468,6 +553,7 @@ function NativeParagraph(props: BlockViewProps) {
           <NativeFlow
             key={part.flow.id}
             flow={part.flow}
+            manualImages={props.manualImages}
             contentWidth={props.width}
             configJson={configJson}
             fontSize={fontSize}
@@ -478,6 +564,8 @@ function NativeParagraph(props: BlockViewProps) {
             linkColor={props.linkColor}
             onSelection={(event, flow) => props.onFlowSelection?.(event, flow)}
             onAction={props.onFlowAction}
+            pendingNested={props.pendingNested}
+            onMeasured={props.onNestedMeasured}
           />
         ) : null,
       )}
@@ -513,9 +601,10 @@ function useLongImageCrop(
   return result?.key === key ? result.crop : undefined;
 }
 
-function NativeBlock(props: BlockViewProps) {
+const NativeBlock = React.memo(function NativeBlockView(props: BlockViewProps) {
   const {
     block,
+    manualImages,
     width,
     fontSize,
     lineHeight,
@@ -528,6 +617,18 @@ function NativeBlock(props: BlockViewProps) {
     onImage,
     onImageLongPress,
   } = props;
+  const [requestedImageUri, setRequestedImageUri] = useState<string | null>(
+    null,
+  );
+  const imageUri =
+    block.type === 'image'
+      ? block.resource.offlineUri || block.resource.url
+      : null;
+  const deferImage =
+    block.type === 'image' &&
+    block.role !== 'avatar' &&
+    manualImages &&
+    requestedImageUri !== imageUri;
   const [failedImageUri, setFailedImageUri] = useState<string | null>(null);
   const [naturalImageSize, setNaturalImageSize] = useState<{
     uri: string;
@@ -546,7 +647,7 @@ function NativeBlock(props: BlockViewProps) {
       ? (block.resource.originalUrl ?? block.resource.url)
       : null;
   const longImage = useLongImageCrop(
-    longImageUrl,
+    deferImage ? null : longImageUrl,
     PixelRatio.getPixelSizeForLayoutSize(width),
   );
   const textStyle = { color: textColor, fontSize, lineHeight };
@@ -574,10 +675,14 @@ function NativeBlock(props: BlockViewProps) {
       return (
         <View style={[styles.block, { width }]}>
           <Pressable
-            onPress={() => onImage?.(uri)}
-            onLongPress={() => onImageLongPress?.(uri)}
-            accessibilityRole="imagebutton"
-            accessibilityLabel={block.alt || '正文图片'}
+            onPress={() =>
+              deferImage ? setRequestedImageUri(uri) : onImage?.(uri)
+            }
+            onLongPress={deferImage ? undefined : () => onImageLongPress?.(uri)}
+            accessibilityRole={deferImage ? 'button' : 'imagebutton'}
+            accessibilityLabel={
+              deferImage ? '点击加载图片' : block.alt || '正文图片'
+            }
             style={
               block.role === 'avatar'
                 ? {
@@ -589,7 +694,22 @@ function NativeBlock(props: BlockViewProps) {
                 : undefined
             }
           >
-            {failedImageUri === uri ? (
+            {deferImage ? (
+              <View
+                style={[
+                  styles.deferredImage,
+                  {
+                    width: imageWidth,
+                    height: longImageUrl
+                      ? imageWidth * LONG_IMAGE_CROP_ASPECT
+                      : imageHeight,
+                    backgroundColor: surfaceColor,
+                  },
+                ]}
+              >
+                <Text style={{ color: secondaryColor }}>点击加载图片</Text>
+              </View>
+            ) : failedImageUri === uri ? (
               <View
                 style={[
                   styles.imageFallback,
@@ -723,7 +843,7 @@ function NativeBlock(props: BlockViewProps) {
             pointerEvents="none"
             style={[styles.videoCover, { backgroundColor: surfaceColor }]}
           >
-            {block.poster ? (
+            {block.poster && !manualImages ? (
               <Image
                 testID="rich-content-video-cover"
                 source={getCachedImageSource(
@@ -776,7 +896,7 @@ function NativeBlock(props: BlockViewProps) {
           >
             {block.url}
           </Text>
-          {block.image ? (
+          {block.image && !manualImages ? (
             <Image
               source={getCachedImageSource(block.image.url)}
               style={{ width: width - 26, height: 120 }}
@@ -914,6 +1034,35 @@ function NativeBlock(props: BlockViewProps) {
         </Text>
       );
   }
+});
+
+const NativePartGroup = React.memo(function NativePartGroup({
+  parts,
+  renderPart,
+}: {
+  parts: readonly RichTextPart[];
+  renderPart: (part: RichTextPart) => React.ReactElement;
+}) {
+  return <>{parts.map(renderPart)}</>;
+});
+
+function pendingFlowMeasurements(
+  batch: NativePartBatch,
+  measured: ReadonlyMap<string, string>,
+  width: number,
+  configJson: string,
+) {
+  let hasText = false;
+  const pending = new Set<string>();
+  for (const group of batch.groups) {
+    for (const part of group) {
+      if (part.type !== 'flow') continue;
+      hasText = true;
+      const key = flowMeasureKey(part.flow, width, configJson);
+      if (measured.get(part.flow.id) !== key) pending.add(key);
+    }
+  }
+  return { hasText, pending };
 }
 
 type NativeDocumentInput = Pick<
@@ -953,7 +1102,7 @@ export const ZhihuNativeContent = React.memo(function ZhihuNativeContent(
     () => JSON.stringify(props.contentArray),
     [props.contentArray],
   );
-  const source = useRef({
+  const committedSource = useRef({
     identity,
     content: props.content,
     arraySignature,
@@ -961,23 +1110,27 @@ export const ZhihuNativeContent = React.memo(function ZhihuNativeContent(
     document: props.document,
     revision: 0,
   });
+  let source = committedSource.current;
   if (
-    source.current.identity !== identity ||
-    source.current.content !== props.content ||
-    source.current.arraySignature !== arraySignature ||
-    source.current.document !== props.document
+    source.identity !== identity ||
+    source.content !== props.content ||
+    source.arraySignature !== arraySignature ||
+    source.document !== props.document
   ) {
-    source.current = {
+    source = {
       identity,
       content: props.content,
       arraySignature,
       contentArray: props.contentArray,
       document: props.document,
-      revision: source.current.revision + 1,
+      revision: source.revision + 1,
     };
   }
+  useLayoutEffect(() => {
+    committedSource.current = source;
+  }, [source]);
   // Equivalent JSON from a fresh response must not invalidate native layout.
-  const contentArray = source.current.contentArray;
+  const contentArray = source.contentArray;
   const input = useMemo(
     () => ({
       content: props.content,
@@ -1000,12 +1153,10 @@ export const ZhihuNativeContent = React.memo(function ZhihuNativeContent(
       props.linkCardInfo,
     ],
   );
-  const revision = source.current.revision;
+  const revision = source.revision;
   const [ready, setReady] = useState<ReadyNativeDocument | null>(null);
   const displayed = ready?.identity === identity ? ready : null;
   const replacing = displayed !== null && displayed.revision !== revision;
-  const current = useRef({ identity, revision });
-  current.current = { identity, revision };
 
   useEffect(() => {
     setReady((previous) =>
@@ -1017,15 +1168,30 @@ export const ZhihuNativeContent = React.memo(function ZhihuNativeContent(
     );
   }, [identity, revision, input]);
 
-  const onReady = useCallback(() => {
+  const rememberVisible = useCallback(() => {
     if (
-      current.current.identity !== identity ||
-      current.current.revision !== revision
+      committedSource.current.identity !== identity ||
+      committedSource.current.revision !== revision
     )
       return;
-    setReady({ identity, revision, input });
+    setReady((previous) =>
+      previous?.identity === identity && previous.revision === revision
+        ? previous
+        : { identity, revision, input },
+    );
+    props.onFirstContentLayout?.();
+  }, [identity, revision, input, props.onFirstContentLayout]);
+
+  const onReady = useCallback(() => {
+    if (
+      committedSource.current.identity !== identity ||
+      committedSource.current.revision !== revision
+    )
+      return;
+    // A refresh is completely measured offscreen before its first visible frame.
+    if (replacing) rememberVisible();
     props.onLayoutReady?.();
-  }, [identity, revision, input, props.onLayoutReady]);
+  }, [identity, revision, replacing, rememberVisible, props.onLayoutReady]);
 
   if (!isRichTextNativeAvailable()) return <>{props.renderFallback()}</>;
 
@@ -1045,8 +1211,8 @@ export const ZhihuNativeContent = React.memo(function ZhihuNativeContent(
         const visible = !replacing || !latest;
         const interactive = latest && visible;
         const isCurrent = () =>
-          current.current.identity === layer.identity &&
-          current.current.revision === layer.revision;
+          committedSource.current.identity === layer.identity &&
+          committedSource.current.revision === layer.revision;
         return (
           <View
             key={`${layer.identity}:${layer.revision}`}
@@ -1064,6 +1230,7 @@ export const ZhihuNativeContent = React.memo(function ZhihuNativeContent(
             <NativeDocumentContent
               {...props}
               {...layer.input}
+              revision={layer.revision}
               initialContentWidth={
                 measuredHostWidth.current?.windowWidth === windowWidth
                   ? measuredHostWidth.current.width
@@ -1071,6 +1238,8 @@ export const ZhihuNativeContent = React.memo(function ZhihuNativeContent(
               }
               interactive={interactive}
               selectable={interactive && props.selectable !== false}
+              pauseProgressiveTail={!latest || props.pauseProgressiveTail}
+              onFirstContentLayout={interactive ? rememberVisible : undefined}
               onLayoutReady={latest ? onReady : undefined}
               onLinkPress={
                 interactive
@@ -1112,6 +1281,7 @@ export const ZhihuNativeContent = React.memo(function ZhihuNativeContent(
 
 /** Native V2 text flows with React Native media boundaries. */
 const NativeDocumentContent = React.memo(function NativeDocumentContent({
+  revision,
   content,
   contentArray,
   document,
@@ -1124,7 +1294,7 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
   suppressDoubleTapSelection = false,
   fontSizeScale,
   lineHeightScale,
-  options = {},
+  options = defaultTypography,
   onLinkPress,
   onImagePress,
   onImageLongPress,
@@ -1133,12 +1303,17 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
   renderLinkCard,
   renderFallback,
   renderPlaceholder,
+  progressive = false,
+  pauseProgressiveTail = false,
+  canExpandProgressiveTail,
+  onFirstContentLayout,
   onLayoutReady,
   initialContentWidth,
   interactive = true,
-}: ZhihuNativeContentProps & { interactive?: boolean }) {
+}: ZhihuNativeContentProps & { revision: number; interactive?: boolean }) {
   const dimensions = useWindowDimensions();
   const settings = useSettingsStore();
+  const manualImages = settings.imageLoadingMode === 'manual';
   const themeColors = useRuntimeThemeColors();
   const textColor = themeColors.text;
   const secondaryColor = themeColors.textSecondary;
@@ -1177,6 +1352,8 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
   );
   const { fontSize, lineHeight } = metrics.body;
   const scaledEm = fontSize * dimensions.fontScale;
+  const enableSegmentTap =
+    type !== 'answer' || settings.enableSegmentTap !== false;
   const width =
     options.integerMeasure && availableWidth > 0
       ? Math.max(scaledEm, Math.floor(availableWidth / scaledEm) * scaledEm)
@@ -1204,101 +1381,90 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
     type,
     variant,
   ]);
-  const compiled = useMemo(() => {
-    const result = compileZhihuDocument(normalized.document, {
+  const gradual = useMemo(
+    () =>
+      progressive &&
+      shouldPrepareNativePartsProgressively(
+        normalized.document,
+        content.length,
+      ),
+    [progressive, normalized.document, content.length],
+  );
+  // Estimate only when starting a compiler. A keyboard/viewport resize must not
+  // restart a live cursor; native measurements still follow the actual width.
+  const viewportHint = useRef({ width: 0, height: 0, fontScale: 1 });
+  viewportHint.current = {
+    width: availableWidth || dimensions.width,
+    height: dimensions.height,
+    fontScale: dimensions.fontScale,
+  };
+  const committedPartCount = useRef(0);
+  const compiled = useMemo(
+    () =>
+      prepareNativeParts(
+        normalized.document,
+        {
+          fontSize,
+          lineHeight,
+          enableSegmentTap,
+          paragraphSpacing: RICH_CONTENT_PARAGRAPH_SPACING,
+        },
+        gradual,
+        committedPartCount.current,
+        Boolean(document),
+        viewportHint.current,
+      ),
+    [
+      normalized.document,
       fontSize,
       lineHeight,
-      paragraphSpacing: RICH_CONTENT_PARAGRAPH_SPACING,
-    });
-    if (!document) return result;
-    // Supplied JSON documents can map images to bundled resources. Keep their
-    // remote identity in the document while native loads the explicit local URI.
-    const localUris = new Map<string, string>();
-    for (const node of walkZhihuDocument(document)) {
-      const resource =
-        node.type === 'inlineImage'
-          ? node.resource
-          : node.type === 'inlineFormula'
-            ? node.formula.image
-            : undefined;
-      if (resource?.offlineUri) localUris.set(node.id, resource.offlineUri);
-    }
-    if (localUris.size === 0) return result;
-    return {
-      ...result,
-      parts: result.parts.map((part) =>
-        part.type !== 'flow'
-          ? part
-          : {
-              ...part,
-              flow: {
-                ...part.flow,
-                attachments: part.flow.attachments.map((attachment) => {
-                  const uri = localUris.get(attachment.nodeId);
-                  return uri ? { ...attachment, url: uri } : attachment;
-                }),
-              },
-            },
-      ),
-    };
-  }, [document, fontSize, lineHeight, normalized.document]);
-  const documentRevision = useRef({
-    content,
-    contentArray,
-    document,
-    objectId,
-    type,
-    variant,
-    version: 0,
-  });
-  if (
-    documentRevision.current.content !== content ||
-    documentRevision.current.contentArray !== contentArray ||
-    documentRevision.current.document !== document ||
-    documentRevision.current.objectId !== objectId ||
-    documentRevision.current.type !== type ||
-    documentRevision.current.variant !== variant
-  ) {
-    documentRevision.current = {
-      content,
-      contentArray,
+      enableSegmentTap,
+      gradual,
       document,
-      objectId,
-      type,
-      variant,
-      version: documentRevision.current.version + 1,
-    };
-  }
-  const currentCompilation = useRef(compiled);
-  currentCompilation.current = compiled;
-  const { previewImages, previewOriginals } = useMemo(() => {
-    const images = getZhihuDocumentPreviewImages(normalized.document);
-    return {
-      previewImages: images.map((image) => image.url),
-      previewOriginals: images.map((image) => image.originalUrl),
-    };
+    ],
+  );
+  const [continuation, setContinuation] = useState<{
+    compiled: typeof compiled;
+    batch: NativePartBatch;
+  } | null>(null);
+  useEffect(() => {
+    setContinuation((previous) =>
+      previous && previous.compiled !== compiled ? null : previous,
+    );
+  }, [compiled]);
+  const batch =
+    continuation?.compiled === compiled ? continuation.batch : compiled.first;
+  const getGallery = useMemo(() => {
+    let images: ReturnType<typeof getZhihuDocumentPreviewImages> | undefined;
+    return () =>
+      (images ??= getZhihuDocumentPreviewImages(normalized.document));
   }, [normalized.document]);
   const handleImage = useCallback(
-    (url: string) => onImagePress?.(url, previewImages, previewOriginals),
-    [onImagePress, previewImages, previewOriginals],
+    (url: string) => {
+      if (!onImagePress) return;
+      const images = getGallery();
+      onImagePress(
+        url,
+        images.map((image) => image.url),
+        images.map((image) => image.originalUrl),
+      );
+    },
+    [onImagePress, getGallery],
   );
-  const measuredFlowsRef = useRef(new Map<string, string>());
-  const measuredBodyKeyRef = useRef<string | null>(null);
-  const [revealedLayout, setRevealedLayout] = useState<{ key: string } | null>(
-    null,
-  );
-  const revealedGeometryRef = useRef<string | null>(null);
-  const notifiedLayoutRef = useRef<{
-    compiled: typeof compiled;
-    key: string;
-  } | null>(null);
-  const segments = useMemo(() => {
-    const map = new Map<string, ZhihuSegmentRun | ZhihuSegmentHighlightRun>();
-    for (const node of walkZhihuDocument(normalized.document)) {
-      if (node.type === 'segment' || node.type === 'segmentHighlight')
-        map.set(node.id, node);
-    }
-    return map;
+  const getSegment = useMemo(() => {
+    let segments:
+      | Map<string, ZhihuSegmentRun | ZhihuSegmentHighlightRun>
+      | undefined;
+    return (id: string) => {
+      if (!segments) {
+        segments = new Map();
+        for (const node of walkZhihuDocument(normalized.document)) {
+          if (node.type === 'segment' || node.type === 'segmentHighlight')
+            segments.set(node.id, node);
+        }
+      }
+      return segments.get(id);
+    };
   }, [normalized.document]);
   const configJson = useMemo(
     () =>
@@ -1311,6 +1477,7 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
         linkColor,
         justify: options.justify ?? false,
         fontScale: dimensions.fontScale,
+        commentIcon: segmentCommentIcon,
       }),
     [
       fontSize,
@@ -1322,83 +1489,166 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
       dimensions.fontScale,
     ],
   );
-  const documentLayoutSuffix = `${configJson}:${compiled.parts
-    .filter((part) => part.type === 'flow')
-    .map((part) => `${part.flow.id}:${part.flow.textVersion}`)
-    .join('|')}`;
-  const documentLayoutPrefix = `${normalized.document.id}:${documentRevision.current.version}`;
-  const documentLayoutKey = `${documentLayoutPrefix}:${width}:${documentLayoutSuffix}`;
-  const documentGeometryKey = `${documentLayoutPrefix}:${width}:${configJson}`;
-  const geometrySourceRef = useRef(documentGeometryKey);
-  if (geometrySourceRef.current !== documentGeometryKey) {
-    geometrySourceRef.current = documentGeometryKey;
-    revealedGeometryRef.current = null;
-    measuredFlowsRef.current = new Map();
-    measuredBodyKeyRef.current = null;
-    notifiedLayoutRef.current = null;
-  }
-  const currentLayout = useRef({ compiled, key: documentLayoutKey });
-  currentLayout.current = { compiled, key: documentLayoutKey };
-  const notifyLayoutReady = useCallback(
-    (key: string) => {
-      if (currentCompilation.current !== compiled) return;
-      // Keep the body and host-width confirmation on the same geometry.
-      geometrySourceRef.current = key;
-      if (revealedGeometryRef.current !== key) {
-        revealedGeometryRef.current = key;
-        setRevealedLayout({ key });
-      }
-      if (notifiedLayoutRef.current?.key === key) return;
-      notifiedLayoutRef.current = { compiled, key };
-      onLayoutReady?.();
-    },
-    [compiled, onLayoutReady],
+  const documentLayoutPrefix = `${normalized.document.id}:${revision}`;
+  // Integer measurement can keep the text width fixed while captions and
+  // other blocks resize. Reuse only the still-valid top-level flow heights.
+  const textGeometry = useMemo(
+    () => ({
+      key: `${documentLayoutPrefix}:${width}:${configJson}`,
+      flows: new Map<string, string>(),
+    }),
+    [documentLayoutPrefix, width, configJson],
   );
+  // A suspended render may prepare a new geometry while the visible one is
+  // still receiving native events. Each owns its measurements until commit.
+  const geometry = useMemo(
+    () => ({
+      key: `${textGeometry.key}:${availableWidth}`,
+      flows: textGeometry.flows,
+      firstNested: new Set<RichTextFlow>(),
+      tailNested: new Set<RichTextFlow>(),
+      bodyMeasured: false,
+      endMeasured: false,
+      revealed: false,
+      notified: false,
+    }),
+    [textGeometry, availableWidth],
+  );
+  const [revealedLayout, setRevealedLayout] = useState<typeof geometry | null>(
+    null,
+  );
+  const committed = useRef({ compiled, batch, geometry });
+  useLayoutEffect(() => {
+    committed.current = { compiled, batch, geometry };
+    committedPartCount.current = batch.count;
+  }, [compiled, batch, geometry]);
+
+  const initialParts = useMemo(
+    () => (compiled.first.done ? null : new Set(compiled.first.groups.flat())),
+    [compiled],
+  );
+  const firstMeasurements = useMemo(
+    () =>
+      pendingFlowMeasurements(
+        compiled.first,
+        geometry.flows,
+        width,
+        configJson,
+      ),
+    [compiled, geometry, width, configJson],
+  );
+  const completeMeasurements = useMemo(
+    () =>
+      !batch.done
+        ? null
+        : batch === compiled.first
+          ? firstMeasurements
+          : pendingFlowMeasurements(batch, geometry.flows, width, configJson),
+    [batch, compiled, firstMeasurements, geometry, width, configJson],
+  );
+  const measurements = useRef({
+    first: firstMeasurements,
+    complete: completeMeasurements,
+  });
+  useLayoutEffect(() => {
+    // Native may have measured the visible tree since React started this render.
+    for (const key of geometry.flows.values()) {
+      firstMeasurements.pending.delete(key);
+      completeMeasurements?.pending.delete(key);
+    }
+    measurements.current = {
+      first: firstMeasurements,
+      complete: completeMeasurements,
+    };
+  }, [geometry, firstMeasurements, completeMeasurements]);
+
+  const checkLayout = useCallback(() => {
+    if (
+      committed.current.compiled !== compiled ||
+      committed.current.geometry !== geometry ||
+      measuredContainerWidthRef.current !== availableWidth ||
+      availableWidth <= 0
+    )
+      return;
+
+    const { first, complete } = measurements.current;
+    if (!geometry.revealed) {
+      const firstMeasured = first.hasText
+        ? first.pending.size === 0
+        : geometry.bodyMeasured;
+      if (!firstMeasured || geometry.firstNested.size > 0) return;
+      geometry.revealed = true;
+      setRevealedLayout(geometry);
+      onFirstContentLayout?.();
+    }
+
+    if (
+      complete?.pending.size === 0 &&
+      geometry.firstNested.size === 0 &&
+      geometry.tailNested.size === 0 &&
+      !geometry.notified &&
+      (compiled.first.done || geometry.endMeasured)
+    ) {
+      geometry.notified = true;
+      onLayoutReady?.();
+    }
+  }, [compiled, geometry, availableWidth, onFirstContentLayout, onLayoutReady]);
+
+  useLayoutEffect(checkLayout, [checkLayout]);
+
   const onFlowMeasured = useCallback(
     (flow: RichTextFlow) => {
       if (
-        currentLayout.current.compiled !== compiled ||
-        currentLayout.current.key !== documentLayoutKey
+        committed.current.compiled !== compiled ||
+        committed.current.geometry !== geometry
       )
         return;
-      measuredFlowsRef.current.set(
-        flow.id,
-        flowMeasureKey(flow, width, configJson),
-      );
-      if (
-        measuredContainerWidthRef.current === availableWidth &&
-        compiled.parts.every(
-          (part) =>
-            part.type !== 'flow' ||
-            measuredFlowsRef.current.get(part.flow.id) ===
-              flowMeasureKey(part.flow, width, configJson),
-        )
-      ) {
-        // Notify in the same event batch that reveals the body. The host's
-        // content-size handler must already consider this layout ready.
-        notifyLayoutReady(documentGeometryKey);
-      }
+      const key = flowMeasureKey(flow, width, configJson);
+      geometry.flows.set(flow.id, key);
+      measurements.current.first.pending.delete(key);
+      measurements.current.complete?.pending.delete(key);
+      checkLayout();
     },
-    [
-      availableWidth,
-      compiled,
-      documentLayoutKey,
-      documentGeometryKey,
-      notifyLayoutReady,
-      width,
-      configJson,
-    ],
+    [compiled, geometry, width, configJson, checkLayout],
   );
   const initialLayoutReady =
-    measuredContainerWidth === availableWidth &&
-    revealedGeometryRef.current === documentGeometryKey &&
-    revealedLayout?.key === documentGeometryKey;
+    measuredContainerWidth === availableWidth && revealedLayout === geometry;
+  useEffect(() => {
+    if (!initialLayoutReady || pauseProgressiveTail || batch.done) return;
+    let active = true;
+    const frame = requestAnimationFrame(() => {
+      if (
+        !active ||
+        committed.current.geometry !== geometry ||
+        committed.current.compiled !== compiled ||
+        committed.current.batch !== batch
+      )
+        return;
+      const allowLargerBatch =
+        Platform.OS === 'android' && canExpandProgressiveTail?.() === true;
+      setContinuation({
+        compiled,
+        batch: compiled.next(batch, allowLargerBatch),
+      });
+    });
+    return () => {
+      active = false;
+      cancelAnimationFrame(frame);
+    };
+  }, [
+    batch,
+    compiled,
+    geometry,
+    initialLayoutReady,
+    pauseProgressiveTail,
+    canExpandProgressiveTail,
+  ]);
   // A known width hint can start native layout, but still needs confirmation
   // from this container. Content-only layouts don't wait for media downloads.
   const loadingPhase: RichContentLoadingPhase =
     availableWidth <= 0 || measuredContainerWidth !== availableWidth
       ? 'container-layout'
-      : compiled.parts.some((part) => part.type === 'flow')
+      : firstMeasurements.hasText
         ? 'text-layout'
         : 'content-layout';
   const handleLink = useCallback(
@@ -1422,7 +1672,7 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
   );
   const handleSelection = useCallback(
     (event: FlowEvent, flow: RichTextFlow) => {
-      if (currentCompilation.current !== compiled) return;
+      if (committed.current.compiled !== compiled) return;
       if (event.flowId !== flow.id || event.textVersion !== flow.textVersion)
         return;
       if (event.start === -1 && event.end === -1) {
@@ -1454,7 +1704,7 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
   );
   const handleAction = useCallback(
     (event: ActionEvent, flow: RichTextFlow) => {
-      if (currentCompilation.current !== compiled) return;
+      if (committed.current.compiled !== compiled) return;
       if (event.flowId !== flow.id || event.textVersion !== flow.textVersion)
         return;
       if (event.kind === 'link') {
@@ -1468,7 +1718,7 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
           (candidate) => candidate.actionId === event.id,
         );
         if (!decoration) return;
-        const segment = segments.get(event.id);
+        const segment = getSegment(event.id);
         const mapping = mapRichTextSelection(
           flow,
           decoration.start,
@@ -1507,7 +1757,86 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
       handleImage,
       onSegmentPress,
       normalized.document,
-      segments,
+      getSegment,
+    ],
+  );
+  const renderPart = useCallback(
+    (part: RichTextPart) =>
+      part.type === 'flow' ? (
+        <NativeFlow
+          key={part.flow.id}
+          flow={part.flow}
+          manualImages={manualImages}
+          contentWidth={width}
+          configJson={configJson}
+          fontSize={fontSize}
+          lineHeight={lineHeight}
+          selectable={selectable}
+          suppressDoubleTapSelection={suppressDoubleTapSelection}
+          options={options}
+          linkColor={linkColor}
+          onSelection={handleSelection}
+          onAction={handleAction}
+          onMeasured={onFlowMeasured}
+        />
+      ) : (
+        <NativeBlock
+          key={part.block.id}
+          block={part.block}
+          manualImages={manualImages}
+          enableSegmentTap={enableSegmentTap}
+          width={availableWidth}
+          fontSize={fontSize}
+          lineHeight={lineHeight}
+          textColor={textColor}
+          secondaryColor={secondaryColor}
+          linkColor={linkColor}
+          surfaceColor={surfaceColor}
+          borderColor={borderColor}
+          onLink={handleLink}
+          onImage={handleImage}
+          onImageLongPress={onImageLongPress}
+          configJson={configJson}
+          selectable={selectable}
+          suppressDoubleTapSelection={suppressDoubleTapSelection}
+          options={options}
+          onFlowAction={handleAction}
+          onFlowSelection={handleSelection}
+          pendingNested={
+            !initialParts || initialParts.has(part)
+              ? geometry.firstNested
+              : geometry.tailNested
+          }
+          onNestedMeasured={checkLayout}
+          renderLinkCard={renderLinkCard}
+        />
+      ),
+    [
+      manualImages,
+      width,
+      configJson,
+      fontSize,
+      lineHeight,
+      selectable,
+      suppressDoubleTapSelection,
+      options,
+      linkColor,
+      handleSelection,
+      handleAction,
+      onFlowMeasured,
+      geometry,
+      initialParts,
+      checkLayout,
+      enableSegmentTap,
+      availableWidth,
+      textColor,
+      secondaryColor,
+      surfaceColor,
+      borderColor,
+      handleLink,
+      handleImage,
+      onImageLongPress,
+      renderLinkCard,
     ],
   );
   const footnote = normalized.document.footnotes?.find(
@@ -1526,31 +1855,16 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
       key={`${documentLayoutPrefix}:${configJson}`}
       onLayout={(event) => {
         if (
-          currentLayout.current.compiled !== compiled ||
-          currentLayout.current.key !== documentLayoutKey
+          committed.current.compiled !== compiled ||
+          committed.current.geometry !== geometry
         )
           return;
         const available = event.nativeEvent.layout.width;
         if (!Number.isFinite(available) || available <= 0) return;
-        const nextWidth = options.integerMeasure
-          ? Math.max(scaledEm, Math.floor(available / scaledEm) * scaledEm)
-          : available;
-        const nextGeometryKey = `${documentLayoutPrefix}:${nextWidth}:${configJson}`;
         measuredContainerWidthRef.current = available;
         setAvailableWidth(available);
         setMeasuredContainerWidth(available);
-        const measured = measuredFlowsRef.current;
-        if (
-          compiled.parts.some((part) => part.type === 'flow')
-            ? compiled.parts.every(
-                (part) =>
-                  part.type !== 'flow' ||
-                  measured.get(part.flow.id) ===
-                    flowMeasureKey(part.flow, nextWidth, configJson),
-              )
-            : measuredBodyKeyRef.current === nextGeometryKey
-        )
-          notifyLayoutReady(nextGeometryKey);
+        checkLayout();
       }}
       style={styles.content}
     >
@@ -1585,17 +1899,17 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
           onLayout={(event) => {
             if (
               event.nativeEvent.layout.width !== availableWidth ||
-              currentLayout.current.compiled !== compiled ||
-              currentLayout.current.key !== documentLayoutKey
+              committed.current.compiled !== compiled ||
+              committed.current.geometry !== geometry
             )
               return;
-            measuredBodyKeyRef.current = documentGeometryKey;
-            if (
-              !compiled.parts.some((part) => part.type === 'flow') &&
-              measuredContainerWidthRef.current === availableWidth
-            )
-              notifyLayoutReady(documentGeometryKey);
+            geometry.bodyMeasured = true;
+            checkLayout();
           }}
+          accessibilityElementsHidden={!initialLayoutReady}
+          importantForAccessibility={
+            initialLayoutReady ? 'auto' : 'no-hide-descendants'
+          }
           pointerEvents={initialLayoutReady ? 'auto' : 'none'}
           style={[
             styles.content,
@@ -1608,48 +1922,33 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
             },
           ]}
         >
-          {compiled.parts.map((part) =>
-            part.type === 'flow' ? (
-              <NativeFlow
-                key={part.flow.id}
-                flow={part.flow}
-                contentWidth={width}
-                configJson={configJson}
-                fontSize={fontSize}
-                lineHeight={lineHeight}
-                selectable={selectable}
-                suppressDoubleTapSelection={suppressDoubleTapSelection}
-                options={options}
-                linkColor={linkColor}
-                onSelection={handleSelection}
-                onAction={handleAction}
-                onMeasured={onFlowMeasured}
-              />
-            ) : (
-              <NativeBlock
-                key={part.block.id}
-                block={part.block}
-                width={availableWidth}
-                fontSize={fontSize}
-                lineHeight={lineHeight}
-                textColor={textColor}
-                secondaryColor={secondaryColor}
-                linkColor={linkColor}
-                surfaceColor={surfaceColor}
-                borderColor={borderColor}
-                onLink={handleLink}
-                onImage={handleImage}
-                onImageLongPress={onImageLongPress}
-                configJson={configJson}
-                selectable={selectable}
-                suppressDoubleTapSelection={suppressDoubleTapSelection}
-                options={options}
-                onFlowAction={handleAction}
-                onFlowSelection={handleSelection}
-                renderLinkCard={renderLinkCard}
-              />
-            ),
-          )}
+          {batch.groups.map((group, slot) => (
+            <NativePartGroup
+              // biome-ignore lint/suspicious/noArrayIndexKey: each group owns a fixed range within this keyed document revision; metadata can renumber block IDs.
+              key={slot}
+              parts={group}
+              renderPart={renderPart}
+            />
+          ))}
+          {batch.done && !compiled.first.done ? (
+            <View
+              key={geometry.key}
+              testID="native-content-end"
+              accessible={false}
+              collapsable={false}
+              style={{ width: availableWidth, height: 0 }}
+              onLayout={({ nativeEvent: { layout } }) => {
+                if (
+                  layout.width !== availableWidth ||
+                  committed.current.compiled !== compiled ||
+                  committed.current.geometry !== geometry
+                )
+                  return;
+                geometry.endMeasured = true;
+                checkLayout();
+              }}
+            />
+          ) : null}
         </View>
       ) : null}
       <Modal
@@ -1668,8 +1967,10 @@ const NativeDocumentContent = React.memo(function NativeDocumentContent({
             <ScrollView>
               {footnote?.blocks.map((block) => (
                 <NativeBlock
+                  manualImages={manualImages}
                   key={block.id}
                   block={block}
+                  enableSegmentTap={enableSegmentTap}
                   width={Math.min(availableWidth, dimensions.width - 80)}
                   fontSize={fontSize}
                   lineHeight={lineHeight}
@@ -1731,6 +2032,12 @@ const styles = StyleSheet.create({
     minHeight: 140,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 8,
+  },
+  deferredImage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
     borderRadius: 8,
   },
   longImage: { borderRadius: 8, overflow: 'hidden' },

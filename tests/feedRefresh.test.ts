@@ -15,6 +15,9 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+const waitForRequest = () =>
+  new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 let client: QueryClient;
 let unsubscribe: (() => void) | undefined;
 
@@ -70,6 +73,7 @@ test('starts the first page alongside local IO and does not refetch old pages', 
   client.setQueryData(siblingKey, siblingData);
 
   const refreshing = refreshFeedQuery(client, queryKey, readExposureKeys);
+  await waitForRequest();
   expect(requests.map(({ pageParam }) => pageParam)).toEqual([0]);
   expect(readExposureKeys).toHaveBeenCalledTimes(1);
   expect(client.getQueryData(siblingKey)).toEqual(siblingData);
@@ -90,8 +94,9 @@ test('immediately aborts pagination even while exposure storage is slow', async 
   const keys = deferred<Set<string>>();
 
   const refreshing = refreshFeedQuery(client, queryKey, () => keys.promise);
-  expect(requests.map(({ pageParam }) => pageParam)).toEqual([3, 0]);
   expect(requests[0].signal.aborted).toBe(true);
+  await waitForRequest();
+  expect(requests.map(({ pageParam }) => pageParam)).toEqual([3, 0]);
   expect(requests[1].signal.aborted).toBe(false);
 
   requests[1].result.resolve(10);
@@ -109,11 +114,14 @@ test('failed refresh does not apply new exposure keys and can retry once', async
   const { queryKey, requests, observer } = observe();
   const keys = new Set(['answer:old-visible-card']);
   const refreshing = refreshFeedQuery(client, queryKey, async () => keys);
+  await waitForRequest();
   requests[0].result.reject(new Error('synthetic refresh failure'));
   await expect(refreshing).resolves.toBeUndefined();
-  expect(observer.getCurrentResult().isError).toBe(true);
+  expect(observer.getCurrentResult().data?.pages).toEqual([0, 1, 2]);
+  expect(observer.getCurrentResult().isError).toBe(false);
 
   const retry = refreshFeedQuery(client, queryKey, async () => keys);
+  await waitForRequest();
   requests[1].result.resolve(10);
   await expect(retry).resolves.toBe(keys);
   expect(requests.map(({ pageParam }) => pageParam)).toEqual([0, 0]);
@@ -121,26 +129,15 @@ test('failed refresh does not apply new exposure keys and can retry once', async
 });
 
 test.each([false, true])(
-  'an offline reset preserves its paused first page with launch cache %s',
+  'an offline refresh keeps the current pages with launch cache %s',
   async (withLaunchCache) => {
     const { queryKey, requests, observer } = observe(withLaunchCache);
     onlineManager.setOnline(false);
     await expect(
       refreshFeedQuery(client, queryKey, async () => new Set(['answer:seen'])),
     ).resolves.toBeUndefined();
-    expect(observer.getCurrentResult().isPaused).toBe(true);
-    expect(observer.getCurrentResult().isPending).toBe(!withLaunchCache);
-    expect(observer.getCurrentResult().isError).toBe(false);
+    expect(observer.getCurrentResult().fetchStatus).toBe('idle');
+    expect(observer.getCurrentResult().data?.pages).toEqual([0, 1, 2]);
     expect(requests).toHaveLength(0);
-
-    const resumed = client
-      .getQueryCache()
-      .find({ queryKey, exact: true })?.promise;
-    onlineManager.setOnline(true);
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    expect(requests.map(({ pageParam }) => pageParam)).toEqual([0]);
-    requests[0].result.resolve(10);
-    await resumed;
-    expect(observer.getCurrentResult().data?.pages).toEqual([10]);
   },
 );

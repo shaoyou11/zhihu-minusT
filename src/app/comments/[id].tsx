@@ -1,4 +1,5 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
+
 import { FlashList } from '@shopify/flash-list';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { GlassContainer } from 'expo-glass-effect';
@@ -28,6 +29,7 @@ import {
 } from '@/api/zhihu';
 import { BouncyButton } from '@/components/BouncyButton';
 import { CommentActionSheet } from '@/components/CommentActionSheet';
+import { CommentBubbleIcon } from '@/components/CommentBubbleIcon';
 import {
   CommentComposer,
   type CommentDraft,
@@ -46,7 +48,10 @@ import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { usePaneDimensions } from '@/features/adaptive-layout/PaneContext';
 import { useCommentKeyboardLayout } from '@/hooks/useCommentKeyboardLayout';
-import { useCommentListQuery } from '@/hooks/useCommentQueries';
+import {
+  useCommentListQuery,
+  useCommentStickers,
+} from '@/hooks/useCommentQueries';
 import {
   KeyboardAnchorNativeView,
   nativeKeyboardAnchorAvailable,
@@ -146,6 +151,8 @@ export default function CommentScreen() {
     refresh,
     refreshing,
   } = useCommentListQuery({ id, type, segmentId, segmentTarget, orderBy });
+
+  const stickers = useCommentStickers(comments);
 
   const mutation = useMutation({
     mutationFn: async ({ text: commentText, images }: CommentDraft) => {
@@ -268,7 +275,11 @@ export default function CommentScreen() {
               </Text>
             </BouncyButton>
             <View className="mt-2 bg-transparent">
-              <CommentContent htmlContent={item.content} width={contentWidth} />
+              <CommentContent
+                stickers={stickers}
+                htmlContent={item.content}
+                width={contentWidth}
+              />
             </View>
 
             <View className="flex-row justify-between items-center bg-transparent">
@@ -374,6 +385,7 @@ export default function CommentScreen() {
                           <CommentIdentityBadges comment={child} />
                         </Text>
                         <CommentContent
+                          stickers={stickers}
                           htmlContent={child.content}
                           width={contentWidth - 26}
                         />
@@ -482,11 +494,7 @@ export default function CommentScreen() {
                 }}
               >
                 <View className="flex-row items-center mb-1 bg-transparent">
-                  <Ionicons
-                    name="chatbox-ellipses-outline"
-                    size={14}
-                    color={tintColor}
-                  />
+                  <CommentBubbleIcon size={14} color={tintColor} />
                   <Text
                     style={{
                       color: tintColor,

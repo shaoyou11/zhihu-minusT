@@ -3,7 +3,10 @@ import type { ReactNode } from 'react';
 import { StyleSheet, type ViewProps } from 'react-native';
 import RootLayout from '../src/app/_layout';
 import { resolveThemeColors } from '../src/constants/theme';
-import { useSettingsStore } from '../src/store/useSettingsStore';
+import {
+  useInitialSettingsReady,
+  useSettingsStore,
+} from '../src/store/useSettingsStore';
 import { useThemeStore } from '../src/store/useThemeStore';
 
 const mockNavigationMount = jest.fn();
@@ -101,6 +104,9 @@ jest.mock('../src/components/CollectionToastOverlay', () => ({
 jest.mock('../src/components/DoubleTapActionSheet', () => ({
   DoubleTapActionSheet: () => null,
 }));
+jest.mock('../src/components/profile/ProfileAvatarBridge', () => ({
+  ProfileAvatarBridgeOverlay: () => null,
+}));
 jest.mock('../src/components/GradientMaskOverlay', () => ({
   GradientMaskOverlay: ({
     topEdge,
@@ -144,6 +150,7 @@ jest.mock('../src/store/useThemeStore', () => ({
   useSyncThemeWithNativeWind: () => undefined,
 }));
 jest.mock('../src/store/useSettingsStore', () => ({
+  useInitialSettingsReady: jest.requireActual('zustand').create(() => true),
   useSettingsStore: jest.requireActual('zustand').create(() => ({
     primaryColor: '#0084ff',
     readingBackground: 'default',
@@ -153,12 +160,21 @@ jest.mock('../src/store/useSettingsStore', () => ({
 }));
 
 beforeEach(() => {
+  useInitialSettingsReady.setState(true);
   mockNavigationMount.mockClear();
   mockNavigationUnmount.mockClear();
   mockPathname = '/';
   mockScreenOptions.clear();
   useThemeStore.setState({ isDark: false });
   useSettingsStore.setState({ readingBackground: 'default' });
+});
+
+test('mounts the first screen only after its saved image and layout preferences are known', async () => {
+  useInitialSettingsReady.setState(false);
+  await render(<RootLayout />);
+  expect(mockNavigationMount).not.toHaveBeenCalled();
+  await act(() => useInitialSettingsReady.setState(true));
+  expect(mockNavigationMount).toHaveBeenCalledTimes(1);
 });
 
 test('the recent publications route hides the default header at registration', async () => {

@@ -217,6 +217,7 @@ public final class RichTextView: ExpoView, UITextViewDelegate, UIGestureRecogniz
     let baseFont = UIFontMetrics(forTextStyle: .body).scaledFont(for: UIFont.systemFont(ofSize: config.fontSize), compatibleWith: traitCollection)
     let scale = baseFont.pointSize / config.fontSize
     manager.scale = scale
+    manager.commentIcon = config.commentIcon
     manager.quoteColor = config.secondaryColor
     textView.font = baseFont
     textView.textColor = config.textColor
@@ -295,12 +296,14 @@ public final class RichTextView: ExpoView, UITextViewDelegate, UIGestureRecogniz
       }
     }
     manager.decorations = flow.decorations.compactMap { spec in
-      guard let range = richTextRange(spec, in: flow.text) else { return nil }
+      guard let range = richTextDecorationRange(spec, in: flow.text) else { return nil }
       return RichTextDrawDecoration(
         range: range, kind: spec["kind"] as? String ?? "solid",
         color: richTextColor(spec["color"], fallback: config.linkColor),
         thickness: max(0.5, CGFloat(richTextNumber(spec["thickness"], fallback: 1.2)) * scale),
-        offset: CGFloat(richTextNumber(spec["offset"], fallback: 3)) * scale
+        offset: CGFloat(richTextNumber(spec["offset"], fallback: 3)) * scale,
+        hasComments: spec["hasComments"] as? Bool == true,
+        actionId: spec["actionId"] as? String
       )
     }
     for spec in flow.attachments {
@@ -420,7 +423,8 @@ public final class RichTextView: ExpoView, UITextViewDelegate, UIGestureRecogniz
     container.size = CGSize(width: width, height: .greatestFiniteMagnitude)
     manager.ensureLayout(for: container)
     let fit = textView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-    let rawHeight = flow.text.length == 0 ? 0 : max(fit.height, manager.usedRect(for: container).maxY)
+    let rawHeight = flow.text.length == 0 ? 0
+      : max(fit.height, manager.usedRect(for: container).maxY, manager.commentMarkersMaxY(in: container))
     guard rawHeight.isFinite else { return }
     let pixelScale = max(1, traitCollection.displayScale)
     let height = ceil(rawHeight * pixelScale) / pixelScale
@@ -493,17 +497,25 @@ public final class RichTextView: ExpoView, UITextViewDelegate, UIGestureRecogniz
   private func action(at point: CGPoint) -> (spec: RichTextSpec, kind: String)? {
     guard let flow, manager.numberOfGlyphs > 0 else { return nil }
     let location = CGPoint(x: point.x - textView.textContainerInset.left + textView.contentOffset.x, y: point.y - textView.textContainerInset.top + textView.contentOffset.y)
-    let glyph = manager.glyphIndex(for: location, in: container)
-    guard glyph < manager.numberOfGlyphs,
-          manager.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).contains(location) else { return nil }
-    let character = manager.characterIndexForGlyph(at: glyph)
+    let hit = manager.commentMarker(at: location)
+    let marker = hit.flatMap { hit in flow.decorations.first { $0["actionId"] as? String == hit.actionId } }
+    if let marker, hit?.insideIcon == true { return (marker, "segment") }
+    let character: Int
+    if let hit, marker != nil {
+      character = hit.endCharacter
+    } else {
+      let glyph = manager.glyphIndex(for: location, in: container)
+      guard glyph < manager.numberOfGlyphs,
+            manager.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).contains(location) else { return nil }
+      character = manager.characterIndexForGlyph(at: glyph)
+    }
     let groups: [([RichTextSpec], String)] = [
       (flow.attachments.filter { spec in
         guard let range = richTextRange(spec, in: flow.text), range.length == 1 else { return false }
         return flow.text.character(at: range.location) == 0xfffc
       }, "attachment"),
       (flow.spans.filter { $0["kind"] as? String == "link" }, "link"),
-      (flow.decorations.filter { $0["actionId"] as? String != nil }, "segment")
+      (marker.map { [$0] } ?? flow.decorations.filter { $0["actionId"] as? String != nil }, "segment")
     ]
     for (specs, kind) in groups {
       if let spec = specs.first(where: { spec in

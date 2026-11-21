@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { CanceledError } from 'axios';
 import { useRouter } from 'expo-router';
@@ -11,9 +10,10 @@ import {
   unfollowQuestion,
   type ZhihuQuestionDetail,
 } from '@/api/zhihu/question';
+import { CommentBubbleIcon } from '@/components/CommentBubbleIcon';
 import {
-  QUESTION_DETAIL_TEXT_STYLE,
   QuestionDetailContent,
+  QuestionDetailSummary,
 } from '@/components/QuestionDetailContent';
 import { TitleTransitionTarget } from '@/features/adaptive-layout/TitleTransition';
 import { RICH_CONTENT_STALE_TIME } from '@/features/rich-content';
@@ -44,7 +44,7 @@ export function AnswerPreviewQuestionHeader({
     hasAuthenticationCookie(state.cookies),
   );
   const sessionVersion = useAuthStore(() => getAuthSessionVersion());
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const {
     data: question,
@@ -85,6 +85,10 @@ export function AnswerPreviewQuestionHeader({
       wasFollowing ? '已取消关注' : '已关注问题',
   });
   const questionTitle = question?.title || title;
+  const summary = (question?.excerpt || question?.detail || '').replace(
+    /<[^>]+>/g,
+    '',
+  );
 
   return (
     <View
@@ -136,18 +140,13 @@ export function AnswerPreviewQuestionHeader({
                 <QuestionDetailContent
                   content={question.detail}
                   questionId={id}
+                  summary={summary}
                 />
               ) : (
-                <Text
-                  type="secondary"
-                  numberOfLines={3}
-                  style={QUESTION_DETAIL_TEXT_STYLE}
-                >
-                  {(question.excerpt || question.detail || '').replace(
-                    /<[^>]+>/g,
-                    '',
-                  )}
-                </Text>
+                <QuestionDetailSummary
+                  text={summary}
+                  truncate={Boolean(question.detail)}
+                />
               )}
               {question.detail ? (
                 <ContentActionButton
@@ -196,11 +195,7 @@ export function AnswerPreviewQuestionHeader({
                 })
               }
             >
-              <Ionicons
-                name="chatbubble-outline"
-                size={16}
-                color={colors.textSecondary}
-              />
+              <CommentBubbleIcon size={16} color={colors.textSecondary} />
               <Text type="secondary" style={{ fontSize: 13 }}>
                 {question?.comment_count ?? 0}
               </Text>

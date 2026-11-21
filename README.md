@@ -3,7 +3,7 @@
 # 🐱 知乎-- (Zhihu Minus Minus)
 
 [![CI](https://github.com/huamurui/zhihu-minus-minus/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/huamurui/zhihu-minus-minus/actions/workflows/ci.yml)
-[![版本](https://img.shields.io/badge/version-v0.9.10-blue)](./package.json)
+[![版本](https://img.shields.io/badge/version-v0.10.0-blue)](./package.json)
 ![平台](https://img.shields.io/badge/platform-Android%20%7C%20iOS-brightgreen)
 [![许可证](https://img.shields.io/badge/license-GPL--3.0-blue)](./LICENSE)
 
@@ -24,11 +24,15 @@
 ## ✨ 特性
 
 - **纯净浏览**：推荐、热榜、关注、同城和知乎日报，支持全站与用户内容搜索。
-- **舒适阅读**：支持折叠回答卡片与左右切换回答两种浏览模式（一些地方是两种推荐流）。
-- **双栏浏览（试验）**：对大屏的适配尝试，在“设置 → 外观与阅读 → 双栏布局（试验性）”切换“启用双栏布局”即可即时切换单栏与双栏。
+- **舒适阅读**：支持折叠回答卡片与左右切换回答两种浏览模式（一些地方是两种推荐流）。折叠卡片浏览同一问题的回答时，顶部会直接显示问题详情，描述可以收起。
+- 默认原生排版下，长图文回答和文章会先显示开头，后面的内容自动接上，可以直接往下读。
+- **划线评论**：有评论的划线会在末尾显示空心评论图标。长按回答正文选中文字，可在底部操作条点“评论”或“赞同”。点“评论”会带上所选原文，写好后点“发布”即可。容易误触划线时，可在“设置 → 外观与阅读 → 正文排版”关闭“点击划线查看评论”。
+- **无图模式**可在“设置 → 外观与阅读 → 正文排版”开启。列表卡片缩略图和正文配图点按后才加载，头像和公式仍照常显示。
+- **双栏浏览（试验）**可在“设置 → 外观与阅读 → 双栏布局（试验性）”选择自动、单栏或双栏。自动模式会在窗口宽度达到 840 逻辑像素时并排显示列表和详情。
 - **自由定制**：自定义主题色、深浅色模式和阅读背景。
 - **内容筛选**：过滤广告与营销内容，支持关键词、正则屏蔽。
 - **创作互动**：写回答、文章，发想法、提问题，支持评论、赞同、收藏。
+- **评论阅读**：评论和楼中楼支持显示知乎表情，点击正文中的 @ 提及可打开用户主页。
 - **个人内容**：管理创作、收藏夹与浏览历史，查看用户主页和专栏。
 - **账号切换**：支持多账号，也可用游客模式免登录浏览。游客可阅读接口公开返回的回答正文（折叠回答卡片模式时游客可以看到更多）。
 - **更新与隐私**：应用内检测新版，Android 支持下载安装；崩溃报告和匿名统计可随时关闭。
@@ -110,7 +114,7 @@ https://github.com/huamurui/zhihu-minus-minus/releases/latest/download/altstore-
 
 1. `git clone` 本仓库。
 2. 安装环境（参考下方的 **快速开始**）。
-3. 使用自己的 Apple ID 在 Xcode 中进行签名并编译到真机。
+3. 在本地 `app.json` 中将 `expo.ios.bundleIdentifier` 改为自己专用的 Bundle ID，再用自己的 Apple ID 签名并编译到真机。
 
 ```bash
 npm run prebuild -- --platform ios
@@ -141,6 +145,8 @@ npm ci
 
 2. **生成原生项目目录**
 
+如果要在自己的 iPhone 或 iPad 上运行，先在本地 `app.json` 中把 `expo.ios.bundleIdentifier` 改为个人专用的 ID，例如 `com.yourname.ZhihuMinusMinus`（用自己的 GitHub 用户名替换 `yourname`）。这样可以避免 Xcode 为你的团队注册仓库默认的 ID。提交 PR 时请排除这项本地改动。
+
 ```bash
 npm run prebuild
 ```
@@ -161,7 +167,7 @@ npm run android
 npm run ios
 ```
 
-⬇️ 在真实的 iOS 物理设备（iPhone / iPad）上编译并运行。
+在 iPhone 或 iPad 上编译并运行。如果已经生成过 `ios/`，后来才修改 Bundle ID，先运行 `npm run prebuild -- --platform ios --no-clean` 同步到 Xcode 工程。
 
 ```
 npx expo run:ios --device
@@ -182,7 +188,8 @@ npm run check
 由于知乎 API 的安全性限制（X-ZSE-96 等），目前采用 WebView 自动拦截方案：
 
 - 打开应用 -> 进入“我的” -> 点击登录按钮。
-- 在弹出的登录界面完成登录。
+- 在登录页使用手机登录，或点“扫码登录”，用另一台设备上的知乎官方 App 扫描页面中的二维码并确认。
+- 登录状态保存成功后，登录页会自动关闭并返回应用。
 - 升级首次读取会迁移旧明文账号，保留已有账号。保存或密钥失败时可在“我的”页重试；只有明确确认“清除本地账号”才清除所有账号。存储与设备恢复边界见 [账号保存与恢复](./docs/AUTH_STORAGE.md)。
 
 ## 🤝 贡献与声明
@@ -197,4 +204,4 @@ npm run check
 </a>
 
 ---
-**Version**: v0.9.10 | **Last Updated**: 2026-11-06
+**Version**: v0.10.0 | **Last Updated**: 2026-11-21

@@ -33,6 +33,7 @@ import {
 } from '@/api/zhihu/question';
 import { BouncyButton } from '@/components/BouncyButton';
 import { CollectionButton } from '@/components/CollectionButton';
+import { CommentBubbleIcon } from '@/components/CommentBubbleIcon';
 import { ContentActionButton } from '@/components/ContentActionButton';
 import { useContentCardSurface } from '@/components/contentCardSurface';
 import {
@@ -47,6 +48,7 @@ import { QueryErrorView } from '@/components/QueryErrorView';
 import {
   QUESTION_DETAIL_TEXT_STYLE,
   QuestionDetailContent,
+  QuestionDetailSummary,
 } from '@/components/QuestionDetailContent';
 import { ShareMenu } from '@/components/ShareMenu';
 import { StableAvatar } from '@/components/StableAvatar';
@@ -255,11 +257,7 @@ const QuestionAnswerCard = React.memo(function QuestionAnswerCard({
             })
           }
         >
-          <Ionicons
-            name="chatbubble-outline"
-            size={16}
-            color={secondaryColor}
-          />
+          <CommentBubbleIcon size={16} color={secondaryColor} />
           <Text type="secondary" className="ml-1 text-xs font-semibold">
             {item.comment_count}
           </Text>
@@ -543,6 +541,9 @@ export default function QuestionDetail() {
                       <QuestionDetailContent
                         content={question.detail}
                         questionId={id as string}
+                        summary={
+                          question.excerpt?.replace(/<[^>]+>/g, '') || ''
+                        }
                       />
                       <BouncyButton
                         accessibilityRole="button"
@@ -572,13 +573,9 @@ export default function QuestionDetail() {
                       accessibilityLabel="展开问题描述"
                       onPress={() => setDetailExpanded(true)}
                     >
-                      <Text
-                        type="secondary"
-                        numberOfLines={3}
-                        style={QUESTION_DETAIL_TEXT_STYLE}
-                      >
-                        {question.excerpt?.replace(/<[^>]+>/g, '') || ''}
-                      </Text>
+                      <QuestionDetailSummary
+                        text={question.excerpt?.replace(/<[^>]+>/g, '') || ''}
+                      />
                       <View className="flex-row items-center mt-1 gap-1">
                         <Text
                           style={{
@@ -643,11 +640,7 @@ export default function QuestionDetail() {
                     })
                   }
                 >
-                  <Ionicons
-                    name="chatbubble-outline"
-                    size={16}
-                    color={secondaryTextColor}
-                  />
+                  <CommentBubbleIcon size={16} color={secondaryTextColor} />
                   <Text
                     type="secondary"
                     style={{ fontSize: 13, lineHeight: 20 }}
