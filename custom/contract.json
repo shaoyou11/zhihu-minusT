@@ -20,6 +20,13 @@
       "onExpand",
       "展开阅读操作栏"
     ],
+    "src/components/ActionIconCount.tsx": [
+      "flexDirection: 'row', alignItems: 'center'",
+      "minWidth: 44"
+    ],
+    "tests/contentActionBarGlass.test.tsx": [
+      "reading actions keep their counts beside the icons in a single row"
+    ],
     "src/hooks/useReadingActionBar.ts": [
       "nextReadingActionBarOffset",
       "collapseProgress"

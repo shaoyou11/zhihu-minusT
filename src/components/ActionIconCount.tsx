@@ -4,7 +4,14 @@ import { useContentActionBarColor } from '@/components/ContentActionBarColor';
 import { useThemeColor } from '@/components/Themed';
 import { formatCount } from '@/utils/formatCount';
 
-/** A count in the lower-right corner of a fixed-size action target. */
+export const countedActionButtonStyle = {
+  minWidth: 44,
+  height: 44,
+  paddingHorizontal: 6,
+  paddingVertical: 0,
+} as const;
+
+/** Keep the icon and its count on the same line as the other actions. */
 export function ActionIconCount({
   children,
   count,
@@ -19,14 +26,16 @@ export function ActionIconCount({
   const hasCount = count !== undefined && Number.isFinite(count) && count >= 0;
 
   return (
-    <View style={styles.container} accessible={false}>
-      <View style={styles.icon}>{children}</View>
+    <View
+      testID="action-icon-count"
+      style={styles.container}
+      accessible={false}
+    >
+      {children}
       {hasCount ? (
         <Text
           accessible={false}
           numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.7}
           maxFontSizeMultiplier={1.2}
           style={[styles.count, { color: color ?? actionColor }]}
         >
@@ -38,17 +47,12 @@ export function ActionIconCount({
 }
 
 const styles = StyleSheet.create({
-  container: { width: 44, height: 44 },
-  icon: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   count: {
-    position: 'absolute',
-    left: 16,
-    right: 0,
-    bottom: 3,
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: 13,
+    lineHeight: 17,
     fontWeight: '600',
-    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
     includeFontPadding: false,
   },
 });

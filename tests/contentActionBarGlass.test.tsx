@@ -1,5 +1,9 @@
 import { fireEvent, render } from '@testing-library/react-native';
-import { Pressable, Text } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
+import {
+  ActionIconCount,
+  countedActionButtonStyle,
+} from '../src/components/ActionIconCount';
 import { ContentActionBar } from '../src/components/ContentActionBar';
 
 jest.mock('react-native-reanimated', () => {
@@ -66,6 +70,7 @@ jest.mock('../src/components/surfaces/FloatingSurface', () => ({
   },
 }));
 jest.mock('../src/components/Themed', () => ({
+  useThemeColor: () => '#555',
   useRuntimeThemeColors: () => ({
     contentOverlayStrong: '#fff',
     contentBorder: '#ddd',
@@ -122,4 +127,40 @@ test('interactive glass applies to action groups and the collapse control withou
   expect(onVote).toHaveBeenCalledTimes(1);
   expect(onComment).toHaveBeenCalledTimes(1);
   expect(onCollapse).toHaveBeenCalledTimes(1);
+});
+
+test('reading actions keep their counts beside the icons in a single row', async () => {
+  const onComment = jest.fn();
+  const host = await render(
+    <ContentActionBar bottomInset={34}>
+      <Pressable accessibilityRole="button" accessibilityLabel="5 次收藏">
+        <ActionIconCount count={5}>
+          <Text>收藏图标</Text>
+        </ActionIconCount>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="12345 条评论"
+        style={countedActionButtonStyle}
+        onPress={onComment}
+      >
+        <ActionIconCount count={12345}>
+          <Text>评论图标</Text>
+        </ActionIconCount>
+      </Pressable>
+    </ContentActionBar>,
+  );
+
+  for (const row of host.getAllByTestId('action-icon-count')) {
+    expect(row).toHaveStyle({ flexDirection: 'row', alignItems: 'center' });
+  }
+  for (const label of ['5', '1.2万']) {
+    const count = host.getByText(label);
+    expect(count).toHaveProp('numberOfLines', 1);
+    expect(StyleSheet.flatten(count.props.style).position).not.toBe('absolute');
+  }
+  const comments = host.getByRole('button', { name: '12345 条评论' });
+  expect(comments).toHaveStyle({ minWidth: 44, height: 44 });
+  await fireEvent.press(comments);
+  expect(onComment).toHaveBeenCalledTimes(1);
 });

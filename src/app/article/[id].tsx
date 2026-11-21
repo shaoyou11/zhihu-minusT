@@ -27,7 +27,10 @@ import {
 } from '@/api/zhihu/column';
 import { recordReadHistory } from '@/api/zhihu/history';
 import { followMember, unfollowMember } from '@/api/zhihu/member';
-import { ActionIconCount } from '@/components/ActionIconCount';
+import {
+  ActionIconCount,
+  countedActionButtonStyle,
+} from '@/components/ActionIconCount';
 import { AnswerEndorsements } from '@/components/AnswerEndorsements';
 import { BouncyButton } from '@/components/BouncyButton';
 import { CollectionButton } from '@/components/CollectionButton';
@@ -631,12 +634,7 @@ export default function ArticleDetail() {
                 accessibilityValue={{
                   text: `${zhihuData?.comment_count ?? 0} 条评论`,
                 }}
-                style={{
-                  width: 44,
-                  height: 44,
-                  paddingHorizontal: 0,
-                  paddingVertical: 0,
-                }}
+                style={countedActionButtonStyle}
                 onPress={() => router.push(`/comments/${id}?type=article`)}
               >
                 <ActionIconCount
