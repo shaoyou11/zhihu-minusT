@@ -42,6 +42,8 @@ interface DetailNavigationHeaderProps {
   onTitlePress?: () => void;
   onMore?: () => void;
   moreAlwaysVisible?: boolean;
+  /** Keep both actions legible over an answer while its compact title is hidden. */
+  floatingActions?: boolean;
   author?: {
     name: string;
     avatarUrl?: string | null;
@@ -60,12 +62,14 @@ export function DetailNavigationHeader({
   onTitlePress,
   onMore,
   moreAlwaysVisible = false,
+  floatingActions = false,
   author,
   testID,
 }: DetailNavigationHeaderProps) {
   const insets = useSafeAreaInsets();
   const navigationHeight = useDetailNavigationHeight();
   const foreground = useThemeColor({}, 'text');
+  const buttonBackground = useThemeColor({}, 'controlBackground');
   const hidden = useSharedValue(0);
   const hideDistance = insets.top + navigationHeight;
   useAnimatedReaction(
@@ -133,6 +137,7 @@ export function DetailNavigationHeader({
           onPress={onBack}
           size={40}
           color={foreground}
+          backgroundColor={floatingActions ? buttonBackground : undefined}
         />
         <Animated.View
           pointerEvents={collapsed ? 'box-none' : 'none'}
@@ -169,7 +174,16 @@ export function DetailNavigationHeader({
             </BouncyButton>
           ) : null}
         </Animated.View>
-        {onMore ? (
+        {floatingActions ? (
+          <GlassNavigationButton
+            icon="more"
+            accessibilityLabel="更多操作"
+            onPress={() => onMore?.()}
+            disabled={!onMore}
+            color={foreground}
+            backgroundColor={buttonBackground}
+          />
+        ) : onMore ? (
           <Animated.View
             pointerEvents={collapsed || moreAlwaysVisible ? 'box-none' : 'none'}
             accessibilityElementsHidden={!collapsed && !moreAlwaysVisible}

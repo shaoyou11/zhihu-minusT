@@ -27,10 +27,6 @@ import {
 } from '@/api/zhihu/column';
 import { recordReadHistory } from '@/api/zhihu/history';
 import { followMember, unfollowMember } from '@/api/zhihu/member';
-import {
-  ActionIconCount,
-  countedActionButtonStyle,
-} from '@/components/ActionIconCount';
 import { AnswerEndorsements } from '@/components/AnswerEndorsements';
 import { BouncyButton } from '@/components/BouncyButton';
 import { CollectionButton } from '@/components/CollectionButton';
@@ -42,7 +38,10 @@ import {
 } from '@/components/ContentActionBar';
 import { ContentActionButton } from '@/components/ContentActionButton';
 import { ContentDetailLoadingPreview } from '@/components/ContentDetailLoadingPreview';
-import { DetailNavigationHeader } from '@/components/DetailNavigationHeader';
+import {
+  DetailNavigationHeader,
+  useDetailNavigationHeight,
+} from '@/components/DetailNavigationHeader';
 import { FollowButton } from '@/components/FollowButton';
 import { InitialContentReveal } from '@/components/InitialContentReveal';
 import { MoreActionsButton } from '@/components/MoreActionsButton';
@@ -90,6 +89,7 @@ export default function ArticleDetail() {
   const linkColor = useThemeColor({}, 'link');
   const { id, source } = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const headerHeight = insets.top + useDetailNavigationHeight();
   const actionBarBottom = getContentActionBarBottom(
     insets.bottom,
     ARTICLE_ACTION_BAR_OFFSET,
@@ -316,79 +316,85 @@ export default function ArticleDetail() {
   };
 
   // Header Animation values
-  if (isLoading && !data) {
-    if (preview) {
-      return (
-        <ContentDetailLoadingPreview
-          type="article"
-          preview={preview}
-          onBack={() => router.back()}
-          onOpenAuthor={(token) => router.push(`/user/${token}`)}
-        />
-      );
-    }
+  if (isLoading && !data && preview) {
     return (
-      <View className="flex-1 justify-center items-center">
-        <Stack.Screen options={{ headerShown: false, title: '正文' }} />
-        <ActivityIndicator size="large" color={primaryColor} />
-        <Text className="mt-3">正赶往知识的荒原...喵</Text>
-      </View>
+      <ContentDetailLoadingPreview
+        type="article"
+        preview={preview}
+        onBack={() => router.back()}
+        onOpenAuthor={(token) => router.push(`/user/${token}`)}
+      />
     );
   }
 
+  const header = (
+    <>
+      <Stack.Screen options={{ headerShown: false, title: '正文' }} />
+
+      <DetailNavigationHeader
+        key={contentIdentity}
+        scrollY={actionBar.scrollY}
+        title={data?.title ?? '正文'}
+        collapsed
+        onBack={() => router.back()}
+        onMore={data ? () => setOpenMenuIdentity(contentIdentity) : undefined}
+      />
+    </>
+  );
+
   if (!data) {
-    if (isError) {
-      return (
-        <View className="flex-1 justify-center items-center px-6">
-          <Stack.Screen options={{ headerShown: false, title: '正文' }} />
-          <QueryErrorView
-            message="正文加载失败"
-            onRetry={() => void refetchContent()}
-          />
-        </View>
-      );
-    }
     return (
-      <View className="flex-1 justify-center items-center px-6">
-        <Stack.Screen options={{ headerShown: false, title: '正文' }} />
-        <Ionicons
-          name="compass-outline"
-          size={48}
-          color={Colors[colorScheme].textSecondary}
-        />
-        <Text className="text-base font-bold mt-4 mb-2">
-          你似乎来到了没有知识存在的荒原
-        </Text>
-        <Text type="secondary" className="text-xs text-center mb-6">
-          该文章可能已被删除、失效或暂不可见 喵~
-        </Text>
-        <BouncyButton
-          onPress={() => router.back()}
-          className="px-4 py-2 rounded-full"
-          style={{ backgroundColor: primaryTransparent }}
+      <View className="flex-1">
+        {header}
+        <View
+          className="flex-1 justify-center items-center px-6"
+          style={{ marginTop: headerHeight }}
         >
-          <Text className="text-xs font-bold" style={{ color: linkColor }}>
-            返回上一页
-          </Text>
-        </BouncyButton>
+          {isLoading ? (
+            <>
+              <ActivityIndicator size="large" color={primaryColor} />
+              <Text className="mt-3">正赶往知识的荒原...喵</Text>
+            </>
+          ) : isError ? (
+            <QueryErrorView
+              message="正文加载失败"
+              onRetry={() => void refetchContent()}
+            />
+          ) : (
+            <>
+              <Ionicons
+                name="compass-outline"
+                size={48}
+                color={Colors[colorScheme].textSecondary}
+              />
+              <Text className="text-base font-bold mt-4 mb-2">
+                你似乎来到了没有知识存在的荒原
+              </Text>
+              <Text type="secondary" className="text-xs text-center mb-6">
+                该文章可能已被删除、失效或暂不可见 喵~
+              </Text>
+              <BouncyButton
+                onPress={() => router.back()}
+                className="px-4 py-2 rounded-full"
+                style={{ backgroundColor: primaryTransparent }}
+              >
+                <Text
+                  className="text-xs font-bold"
+                  style={{ color: linkColor }}
+                >
+                  返回上一页
+                </Text>
+              </BouncyButton>
+            </>
+          )}
+        </View>
       </View>
     );
   }
 
   return (
     <View className="flex-1">
-      {/* Hide native header */}
-      <Stack.Screen options={{ headerShown: false, title: '正文' }} />
-
-      <DetailNavigationHeader
-        key={contentIdentity}
-        scrollY={actionBar.scrollY}
-        title={data.title}
-        collapsed
-        onBack={() => router.back()}
-        onMore={() => setOpenMenuIdentity(contentIdentity)}
-      />
-
+      {header}
       <GestureDetector gesture={doubleTapVote}>
         <RawView collapsable={false} style={{ flex: 1 }}>
           <Animated.ScrollView
@@ -634,18 +640,15 @@ export default function ArticleDetail() {
                 accessibilityValue={{
                   text: `${zhihuData?.comment_count ?? 0} 条评论`,
                 }}
-                style={countedActionButtonStyle}
-                onPress={() => router.push(`/comments/${id}?type=article`)}
-              >
-                <ActionIconCount
-                  count={
+                cornerCount={{
+                  value:
                     (zhihuData?.comment_count ?? 0) > 0
                       ? zhihuData?.comment_count
-                      : undefined
-                  }
-                >
-                  <CommentBubbleIcon size={20} />
-                </ActionIconCount>
+                      : undefined,
+                }}
+                onPress={() => router.push(`/comments/${id}?type=article`)}
+              >
+                <CommentBubbleIcon size={20} />
               </ContentActionButton>
               <MoreActionsButton
                 onPress={() => setOpenMenuIdentity(contentIdentity)}

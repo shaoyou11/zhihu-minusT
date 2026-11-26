@@ -3,10 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import { type GestureResponderEvent, StyleSheet } from 'react-native';
 import { hasAuthenticationCookie } from '@/api/client';
 import { getAllContentCollectionStatus } from '@/api/zhihu/collection';
-import {
-  ActionIconCount,
-  countedActionButtonStyle,
-} from '@/components/ActionIconCount';
 import { CollectionStarIcon } from '@/components/CollectionStarIcon';
 import { useContentActionBarColor } from '@/components/ContentActionBarColor';
 import { ContentActionButton } from '@/components/ContentActionButton';
@@ -25,7 +21,7 @@ interface CollectionButtonProps {
   count?: number;
   compact?: boolean;
   countDisplay?: 'inline' | 'corner';
-  variant?: 'inline' | 'floating';
+  variant?: 'inline' | 'floating' | 'text';
   disabled?: boolean;
 }
 
@@ -155,26 +151,30 @@ export function CollectionButton({
           ? undefined
           : { text: `${collectionCount} 次收藏` }
       }
-      disabled={disabled || busy}
+      // The text control is nested in a card: keep consuming touches while its action is busy.
+      disabled={variant === 'text' ? undefined : disabled || busy}
       onPress={(event) => void handlePress(event)}
-      style={countDisplay === 'corner' ? countedActionButtonStyle : undefined}
+      style={variant === 'text' ? styles.textButton : undefined}
+      cornerCount={
+        variant !== 'text' && countDisplay === 'corner'
+          ? { value: collectionCount, color }
+          : undefined
+      }
     >
-      {countDisplay === 'corner' ? (
-        <ActionIconCount count={collectionCount} color={color}>
-          <CollectionStarIcon
-            filled={collected === true}
-            size={24}
-            color={color}
-          />
-        </ActionIconCount>
+      {variant === 'text' ? (
+        <Text type="caption" style={{ color }} numberOfLines={1}>
+          {collected ? '已收藏' : '收藏'}
+          {countLabel === undefined ? '' : ` ${countLabel}`}
+        </Text>
       ) : (
         <CollectionStarIcon
           filled={collected === true}
-          size={variant === 'inline' ? 20 : 24}
+          size={variant === 'inline' && countDisplay === 'inline' ? 20 : 24}
           color={color}
         />
       )}
-      {countDisplay === 'inline' &&
+      {variant !== 'text' &&
+        countDisplay === 'inline' &&
         !compact &&
         collectionCount !== undefined && (
           <Text
@@ -193,6 +193,7 @@ export function CollectionButton({
 }
 
 const styles = StyleSheet.create({
+  textButton: { minWidth: 48, minHeight: 48 },
   count: {
     marginLeft: 4,
     fontSize: typography.fontSize.body,

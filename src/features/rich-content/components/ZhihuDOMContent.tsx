@@ -41,6 +41,7 @@ export interface ZhihuDOMContentProps {
   segmentParagraphs?: WebViewSegmentParagraphs;
   /** JSON-encoded [pid, sourceText] pairs from answer segment metadata. */
   segmentSourceTexts?: string;
+  /** Controls both rendering and interaction for comment underlines. */
   segmentTapEnabled?: boolean;
   linkCardInfoStr?: string;
   colorScheme: 'light' | 'dark';
@@ -121,7 +122,7 @@ export default React.memo(function ZhihuDOMContent({
   contentArray,
   segmentParagraphs,
   segmentSourceTexts = '[]',
-  segmentTapEnabled = true,
+  segmentTapEnabled: showSegmentHighlights = true,
   linkCardInfoStr,
   onImagePress,
   onImageLongPress,
@@ -161,8 +162,9 @@ export default React.memo(function ZhihuDOMContent({
       sanitizeRichContentHtml(
         contentArray ? contentSegmentsToHtml(contentArray) : htmlContent,
         segmentParagraphs,
+        showSegmentHighlights,
       ),
-    [contentArray, htmlContent, segmentParagraphs],
+    [contentArray, htmlContent, segmentParagraphs, showSegmentHighlights],
   );
 
   const themeColors = useRuntimeThemeColors();
@@ -454,7 +456,7 @@ export default React.memo(function ZhihuDOMContent({
           text-decoration: underline dashed;
           text-decoration-style: dashed;
           text-decoration-color: ${primaryColor}40;
-          cursor: ${segmentTapEnabled ? 'pointer' : 'auto'};
+          cursor: pointer;
         }
         .segment-comment-icon {
           display: inline-block;
@@ -936,7 +938,7 @@ export default React.memo(function ZhihuDOMContent({
             e.preventDefault();
             const pid = marker.getAttribute('data-pid');
             const nodeId = marker.getAttribute('data-segment-node-id');
-            if (${segmentTapEnabled} && pid && nodeId) {
+            if (${showSegmentHighlights} && pid && nodeId) {
               postBridgeMessage({ type: 'segment', pid, nodeId });
             }
             return;
@@ -1091,7 +1093,7 @@ export default React.memo(function ZhihuDOMContent({
     safeHtmlContent,
     manualImages,
     removeImageWatermark,
-    segmentTapEnabled,
+    showSegmentHighlights,
     segmentSourceTexts,
     linkCardInfoStr,
     textColor,
@@ -1207,7 +1209,7 @@ export default React.memo(function ZhihuDOMContent({
               }
               break;
             case 'segment':
-              if (segmentTapEnabled && data.nodeId)
+              if (showSegmentHighlights && data.nodeId)
                 onSegmentPress?.(data.pid, data.nodeId);
               break;
             case 'selection':

@@ -44,8 +44,8 @@ jest.mock('../src/api/zhihu/collection', () => ({
 jest.mock('../src/hooks/useCollectionAction', () => ({
   useCollectionAction: () => ({
     toggleCollect: mockToggleCollect,
-    isPending: mockCollectionPending,
   }),
+  useCollectionActionPending: () => mockCollectionPending,
 }));
 jest.mock('../src/store/useAuthStore', () => ({
   getAuthSessionVersion: () => mockAuthSessionVersion,
@@ -94,6 +94,9 @@ jest.mock('../src/utils/haptics', () => ({
 }));
 jest.mock('../src/utils/clipboard', () => ({ copyToClipboard: jest.fn() }));
 jest.mock('../src/utils/toast', () => ({ showToast: jest.fn() }));
+jest.mock('../src/components/overlays/SheetScrollView', () => ({
+  SheetScrollView: jest.requireActual('react-native').ScrollView,
+}));
 jest.mock('../src/components/overlays/BottomSheet', () => {
   const react = jest.requireActual<typeof import('react')>('react');
   const native =

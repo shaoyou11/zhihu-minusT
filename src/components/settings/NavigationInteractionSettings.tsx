@@ -7,7 +7,11 @@ import { Text, useThemeColor } from '@/components/Themed';
 import { ThemedSwitch } from '@/components/ThemedSwitch';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-import { type TabKey, useSettingsStore } from '@/store/useSettingsStore';
+import {
+  getPressFeedbackMode,
+  type TabKey,
+  useSettingsStore,
+} from '@/store/useSettingsStore';
 
 const LAYOUT_OPTIONS = [
   { value: 'auto', label: '自动' },
@@ -17,6 +21,7 @@ const LAYOUT_OPTIONS = [
 
 const ANDROID_FEEDBACK_OPTIONS = [
   { value: 'ripple', label: '水波纹' },
+  { value: 'opacity', label: '仅透明度' },
   { value: 'scale-opacity', label: '缩放' },
 ] as const;
 
@@ -24,19 +29,23 @@ export function NavigationInteractionSettings() {
   const colorScheme = useColorScheme() ?? 'light';
   const tintColor = useThemeColor({}, 'primary');
   const previewBackground = useThemeColor({}, 'primary_26');
+  const settings = useSettingsStore();
+  const feedback = getPressFeedbackMode(settings);
   const {
     androidFeedbackType,
+    androidPredictiveBackEnabled,
     defaultTab,
     enableHapticFeedback,
     largeScreenLayoutMode,
     enablePressFeedback,
     localCityName,
+    performanceMode,
     pressOpacity,
     pressScale,
     updateSettings,
     useNativeIOSBottomTabs,
     visibleTabs,
-  } = useSettingsStore();
+  } = settings;
 
   const tabLabels: Record<TabKey, string> = {
     following: '关注',
@@ -83,6 +92,28 @@ export function NavigationInteractionSettings() {
             : ' 切换时保留当前页面状态。'}
         </Text>
       </Section>
+
+      {Platform.OS === 'android' && Platform.Version >= 34 ? (
+        <Section title="返回手势" colorScheme={colorScheme}>
+          <SettingItem
+            label="预测性返回"
+            icon="arrow-back-outline"
+            colorScheme={colorScheme}
+          >
+            <ThemedSwitch
+              accessibilityLabel="预测性返回"
+              accessibilityHint="单栏浏览时，从屏幕边缘滑动可预览上一页"
+              value={androidPredictiveBackEnabled}
+              onValueChange={(value) =>
+                updateSettings({ androidPredictiveBackEnabled: value })
+              }
+            />
+          </SettingItem>
+          <Text type="secondary" style={styles.feedbackHint}>
+            单栏浏览时，使用 Android 系统返回手势可预览上一页，往回拖可取消。
+          </Text>
+        </Section>
+      ) : null}
 
       {Platform.OS === 'ios' ? (
         <Section title="界面材质" colorScheme={colorScheme}>
@@ -170,19 +201,25 @@ export function NavigationInteractionSettings() {
           />
         </SettingItem>
         <Text type="secondary" style={styles.feedbackHint}>
-          关闭后无水波纹、缩放和透明度变化。震动由上方开关单独控制。
+          {performanceMode && enablePressFeedback
+            ? '性能模式使用仅透明度反馈，关闭性能模式后恢复原来的按压样式。'
+            : '关闭后无水波纹、缩放和透明度变化。震动由上方开关单独控制。'}
         </Text>
 
-        {enablePressFeedback && Platform.OS === 'android' ? (
+        {enablePressFeedback &&
+        !performanceMode &&
+        Platform.OS === 'android' ? (
           <SettingItem
             label="反馈样式"
             icon="hardware-chip-outline"
             colorScheme={colorScheme}
+            stacked
           >
             <SettingOptions
               accessibilityLabel="反馈样式"
               options={ANDROID_FEEDBACK_OPTIONS}
               value={androidFeedbackType}
+              fill
               onChange={(value) =>
                 updateSettings({ androidFeedbackType: value })
               }
@@ -190,55 +227,50 @@ export function NavigationInteractionSettings() {
           </SettingItem>
         ) : null}
 
-        {enablePressFeedback &&
-        (Platform.OS !== 'android' ||
-          androidFeedbackType === 'scale-opacity') ? (
-          <>
-            <StepperSetting
-              label="按压不透明度"
-              icon="contrast-outline"
-              value={pressOpacity.toFixed(2)}
-              colorScheme={colorScheme}
-              onDecrease={() =>
-                updateSettings({
-                  pressOpacity: Math.max(
-                    0.5,
-                    Number((pressOpacity - 0.05).toFixed(2)),
-                  ),
-                })
-              }
-              onIncrease={() =>
-                updateSettings({
-                  pressOpacity: Math.min(
-                    1,
-                    Number((pressOpacity + 0.05).toFixed(2)),
-                  ),
-                })
-              }
-            />
-            <StepperSetting
-              label="按压缩放比例"
-              icon="expand-outline"
-              value={pressScale.toFixed(2)}
-              colorScheme={colorScheme}
-              onDecrease={() =>
-                updateSettings({
-                  pressScale: Math.max(
-                    0.88,
-                    Number((pressScale - 0.01).toFixed(2)),
-                  ),
-                })
-              }
-              onIncrease={() =>
-                updateSettings({
-                  pressScale: Math.min(
-                    1,
-                    Number((pressScale + 0.01).toFixed(2)),
-                  ),
-                })
-              }
-            />
-          </>
+        {feedback === 'opacity' || feedback === 'scale-opacity' ? (
+          <StepperSetting
+            label="按压不透明度"
+            icon="contrast-outline"
+            value={pressOpacity.toFixed(2)}
+            colorScheme={colorScheme}
+            onDecrease={() =>
+              updateSettings({
+                pressOpacity: Math.max(
+                  0.5,
+                  Number((pressOpacity - 0.05).toFixed(2)),
+                ),
+              })
+            }
+            onIncrease={() =>
+              updateSettings({
+                pressOpacity: Math.min(
+                  1,
+                  Number((pressOpacity + 0.05).toFixed(2)),
+                ),
+              })
+            }
+          />
+        ) : null}
+        {feedback === 'scale-opacity' ? (
+          <StepperSetting
+            label="按压缩放比例"
+            icon="expand-outline"
+            value={pressScale.toFixed(2)}
+            colorScheme={colorScheme}
+            onDecrease={() =>
+              updateSettings({
+                pressScale: Math.max(
+                  0.88,
+                  Number((pressScale - 0.01).toFixed(2)),
+                ),
+              })
+            }
+            onIncrease={() =>
+              updateSettings({
+                pressScale: Math.min(1, Number((pressScale + 0.01).toFixed(2))),
+              })
+            }
+          />
         ) : null}
 
         <SettingItem

@@ -1,5 +1,11 @@
 import 'react-native-gesture-handler/jestSetup';
-import { Slot, Stack, useLocalSearchParams, useNavigation } from 'expo-router';
+import {
+  Slot,
+  Stack,
+  useLocalSearchParams,
+  useNavigation,
+  usePreventRemove,
+} from 'expo-router';
 import type { NativeStackNavigationProp } from 'expo-router/native-stack';
 import { HeaderShownContext } from 'expo-router/react-navigation';
 import {
@@ -67,6 +73,11 @@ let profileProgress: Animated.Value | undefined;
 const profileHeaderStates: boolean[] = [];
 let streamProgress: Animated.Value | undefined;
 const streamHeaderStates: boolean[] = [];
+const confirmLeave = jest.fn();
+function ProtectedPage() {
+  usePreventRemove(true, confirmLeave);
+  return <Text>编辑中</Text>;
+}
 function Page({ name }: { name: string }) {
   const router = usePaneRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -209,6 +220,10 @@ async function open(initialUrl = '/', defaultHeaders = false) {
       'comments/[id]': () => <Page name="comments" />,
       'settings/index': () => <Page name="settings" />,
       'settings/appearance': () => <Page name="appearance" />,
+      protected: ProtectedPage,
+      'nested/_layout': () => <Stack />,
+      'nested/index': () => <Text>nested index</Text>,
+      'nested/details': () => <Text>nested details</Text>,
       about: () => <Page name="header" />,
     },
     { initialUrl },
@@ -227,6 +242,7 @@ function appRoutes(result: Awaited<ReturnType<typeof open>>) {
 beforeEach(async () => {
   // Exercise the adaptive host, which remains the Android single-pane path.
   jest.replaceProperty(Platform, 'OS', 'android');
+  jest.clearAllMocks();
   jest
     .spyOn(AccessibilityInfo, 'isReduceMotionEnabled')
     .mockResolvedValue(false);
@@ -546,32 +562,60 @@ test('a pending deletion removes its own detail and preserves the newer list', a
   await testRouter.back('/');
 });
 
-test('system back consumes one chronological entry per press and leaves root unhandled', async () => {
-  const listener = jest.spyOn(BackHandler, 'addEventListener');
-  try {
-    const result = await open();
-    const onBack = listener.mock.calls.find(
-      ([event]) => event === 'hardwareBackPress',
-    )?.[1];
-    expect(onBack).toBeDefined();
-    await testRouter.push('/answer/a');
-    await testRouter.push('/user/u');
-    await resize(800, 1200);
-    await act(() => {
-      expect(onBack?.({ type: 'hardwareBackPress', timeStamp: 1 })).toBe(true);
-    });
-    expect(result.getPathname()).toBe('/answer/a');
-    await resize(1200, 800);
-    await act(() => {
-      expect(onBack?.({ type: 'hardwareBackPress', timeStamp: 1 })).toBe(true);
-    });
-    expect(result.getPathname()).toBe('/');
-    await act(() => {
-      expect(onBack?.({ type: 'hardwareBackPress', timeStamp: 1 })).toBe(false);
-    });
-  } finally {
-    listener.mockRestore();
-  }
+test.each([false, true])(
+  'ordinary system Back consumes just one entry and leaves the root unhandled (dual panes %s)',
+  async (dual) => {
+    const listener = jest.spyOn(BackHandler, 'addEventListener');
+    try {
+      await setTwoPanes(dual);
+      const result = await open();
+      const onBack = listener.mock.calls.find(
+        ([event]) => event === 'hardwareBackPress',
+      )?.[1];
+      expect(onBack).toBeDefined();
+      await testRouter.push('/answer/a');
+      await testRouter.push('/user/u');
+      await resize(800, 1200);
+      await act(() => {
+        expect(onBack?.({ type: 'hardwareBackPress', timeStamp: 1 })).toBe(
+          true,
+        );
+      });
+      expect(result.getPathname()).toBe('/answer/a');
+      await resize(1200, 800);
+      await act(() => {
+        expect(onBack?.({ type: 'hardwareBackPress', timeStamp: 1 })).toBe(
+          true,
+        );
+      });
+      expect(result.getPathname()).toBe('/');
+      await act(() => {
+        expect(onBack?.({ type: 'hardwareBackPress', timeStamp: 1 })).toBe(
+          false,
+        );
+      });
+    } finally {
+      listener.mockRestore();
+    }
+  },
+);
+
+test('protected editors and nested navigators retain their standard Back handling', async () => {
+  const hardwareBack = jest.spyOn(BackHandler, 'addEventListener');
+  await setTwoPanes(false);
+  const result = await open('/answer/a');
+  await testRouter.push('/protected');
+  const handler = hardwareBack.mock.calls.find(
+    ([event]) => event === 'hardwareBackPress',
+  )?.[1];
+  await act(() => {
+    expect(handler?.({ type: 'hardwareBackPress', timeStamp: 1 })).toBe(true);
+  });
+  expect(confirmLeave).toHaveBeenCalledTimes(1);
+  expect(result.getPathname()).toBe('/protected');
+  await testRouter.push('/nested');
+  await testRouter.push('/nested/details');
+  await testRouter.back('/nested');
 });
 
 test('starting with panes disabled, resizing and changing preferences retain the same page', async () => {

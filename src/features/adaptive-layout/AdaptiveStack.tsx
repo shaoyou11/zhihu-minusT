@@ -49,6 +49,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassNavigationButton } from '@/components/navigation/GlassNavigationButton';
 import { useIsLiquidGlassActive } from '@/components/surfaces/FloatingSurface';
 import { useRuntimeThemeColors } from '@/components/Themed';
+import {
+  predictiveBackDestinationId,
+  predictiveBackSurfaceId,
+  supportsPredictiveBack,
+} from '@/modules/predictive-back';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import {
   getListPaneWidth,
@@ -65,6 +70,7 @@ import {
   useTitleTransitionActiveForRoute,
 } from './TitleTransition';
 import { PaneSelectionContext } from './usePaneRouter';
+import { usePredictiveBack } from './usePredictiveBack';
 
 type StackEvents = {
   [K in keyof NativeStackNavigationEventMap]: NativeStackNavigationEventMap[K] & {
@@ -80,11 +86,13 @@ type ContentProps = NavigatorContentProps<
     navigatorKey: string;
     isPreloaded: (key: string) => boolean;
     isRemovalPrevented: (key: string) => boolean;
+    hasChildNavigator: boolean;
     pop: (count: number, sourceRouteKey: string) => void;
   }
 >;
 
 type RetainedRoute = {
+  predictiveExit?: boolean;
   route: ContentProps['state']['routes'][number];
   descriptor: ContentProps['descriptors'][string];
   index: number;
@@ -129,6 +137,9 @@ function AdaptiveStackContent({
   actions,
   dispatchNavigation,
   navigatorKey,
+  isRemovalPrevented,
+  hasChildNavigator,
+  pop,
   enabled,
   dimensions,
 }: ContentProps & {
@@ -137,6 +148,29 @@ function AdaptiveStackContent({
 }) {
   const colors = useRuntimeThemeColors();
   const savedRatio = useSettingsStore((s) => s.largeScreenListRatio);
+  const predictiveBackEnabled = useSettingsStore(
+    (settings) => settings.androidPredictiveBackEnabled,
+  );
+  const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      setReduceMotion,
+    );
+    void AccessibilityInfo.isReduceMotionEnabled().then(
+      (initial) => {
+        if (mounted) setReduceMotion((current) => current ?? initial);
+      },
+      () => {
+        // Wait for a preference event if the initial native read is unavailable.
+      },
+    );
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
   const [ratio, setRatio] = useState(savedRatio);
   const [measurement, setMeasurement] = useState<{
     width: number;
@@ -154,7 +188,23 @@ function AdaptiveStackContent({
   const width = size?.width ?? dimensions.width;
   const height = size?.height ?? dimensions.height;
   const panes = getVisiblePanes(state.routes, state.index, enabled);
-  const activeKey = state.routes[state.index]?.key;
+  const activeRoute = state.routes[state.index];
+  const activeKey = activeRoute?.key;
+  const previousKey = state.routes[state.index - 1]?.key;
+  const target =
+    Platform.OS === 'android' &&
+    Number(Platform.Version) >= 34 &&
+    supportsPredictiveBack &&
+    previousKey &&
+    !enabled &&
+    predictiveBackEnabled &&
+    reduceMotion === false &&
+    !hasChildNavigator &&
+    activeKey &&
+    descriptors[activeKey]?.options.gestureEnabled !== false &&
+    !isRemovalPrevented(activeKey)
+      ? activeKey
+      : undefined;
   const transition = useRef({
     key: activeKey,
     sequence: 0,
@@ -203,6 +253,18 @@ function AdaptiveStackContent({
   const [exiting, setExiting] = useState<RetainedRoute | null>(null);
   const completedExit = useRef<string | null>(null);
   const [, markExitComplete] = useReducer((version: number) => version + 1, 0);
+  const finishExit = useCallback((routeKey: string) => {
+    completedExit.current = routeKey;
+    setExiting((current) => (current?.route.key === routeKey ? null : current));
+    markExitComplete();
+  }, []);
+  const committed = usePredictiveBack(
+    target,
+    previousKey,
+    state.routes,
+    pop,
+    finishExit,
+  );
   const pendingExit =
     Platform.OS === 'android' &&
     previous.current?.activeKey !== activeKey &&
@@ -210,11 +272,14 @@ function AdaptiveStackContent({
     previous.current?.routeKeys.includes(activeKey) &&
     previous.current.active &&
     !state.routes.some((route) => route.key === previous.current?.activeKey)
-      ? previous.current.active
+      ? committed &&
+        committed.source === previous.current.activeKey &&
+        committed.destination === activeKey
+        ? { ...previous.current.active, predictiveExit: true }
+        : previous.current.active
       : null;
   const retained =
     pendingExit ?? (transition.current.returning ? exiting : null);
-  const activeRoute = state.routes[state.index];
   useLayoutEffect(() => {
     if (pendingExit) {
       if (completedExit.current === pendingExit.route.key) {
@@ -244,11 +309,6 @@ function AdaptiveStackContent({
           : null,
     };
   });
-  const finishExit = useCallback((routeKey: string) => {
-    completedExit.current = routeKey;
-    setExiting((current) => (current?.route.key === routeKey ? null : current));
-    markExitComplete();
-  }, []);
   const commitRatio = useCallback((next: number) => {
     setRatio(next);
     useSettingsStore.getState().updateSettings({ largeScreenListRatio: next });
@@ -294,6 +354,8 @@ function AdaptiveStackContent({
               const retainedRoute =
                 retained?.route.key === route.key ? retained : null;
               const isExiting = retainedRoute !== null;
+              const previewSource =
+                route.key === previousKey ? target : undefined;
               const descriptor =
                 retainedRoute?.descriptor ?? descriptors[route.key];
               const isList = route.key === panes.listKey;
@@ -317,14 +379,23 @@ function AdaptiveStackContent({
                   width={paneWidth}
                   height={retainedRoute?.height ?? height}
                   visible={visible}
+                  predictiveExit={retainedRoute?.predictiveExit === true}
+                  previewDestination={!!previewSource}
+                  backdropColor={
+                    previewSource || route.key === committed?.destination
+                      ? colors.background
+                      : undefined
+                  }
                   background={
                     Platform.OS === 'android' &&
-                    !transition.current.returning &&
-                    underlayKeys.includes(route.key) &&
-                    !visible
+                    !visible &&
+                    (!!previewSource ||
+                      (!transition.current.returning &&
+                        underlayKeys.includes(route.key)))
                   }
                   active={route.key === activeKey && !isList}
                   exiting={isExiting}
+                  reduceMotion={reduceMotion === true}
                   animateEntry={
                     Platform.OS !== 'android' || !transition.current.returning
                   }
@@ -336,6 +407,11 @@ function AdaptiveStackContent({
                   transitionSequence={transition.current.sequence}
                 >
                   <AdaptiveScreen
+                    surfaceId={
+                      previewSource
+                        ? predictiveBackDestinationId(previewSource)
+                        : predictiveBackSurfaceId(route.key)
+                    }
                     options={descriptor.options}
                     canGoBack={(retainedRoute?.index ?? state.index) > 0}
                     onBack={actions.back}
@@ -372,9 +448,13 @@ function RoutePane({
   width,
   height,
   visible,
+  predictiveExit,
+  previewDestination,
+  backdropColor,
   background,
   active,
   exiting,
+  reduceMotion,
   animateEntry,
   onExited,
   expand,
@@ -388,9 +468,13 @@ function RoutePane({
   width: number;
   height: number;
   visible: boolean;
+  predictiveExit: boolean;
+  previewDestination: boolean;
+  backdropColor?: string;
   background: boolean;
   active: boolean;
   exiting: boolean;
+  reduceMotion: boolean;
   animateEntry: boolean;
   onExited: (routeKey: string) => void;
   expand: boolean;
@@ -404,23 +488,6 @@ function RoutePane({
     visible && active && animateEntry && transitionSequence > 0;
   const progress = useRef(new Animated.Value(isEntering ? 0 : 1)).current;
   const lastTransition = useRef(0);
-  const reduceMotion = useRef(false);
-  useEffect(() => {
-    let mounted = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (mounted) reduceMotion.current = enabled;
-    });
-    const subscription = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      (enabled) => {
-        reduceMotion.current = enabled;
-      },
-    );
-    return () => {
-      mounted = false;
-      subscription.remove();
-    };
-  }, []);
   useLayoutEffect(() => {
     if (
       !visible ||
@@ -432,7 +499,7 @@ function RoutePane({
     }
     lastTransition.current = transitionSequence;
     progress.stopAnimation();
-    if (!animateEntry || reduceMotion.current) {
+    if (!animateEntry || reduceMotion) {
       progress.setValue(1);
       return;
     }
@@ -448,12 +515,20 @@ function RoutePane({
       animation.stop();
       progress.setValue(1);
     };
-  }, [active, animateEntry, exiting, progress, transitionSequence, visible]);
+  }, [
+    active,
+    animateEntry,
+    exiting,
+    progress,
+    reduceMotion,
+    transitionSequence,
+    visible,
+  ]);
   useLayoutEffect(() => {
-    if (!exiting) return;
+    if (!exiting || predictiveExit) return;
     progress.stopAnimation();
     progress.setValue(1);
-    if (reduceMotion.current) {
+    if (reduceMotion) {
       onExited(routeKey);
       return;
     }
@@ -467,7 +542,7 @@ function RoutePane({
       if (finished) onExited(routeKey);
     });
     return () => animation.stop();
-  }, [exiting, onExited, progress, routeKey]);
+  }, [exiting, onExited, predictiveExit, progress, reduceMotion, routeKey]);
   useEffect(() => {
     if (!visible && focused.current) {
       focused.current = false;
@@ -485,19 +560,31 @@ function RoutePane({
   ) {
     setLastFrame({ width, height, left });
   }
-  const frame = visible ? { width, height, left } : lastFrame;
+  // A hidden route may have last been visible in a narrow pane before rotation.
+  // Render its preview at the destination size without activating that pane.
+  const frame =
+    visible || previewDestination ? { width, height, left } : lastFrame;
   // Stable identity matters: route-level Stack.Screen updates options in a layout
   // effect. Recreating this value on each descriptor update causes a render loop.
   const value = useMemo(
     () => ({
       width: frame.width,
       height: frame.height,
-      visible,
+      visible: visible && !predictiveExit,
       routeKey,
       twoPane,
       fixedHeaderEntryProgress: expand ? undefined : progress,
     }),
-    [frame.width, frame.height, visible, routeKey, twoPane, expand, progress],
+    [
+      frame.width,
+      frame.height,
+      visible,
+      predictiveExit,
+      routeKey,
+      twoPane,
+      expand,
+      progress,
+    ],
   );
   const webProps = Platform.OS === 'web' ? { inert: !visible } : {};
   // Keep visibility independent of native-driven opacity on retained routes.
@@ -516,7 +603,15 @@ function RoutePane({
       importantForAccessibility={
         visible && !exiting ? 'auto' : 'no-hide-descendants'
       }
-      style={[styles.route, frame, { opacity: visible || background ? 1 : 0 }]}
+      style={[
+        styles.route,
+        frame,
+        // Mask the older route through the margins of a shrinking destination.
+        {
+          opacity: visible || background ? 1 : 0,
+          backgroundColor: backdropColor,
+        },
+      ]}
     >
       <Animated.View
         testID={`${testID}-transition`}
@@ -555,12 +650,14 @@ function RoutePane({
 }
 
 function AdaptiveScreen({
+  surfaceId,
   options,
   children,
   onBack,
   canGoBack,
   previousTitle,
 }: {
+  surfaceId: string;
   options: NativeStackNavigationOptions;
   children: React.ReactNode;
   onBack: () => void;
@@ -578,8 +675,14 @@ function AdaptiveScreen({
       ? options.headerTintColor
       : colors.primary;
   const itemProps = { tintColor, canGoBack };
+  // Native owns this surface's scale, exit translation and rounded outline during Back.
+  // Its ancestors handle layout, visibility and ordinary route transitions.
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      collapsable={Platform.OS === 'android' ? false : undefined}
+      nativeID={Platform.OS === 'android' ? surfaceId : undefined}
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       {shown ? (
         <View
           onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
@@ -639,6 +742,8 @@ export const TwoPaneStack = createStandardRouterNavigator(
   {
     createProps: (args) => ({
       ...createNativeStackProps(args),
+      // A child navigator (e.g. dev) handles Back before its enclosing route.
+      hasChildNavigator: !!args.state.routes[args.state.index]?.state,
       dispatchNavigation: args.dispatch,
       navigatorKey: args.state.key,
     }),

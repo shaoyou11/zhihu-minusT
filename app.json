@@ -203,8 +203,8 @@
       ],
       "package": "com.huamu013.ZhihuMinusMinus",
       "permissions": ["REQUEST_INSTALL_PACKAGES"],
-      "predictiveBackGestureEnabled": false,
-      "versionCode": 1000
+      "predictiveBackGestureEnabled": true,
+      "versionCode": 1001
     },
     "experiments": {
       "typedRoutes": true
@@ -213,7 +213,7 @@
       "eas": {
         "projectId": "faa0f061-50e6-4ec4-bb6f-accda0dbd24f"
       },
-      "lastUpdated": "2026-11-21",
+      "lastUpdated": "2026-11-22",
       "releaseNotes": {
         "v0.0.12": [
           "基础稳定性优化: 修复了若干 UI 细节与已知的小概率崩溃问题。"
@@ -256,7 +256,7 @@
           "阅读体验修复: 避免滚动回答时误触文本选择，并修正富文本列表标记的对齐表现。"
         ],
         "v0.6.2": [
-          "Android 架构兼容: Release 同时提供 arm64-v8a、armeabi-v7a、x86 与 x86_64 单 ABI 安装包。",
+          "Android 架构兼容: arm64-v8a 是适用于大多数手机和平板的主包，Release 另提供 armeabi-v7a、x86 与 x86_64 兼容包。",
           "一键更新更稳定: 根据设备支持的 CPU 架构精确选择 APK，无法确认兼容包时不再盲目下载。"
         ],
         "v0.6.3": [
@@ -270,7 +270,7 @@
         ]
       },
       "router": {},
-      "status": "🚀 v0.10.0 - 功能完善中"
+      "status": "🚀 v0.10.1 - 功能完善中"
     },
     "icon": "./src/assets/images/icon.png",
     "ios": {
@@ -359,7 +359,7 @@
     "scheme": "zhihu--",
     "slug": "ZhihuMinusT",
     "userInterfaceStyle": "automatic",
-    "version": "0.10.0",
+    "version": "0.10.1",
     "web": {
       "bundler": "metro",
       "favicon": "./src/assets/images/favicon.png",

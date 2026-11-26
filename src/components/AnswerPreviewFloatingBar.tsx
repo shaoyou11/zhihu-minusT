@@ -7,10 +7,6 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 import type { ZhihuPreviewAnswerMetadata } from '@/api/zhihu/nextRender';
-import {
-  ActionIconCount,
-  countedActionButtonStyle,
-} from '@/components/ActionIconCount';
 import { CollectionButton } from '@/components/CollectionButton';
 import { CommentBubbleIcon } from '@/components/CommentBubbleIcon';
 import {
@@ -116,7 +112,10 @@ export function AnswerPreviewFloatingBar({
             <ContentActionButton
               accessibilityRole="button"
               accessibilityLabel={`${answer.comment_count} 条回答评论`}
-              style={countedActionButtonStyle}
+              cornerCount={{
+                value:
+                  answer.comment_count > 0 ? answer.comment_count : undefined,
+              }}
               onPress={() => {
                 if (!shown) return;
                 router.push({
@@ -129,13 +128,7 @@ export function AnswerPreviewFloatingBar({
                 });
               }}
             >
-              <ActionIconCount
-                count={
-                  answer.comment_count > 0 ? answer.comment_count : undefined
-                }
-              >
-                <CommentBubbleIcon size={20} />
-              </ActionIconCount>
+              <CommentBubbleIcon size={20} />
             </ContentActionButton>
             <MoreActionsButton
               accessibilityLabel="回答更多操作"

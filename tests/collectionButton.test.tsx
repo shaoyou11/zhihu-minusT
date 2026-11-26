@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import {
+  act,
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from '@testing-library/react-native';
 import type { ComponentProps } from 'react';
 import type { PressableProps } from 'react-native';
 import { getAllContentCollectionStatus } from '../src/api/zhihu/collection';
@@ -113,6 +119,32 @@ afterEach(() => {
   for (const client of clients.splice(0)) client.clear();
 });
 
+test('text-only feed collection follows the selected item and remains actionable', async () => {
+  const host = await setup({ variant: 'text', isCollected: false });
+  await fireEvent.press(host.getByText('收藏'));
+  expect(mockToggleCollect).toHaveBeenLastCalledWith(
+    'answer-a',
+    'answer',
+    false,
+  );
+  await host.update({
+    id: 'article-b',
+    type: 'article',
+    isCollected: true,
+    count: 12345,
+  });
+  expect(host.getByRole('button', { name: '取消收藏' })).toHaveProp(
+    'accessibilityValue',
+    { text: '12345 次收藏' },
+  );
+  await fireEvent.press(host.getByText('已收藏 1.2万'));
+  expect(mockToggleCollect).toHaveBeenLastCalledWith(
+    'article-b',
+    'article',
+    true,
+  );
+});
+
 test.each([false, true])(
   'known collection state %s toggles directly and stops card navigation',
   async (isCollected) => {
@@ -190,15 +222,16 @@ test('compact collection keeps its complete accessible count while hiding only t
   expect(getAllContentCollectionStatus).not.toHaveBeenCalled();
 });
 
-test('corner collection count stays visible and exposes the full value', async () => {
+test('long counts stay inside the action on one line without intercepting presses', async () => {
   const host = await setup({
-    count: 12345,
+    count: 99999000,
     isCollected: true,
     countDisplay: 'corner',
   });
-  expect(host.getByText('1.2万')).toBeTruthy();
   const button = host.getByRole('button', { name: '取消收藏' });
-  expect(button).toHaveProp('accessibilityValue', { text: '12345 次收藏' });
+  expect(within(button).getByText('9999.9万')).toHaveProp('numberOfLines', 1);
+  expect(button).toHaveStyle({ minWidth: 44 });
+  expect(button).toHaveProp('accessibilityValue', { text: '99999000 次收藏' });
   await fireEvent.press(button);
   expect(mockToggleCollect).toHaveBeenCalledWith('answer-a', 'answer', true);
 });

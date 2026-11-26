@@ -3,7 +3,7 @@
 # 🐱 知乎-- (Zhihu Minus Minus)
 
 [![CI](https://github.com/huamurui/zhihu-minus-minus/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/huamurui/zhihu-minus-minus/actions/workflows/ci.yml)
-[![版本](https://img.shields.io/badge/version-v0.10.0-blue)](./package.json)
+[![版本](https://img.shields.io/badge/version-v0.10.1-blue)](./package.json)
 ![平台](https://img.shields.io/badge/platform-Android%20%7C%20iOS-brightgreen)
 [![许可证](https://img.shields.io/badge/license-GPL--3.0-blue)](./LICENSE)
 
@@ -26,9 +26,11 @@
 - **纯净浏览**：推荐、热榜、关注、同城和知乎日报，支持全站与用户内容搜索。
 - **舒适阅读**：支持折叠回答卡片与左右切换回答两种浏览模式（一些地方是两种推荐流）。折叠卡片浏览同一问题的回答时，顶部会直接显示问题详情，描述可以收起。
 - 默认原生排版下，长图文回答和文章会先显示开头，后面的内容自动接上，可以直接往下读。
-- **划线评论**：有评论的划线会在末尾显示空心评论图标。长按回答正文选中文字，可在底部操作条点“评论”或“赞同”。点“评论”会带上所选原文，写好后点“发布”即可。容易误触划线时，可在“设置 → 外观与阅读 → 正文排版”关闭“点击划线查看评论”。
+- **划线评论**：有评论的划线会在末尾显示空心评论图标。长按回答正文选中文字，可在底部操作条点“评论”或“赞同”。点“评论”会带上所选原文，写好后点“发布”即可。在“设置 → 外观与阅读 → 正文排版”关闭“显示评论划线”，即可隐藏评论划线和气泡，仍可长按选字。
 - **无图模式**可在“设置 → 外观与阅读 → 正文排版”开启。列表卡片缩略图和正文配图点按后才加载，头像和公式仍照常显示。
-- **双栏浏览（试验）**可在“设置 → 外观与阅读 → 双栏布局（试验性）”选择自动、单栏或双栏。自动模式会在窗口宽度达到 840 逻辑像素时并排显示列表和详情。
+- Android 7.0 至 8.1 新安装时，按钮按下会变淡，松手恢复。已有安装可在“设置 → 外观与阅读 → 按压反馈 → 反馈样式”选“仅透明度”，减轻滚动时的绘制负担。也可在同处选择水波纹或缩放。
+- **性能模式**可在“设置 → 外观与阅读”顶部开启。推荐和关注里的回答、文章和问题会使用文字卡片，省去头像和缩略图，保留作者、赞同、收藏、评论等入口。按钮按下时变淡，打开正文时跳过标题动画。关闭开关会恢复原来的卡片和按压设置。
+- 双栏浏览（试验）：可在“设置 → 外观与阅读 → 双栏布局（试验性）”选择自动、单栏或双栏。自动模式会在窗口宽度达到 840 逻辑像素时并排显示列表和详情。
 - **自由定制**：自定义主题色、深浅色模式和阅读背景。
 - **内容筛选**：过滤广告与营销内容，支持关键词、正则屏蔽。
 - **创作互动**：写回答、文章，发想法、提问题，支持评论、赞同、收藏。
@@ -75,10 +77,10 @@
 
 ### 🤖 Android
 
-你可以直接前往 [GitHub Releases](https://github.com/huamurui/zhihu-minus-minus/releases) 下载最新的 APK 文件进行安装。
+安装包可从 [GitHub Releases](https://github.com/huamurui/zhihu-minus-minus/releases) 下载。当前 APK 的最低系统要求为 **Android 7.0（API 24）**。已通过真机验证的最低版本为 **32 位 Android 8.1（API 27）**。
 
 > [!NOTE]
-> 请留意 APK 文件名。GitHub Release 会提供 `arm64-v8a`、`armeabi-v7a`、`x86` 和 `x86_64` 四个单 ABI APK；`arm64-v8a` 是默认验证过的主包，其余 `compat-*` 包目前主要用于兼容设备和模拟器，未完成完整实机验证。应用内更新会根据设备 ABI 选择匹配附件。
+> 大多数 Android 手机和平板请下载 `arm64-v8a` 主包。仅 32 位 ARM 设备选择 `compat-armeabi-v7a`；`compat-x86` 和 `compat-x86_64` 主要用于对应架构的模拟器或少数设备。
 
 也可以从源码构建：
 
@@ -100,7 +102,7 @@ Windows 无法运行 `eas build --local`，请使用 [Windows 本地构建指南
 本应用不会在 App Store 上架。
 [GitHub Releases](https://github.com/huamurui/zhihu-minus-minus/releases) 会提供未签名 IPA；需要用户自行处理签名和安装环境。
 
-- 当前原生配置的 iOS 最低版本为 **16.4**。Release 中的 IPA 未签名，不能直接当作可安装成品使用。
+从 **v0.9.4** 起，最低系统版本为 **iOS 16.4**。[v0.9.3](https://github.com/huamurui/zhihu-minus-minus/releases/tag/v0.9.3) 是最后一个支持 **iOS 15.1** 的版本，适用于 iOS 15.1 至 16.3.x 的设备。
 
 使用 **SideStore 或 AltStore Classic** 时，可以添加以下订阅源，从源中安装并在侧载工具内更新应用：
 
@@ -134,7 +136,7 @@ npx expo run:ios --configuration Release --device
 
 - Node.js **24.x**、npm（与 `.nvmrc`、CI 一致）；
 - Android：JDK 17、Android SDK、ADB 或模拟器；
-- iOS：macOS、Xcode **26.4 或更高版本**、CocoaPods；
+- iOS：macOS 26.6 或更高版本、Xcode 27.1 或更高版本、CocoaPods；
 - EAS CLI 仅在使用 EAS 构建时需要。
 
 1. **安装依赖**
@@ -204,4 +206,4 @@ npm run check
 </a>
 
 ---
-**Version**: v0.10.0 | **Last Updated**: 2026-11-21
+**Version**: v0.10.1 | **Last Updated**: 2026-11-23

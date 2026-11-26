@@ -362,6 +362,7 @@ function AnswerDetailScreen() {
         title={headerTitle || '加载中...'}
         collapsed={headerState.collapsed}
         progress={headerState.headerProgress}
+        floatingActions
         onBack={() => router.back()}
         onTitlePress={() => {
           const target = headerQuestionId;
@@ -512,15 +513,10 @@ function AnswerDetailScreen() {
               }
               isFocused={index === currentPage}
               isPreloading={Math.abs(index - currentPage) === 1}
-              headerProgress={headerState.headerProgress}
+              onHeaderScroll={headerState.onHeaderScroll}
               activeAnswerId={headerState.activeAnswerId}
-              activeScrollY={headerState.activeScrollY}
               activeScopeVersion={headerState.activeScopeVersion}
               scopeVersion={headerState.scopeVersion}
-              onScroll={(y) => headerState.onScroll(aid, y)}
-              onHeaderLayout={(offset) =>
-                headerState.onHeaderLayout(aid, offset)
-              }
             />
           </View>
         ))}

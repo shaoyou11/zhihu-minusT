@@ -75,6 +75,7 @@ export default function AppearanceSettings() {
   const colorScheme = useColorScheme() ?? 'light';
   const {
     fontSizeScale,
+    performanceMode,
     lineHeightScale,
     primaryColor,
     readingBackground,
@@ -131,6 +132,26 @@ export default function AppearanceSettings() {
           paddingBottom: insets.bottom + 40,
         }}
       >
+        <Section title="性能" colorScheme={colorScheme}>
+          <SettingItem
+            label="性能模式"
+            icon="speedometer-outline"
+            colorScheme={colorScheme}
+          >
+            <ThemedSwitch
+              accessibilityLabel="性能模式"
+              accessibilityHint="精简信息流卡片与按压效果，打开正文时跳过标题动画"
+              value={performanceMode}
+              onValueChange={(value) =>
+                updateSettings({ performanceMode: value })
+              }
+            />
+          </SettingItem>
+          <Text type="secondary" style={styles.performanceHint}>
+            精简信息流卡片与按压效果，打开正文时跳过标题动画。
+          </Text>
+        </Section>
+
         <Section title="个性化" colorScheme={colorScheme}>
           <BouncyButton
             onPress={() => router.push('/settings/app-icon' as Href)}
@@ -233,13 +254,13 @@ export default function AppearanceSettings() {
             />
           </SettingItem>
           <SettingItem
-            label="点击划线查看评论"
+            label="显示评论划线"
             icon="comment-bubble"
             colorScheme={colorScheme}
           >
             <ThemedSwitch
-              accessibilityLabel="点击划线查看评论"
-              accessibilityHint="控制单击回答划线时是否打开段落菜单，长按仍可选字"
+              accessibilityLabel="显示评论划线"
+              accessibilityHint="关闭后隐藏正文中的评论划线和气泡，仍可长按选字"
               value={enableSegmentTap}
               onValueChange={(value) =>
                 updateSettings({ enableSegmentTap: value })
@@ -1018,6 +1039,7 @@ function ColorPickerSection({
 // ================= Styles =================
 
 const styles = StyleSheet.create({
+  performanceHint: { paddingHorizontal: 16, paddingVertical: 12, fontSize: 13 },
   container: { flex: 1 },
   routeRow: {
     minHeight: 70,

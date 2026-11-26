@@ -132,6 +132,7 @@ jest.mock('../src/store/useSettingsStore', () => ({
       surfaceStyle: 'layered',
       fontSizeScale: 1,
       lineHeightScale: 1.5,
+      performanceMode: false,
       richContentRenderer: 'native-v2',
       answerReadingMode: 'detail',
       enableSegmentTap: true,
@@ -146,6 +147,7 @@ beforeEach(() => {
   mockTapGestures.length = 0;
   jest.mocked(useSettingsStore.getState().updateSettings).mockClear();
   useSettingsStore.setState({
+    performanceMode: false,
     primaryColor: colors.light.primary,
     readingBackground: 'default',
     textContrast: 'standard',
@@ -402,12 +404,27 @@ test('switches between manual and automatic image loading from reading settings'
   expect(useSettingsStore.getState().imageLoadingMode).toBe('auto');
 });
 
-test('switches off the answer segment menu from reading settings', async () => {
+test('the performance switch only updates its own preference', async () => {
   const host = await render(<AppearanceSettings />);
-  await fireEvent(
-    host.getByLabelText('点击划线查看评论'),
-    'valueChange',
-    false,
-  );
-  expect(useSettingsStore.getState().enableSegmentTap).toBe(false);
+  const toggle = host.getByLabelText('性能模式');
+  expect(toggle).toHaveProp('value', false);
+  for (const enabled of [true, false]) {
+    await fireEvent(toggle, 'valueChange', enabled);
+    expect(toggle).toHaveProp('value', enabled);
+    expect(useSettingsStore.getState().updateSettings).toHaveBeenLastCalledWith(
+      {
+        performanceMode: enabled,
+      },
+    );
+  }
+});
+
+test('toggles comment underlines using the existing reading preference', async () => {
+  const host = await render(<AppearanceSettings />);
+  const toggle = host.getByLabelText('显示评论划线');
+  for (const enabled of [false, true]) {
+    await fireEvent(toggle, 'valueChange', enabled);
+    expect(toggle).toHaveProp('value', enabled);
+    expect(useSettingsStore.getState().enableSegmentTap).toBe(enabled);
+  }
 });

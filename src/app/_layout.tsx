@@ -26,6 +26,7 @@ import { useRuntimeThemeColors } from '@/components/Themed';
 import { UpdateChecker } from '@/components/UpdateChecker';
 import { VerificationModal } from '@/components/VerificationModal';
 import { AdaptiveStack as Stack } from '@/features/adaptive-layout/AdaptiveStack';
+import { AndroidBackNavigation } from '@/features/adaptive-layout/AndroidBackNavigation';
 import { useQueryConnectivity } from '@/hooks/useQueryConnectivity';
 import { useInitialSettingsReady } from '@/store/useSettingsStore';
 import {
@@ -350,6 +351,7 @@ function RootLayout() {
                   }}
                 />
               </Stack>
+              {Platform.OS === 'android' && <AndroidBackNavigation />}
 
               {/* 首页在原生容器内绘制顶部玻璃，避免根级重复覆盖。 */}
               <GradientMaskOverlay
